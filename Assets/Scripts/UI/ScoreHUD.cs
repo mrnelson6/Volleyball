@@ -12,7 +12,7 @@ namespace Volleyball
 
         void Start()
         {
-            if (match == null) match = FindFirstObjectByType<MatchManager>();
+            if (match == null) match = FindAnyObjectByType<MatchManager>();
         }
 
         void Update()

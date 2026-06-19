@@ -3,22 +3,27 @@ using UnityEngine;
 namespace Volleyball
 {
     /// <summary>
-    /// Simple volleyball AI used for the teammate and both opponents. Each frame it
-    /// predicts where the ball will descend to hitting height, and if that lands on its
-    /// own half it moves under it and returns the ball; otherwise it falls back to a
-    /// defensive home position. It "owns" the left or right half of its side (halfSign)
-    /// so a team's two players don't chase the same ball.
+    /// Volleyball AI for the teammate and opponents. It plays a real rally: the team's
+    /// 1st touch is a bump (pass to its own setter zone), the 2nd is a set toward the
+    /// best-placed teammate near the net (which can be the human), and the 3rd is an
+    /// attack over the net (a jump spike when it can, otherwise a driven bump). Players
+    /// pursue only when they are the closest teammate to where the ball will come down,
+    /// so the two players don't fight over the same ball.
     /// </summary>
     public class AIController : VolleyPlayer
     {
-        [Header("AI")]
-        public float aimError = 1.2f;
-        public float spikeHeightThreshold = 1.7f;
+        // AI tuning is global — edit it in the GameConfig asset.
+        float aimError => GameConfig.Instance.aiAimError;
+        float spikeHeightThreshold => GameConfig.Instance.aiSpikeHeightThreshold;
 
         Vector3 _home;
         Vector2 _desiredMove;
         bool _wantJump;
         bool _wantHit;
+        bool _attacking;
+        HitType _hitType;
+        Vector3 _hitTarget;
+        float _jumpCooldown;
 
         protected override void Start()
         {
@@ -45,25 +50,186 @@ namespace Volleyball
             Vector3 bp = ball.transform.position;
             Vector3 landing = PredictLanding();
 
-            bool landsMySide = CourtGeometry.SideOf(landing) == team
-                               && Mathf.Abs(landing.x) <= CourtGeometry.HalfWidth + 1.5f
-                               && Mathf.Abs(landing.z) <= CourtGeometry.HalfDepth + 1.5f;
-            bool myHalf = Mathf.Abs(landing.x) < 0.6f || Mathf.Sign(landing.x) == Mathf.Sign(halfSign);
+            bool teamInPossession = match != null && match.Possession == team;
+            int nextTouch = teamInPossession ? match.Touches + 1 : 1;
 
-            Vector3 target = (landsMySide && myHalf) ? landing : _home;
+            // never take a contact that would exceed the 3-touch limit — let it drop instead
+            bool touchesRemain = !teamInPossession || match.Touches < match.maxTouches;
 
-            Vector3 to = target - GroundPosition;
+            PlanHit(nextTouch); // sets _attacking / _hitType / _hitTarget
+
+            // The ball is ours to play if it will come down on our side, OR we already have
+            // possession and it's currently on our side. The second clause guarantees a
+            // teammate always steps up after a touch (e.g. after the human bumps a pass).
+            // Decide what's "ours" by the predicted LANDING, not the current position — so we
+            // never chase a ball we just sent over the net. It's ours if it will come down on
+            // our side, or (while we have possession) it will land near the net, which covers a
+            // block or pass that rebounds back toward us.
+            bool landsOnOurSide = CourtGeometry.SideOf(landing) == team
+                                  && Mathf.Abs(landing.x) <= CourtGeometry.HalfWidth + 2f
+                                  && Mathf.Abs(landing.z) <= CourtGeometry.HalfDepth + 2f;
+            bool landsNearNetForUs = teamInPossession
+                                     && Mathf.Abs(landing.z) < 2f
+                                     && Mathf.Abs(landing.x) <= CourtGeometry.HalfWidth + 2f;
+            bool ballComingToUs = landsOnOurSide || landsNearNetForUs;
+
+            // (ClosestEligibleTo excludes whoever touched last, so we naturally alternate.)
+            bool pursue = ballComingToUs && ClosestEligibleTo(landing);
+
+            // when attacking, move under the ball's apex so we can spike it at its peak
+            Vector3 moveTarget;
+            if (pursue) moveTarget = _attacking ? ApexPoint() : landing;
+            else if (teamInPossession) moveTarget = SupportSpot();
+            else moveTarget = _home;
+
+            Vector3 to = moveTarget - GroundPosition;
             Vector2 dir = new Vector2(to.x, to.z);
             _desiredMove = dir.magnitude > 0.15f ? Vector2.ClampMagnitude(dir, 1f) : Vector2.zero;
 
-            if (BallInReach())
+            // Jump so we reach the top of our jump exactly when the ball is in the strike zone.
+            // The time-to-apex and apex height both come from jumpSpeed, so the timing tracks
+            // that value: predict where the ball will be after tApex and jump only if it'll be
+            // reachable at the height of our jump.
+            _jumpCooldown -= Time.deltaTime;
+            float g = -Physics.gravity.y;
+            float tApex = jumpSpeed / g;                          // time for us to reach our apex
+            float apexHeight = jumpSpeed * jumpSpeed / (2f * g);  // how high our jump reaches
+            float maxReach = apexHeight + hitReachHeight;         // highest we can contact at apex
+            Vector3 ballAtApex = bp + ball.Body.linearVelocity * tApex
+                                 + 0.5f * Physics.gravity * (tApex * tApex);
+            float hDistApex = Vector2.Distance(new Vector2(GroundPosition.x, GroundPosition.z),
+                                               new Vector2(ballAtApex.x, ballAtApex.z));
+            if (pursue && _attacking && IsGrounded && touchesRemain && _jumpCooldown <= 0f
+                && hDistApex < reach
+                && ballAtApex.y >= spikeHeightThreshold && ballAtApex.y <= maxReach)
             {
+                _wantJump = true;
+                _jumpCooldown = 0.9f;
+            }
+
+            // Contact only a ball that's actually coming to us (never swat one we just sent
+            // over). Plus: the single closest *eligible* teammate — never two players on one
+            // ball, never the player who just touched it, and never a 4th touch.
+            if (touchesRemain && ballComingToUs && BallInReach() && ClosestEligibleTo(bp))
                 _wantHit = true;
-                if (IsGrounded && bp.y > spikeHeightThreshold) _wantJump = true;
+        }
+
+        /// <summary>Choose the kind and target of the next contact based on the touch count.</summary>
+        void PlanHit(int nextTouch)
+        {
+            if (nextTouch >= 3)              // attack: send it over the net
+            {
+                _attacking = true;
+                _hitType = HitType.Bump;     // becomes a Spike in TryGetDesiredHit while airborne
+                _hitTarget = OpponentTarget();
+            }
+            else if (nextTouch == 2)         // set: feed a teammate near the net
+            {
+                _attacking = false;
+                _hitType = HitType.Set;
+                _hitTarget = SetTarget();
+            }
+            else                             // receive: pass up to our own setter zone
+            {
+                _attacking = false;
+                _hitType = HitType.Bump;
+                _hitTarget = ReceiveTarget();
             }
         }
 
-        /// <summary>Project the ball forward to where it next descends to hitting height.</summary>
+        protected override Vector2 ReadMove() => _desiredMove;
+        protected override bool ReadJumpPressed() => _wantJump;
+
+        protected override bool TryGetDesiredHit(out HitType type)
+        {
+            // a planned attack becomes a real spike once airborne, otherwise a driven bump
+            type = (_attacking && !IsGrounded) ? HitType.Spike : _hitType;
+            return _wantHit;
+        }
+
+        protected override Vector3 ChooseHitTarget(HitType type) => _hitTarget;
+
+        // ---- targets -------------------------------------------------------
+
+        Vector3 OpponentTarget()
+        {
+            float sign = CourtGeometry.SideSign(team.Other());
+            float x = Random.Range(-CourtGeometry.HalfWidth * 0.8f, CourtGeometry.HalfWidth * 0.8f)
+                      + Random.Range(-aimError, aimError);
+            x = Mathf.Clamp(x, -CourtGeometry.HalfWidth + 0.3f, CourtGeometry.HalfWidth - 0.3f);
+            float z = sign * CourtGeometry.HalfDepth * Random.Range(0.5f, 0.9f);
+            return new Vector3(x, 0.6f, z);
+        }
+
+        Vector3 SetTarget()
+        {
+            VolleyPlayer spiker = BestSpikerMate();
+            float x = spiker != null ? spiker.transform.position.x : 0f;
+            x = Mathf.Clamp(x, -CourtGeometry.HalfWidth + 0.5f, CourtGeometry.HalfWidth - 0.5f);
+            // own side, just in front of the net so the spiker can jump on it
+            return new Vector3(x, 0.6f, CourtGeometry.SideSign(team) * CourtGeometry.HalfDepth * 0.16f);
+        }
+
+        Vector3 ReceiveTarget()
+            => new Vector3(0f, 0.6f, CourtGeometry.SideSign(team) * CourtGeometry.HalfDepth * 0.3f);
+
+        Vector3 SupportSpot()
+            => new Vector3(halfSign * CourtGeometry.HalfWidth * 0.35f, 0f,
+                           CourtGeometry.SideSign(team) * CourtGeometry.HalfDepth * 0.28f);
+
+        // ---- teammate awareness -------------------------------------------
+
+        /// <summary>
+        /// True if this player may take the ball: it is not the last player to have touched
+        /// it (no consecutive contacts), and it is the closest of its remaining eligible
+        /// teammates (the human included) to the point. Exact ties break by instance id.
+        /// </summary>
+        bool ClosestEligibleTo(Vector3 point)
+        {
+            if (ball != null && (Object)ball.LastTouchPlayer == this) return false; // I just hit it
+            if (match == null || match.players == null) return true;
+
+            Vector2 q = new Vector2(point.x, point.z);
+            float mine = Vector2.Distance(new Vector2(GroundPosition.x, GroundPosition.z), q);
+            foreach (var p in match.players)
+            {
+                if (p == null || p == this || p.team != team) continue;
+                if (ball != null && (Object)ball.LastTouchPlayer == p) continue; // ineligible too
+                float d = Vector2.Distance(new Vector2(p.transform.position.x, p.transform.position.z), q);
+                if (d < mine) return false;
+                if (Mathf.Approximately(d, mine) && p.GetInstanceID() < GetInstanceID()) return false;
+            }
+            return true;
+        }
+
+        /// <summary>The teammate (excluding self) currently closest to the net — our spiker.</summary>
+        VolleyPlayer BestSpikerMate()
+        {
+            if (match == null || match.players == null) return null;
+            VolleyPlayer best = null;
+            float bestZ = float.MaxValue;
+            foreach (var p in match.players)
+            {
+                if (p == null || p == this || p.team != team) continue;
+                float distToNet = Mathf.Abs(p.transform.position.z);
+                if (distToNet < bestZ) { bestZ = distToNet; best = p; }
+            }
+            return best;
+        }
+
+        /// <summary>Horizontal point where the ball peaks (or where it lands if already falling).</summary>
+        Vector3 ApexPoint()
+        {
+            Vector3 p = ball.transform.position;
+            Vector3 v = ball.Body.linearVelocity;
+            if (v.y > 0.1f)
+            {
+                float tA = v.y / (-Physics.gravity.y);
+                return new Vector3(p.x + v.x * tA, 0f, p.z + v.z * tA);
+            }
+            return PredictLanding();
+        }
+
         Vector3 PredictLanding()
         {
             Vector3 p = ball.transform.position;
@@ -71,7 +237,6 @@ namespace Volleyball
             float g = -Physics.gravity.y;
             const float targetY = 1f;
 
-            // solve  p.y + v.y*t - 0.5*g*t^2 = targetY  for the later (descending) root
             float a = 0.5f * g;
             float b = -v.y;
             float c = targetY - p.y;
@@ -83,23 +248,6 @@ namespace Volleyball
             t = Mathf.Clamp(t, 0.05f, 4f);
 
             return new Vector3(p.x + v.x * t, 0f, p.z + v.z * t);
-        }
-
-        protected override Vector2 ReadMove() => _desiredMove;
-        protected override bool ReadJumpPressed() => _wantJump;
-        protected override bool ReadHitPressed() => _wantHit;
-
-        protected override Vector3 ChooseHitTarget(bool spike)
-        {
-            TeamSide opp = team.Other();
-            float sign = CourtGeometry.SideSign(opp);
-
-            float x = Random.Range(-CourtGeometry.HalfWidth * 0.8f, CourtGeometry.HalfWidth * 0.8f)
-                      + Random.Range(-aimError, aimError);
-            float z = sign * CourtGeometry.HalfDepth * Random.Range(0.45f, 0.85f);
-
-            x = Mathf.Clamp(x, -CourtGeometry.HalfWidth + 0.3f, CourtGeometry.HalfWidth - 0.3f);
-            return new Vector3(x, 0.6f, z);
         }
     }
 }

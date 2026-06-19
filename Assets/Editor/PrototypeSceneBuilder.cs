@@ -18,6 +18,7 @@ namespace Volleyball.EditorTools
     {
         const string ScenePath = "Assets/Scenes/Game.unity";
         const string SpritePath = "Assets/Sprites/circle.png";
+        const string BeachBallPath = "Assets/Sprites/beachball.png";
         const string MaterialDir = "Assets/Materials";
 
         // placeholder team colours
@@ -25,13 +26,14 @@ namespace Volleyball.EditorTools
         static readonly Color ColMate = new Color(0.45f, 0.80f, 1.00f);   // teammate (cyan)
         static readonly Color ColOpp1 = new Color(0.95f, 0.30f, 0.25f);   // opponent (red)
         static readonly Color ColOpp2 = new Color(0.98f, 0.60f, 0.20f);   // opponent (orange)
-        static readonly Color ColBall = new Color(1.00f, 0.95f, 0.70f);   // ball
 
         [MenuItem("Volleyball/Build Prototype Scene")]
         public static void Build()
         {
             EnsureFolders();
+            GameConfigCreator.EnsureExists(); // make the global tuning asset if it's missing
             Sprite circle = GetCircleSprite();
+            Sprite beachBall = GetBeachBallSprite();
             Material sand = MakeUnlitMaterial("Sand", new Color(0.93f, 0.85f, 0.62f));
             Material line = MakeUnlitMaterial("Line", Color.white);
             Material netMat = MakeUnlitMaterial("Net", new Color(0.9f, 0.9f, 0.9f));
@@ -42,7 +44,7 @@ namespace Volleyball.EditorTools
             BuildLight();
             BuildCourt(sand, line, netMat);
 
-            BallController ball = BuildBall(circle);
+            BallController ball = BuildBall(beachBall, circle);
 
             var players = new List<VolleyPlayer>();
             // team A — human listed first so it serves for team A
@@ -85,12 +87,14 @@ namespace Volleyball.EditorTools
             var cam = go.AddComponent<Camera>();
             cam.clearFlags = CameraClearFlags.SolidColor;
             cam.backgroundColor = new Color(0.45f, 0.75f, 0.95f);
-            cam.fieldOfView = 34f;
+            cam.fieldOfView = 36f;
             cam.nearClipPlane = 0.3f;
             cam.farClipPlane = 100f;
             go.AddComponent<AudioListener>();
-            go.transform.position = new Vector3(0f, 8f, -15.5f);
-            go.transform.rotation = Quaternion.Euler(24f, 0f, 0f);
+            // Side-of-the-net broadcast view: off to one sideline, elevated, looking across
+            // so the net is centred and the court's depth/length reads left-to-right.
+            go.transform.position = new Vector3(20f, 12f, -3f);
+            go.transform.LookAt(new Vector3(0f, 1.6f, 0f));
         }
 
         static void BuildLight()
@@ -139,7 +143,7 @@ namespace Volleyball.EditorTools
 
         // ----------------------------------------------------------------- ball / players
 
-        static BallController BuildBall(Sprite circle)
+        static BallController BuildBall(Sprite ballSprite, Sprite shadowSprite)
         {
             var go = new GameObject("Ball");
             go.transform.position = new Vector3(0f, 3f, -4f);
@@ -155,11 +159,26 @@ namespace Volleyball.EditorTools
             spr.transform.SetParent(go.transform, false);
             spr.transform.localScale = new Vector3(0.6f, 0.6f, 1f);
             var sr = spr.AddComponent<SpriteRenderer>();
-            sr.sprite = circle;
-            sr.color = ColBall;
-            spr.AddComponent<BillboardSprite>().yAxisOnly = false;
+            sr.sprite = ballSprite;
+            sr.color = Color.white;
+            var bb = spr.AddComponent<BillboardSprite>();
+            bb.yAxisOnly = false;
 
-            return go.AddComponent<BallController>();
+            var bc = go.AddComponent<BallController>();
+            bb.spinSource = bc; // sprite rolls to show the ball's spin
+
+            // ground shadow — flat (not billboarded), tracks the ball and scales with height
+            var shadow = new GameObject("Ball Shadow");
+            shadow.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+            var ssr = shadow.AddComponent<SpriteRenderer>();
+            ssr.sprite = shadowSprite;
+            ssr.color = new Color(0f, 0f, 0f, 0.4f);
+            var ds = shadow.AddComponent<DropShadow>();
+            ds.target = go.transform;
+            ds.baseSize = 0.75f;
+            ds.maxHeight = 6f;
+
+            return bc;
         }
 
         static VolleyPlayer MakePlayer(string name, TeamSide team, float halfSign,
@@ -169,12 +188,11 @@ namespace Volleyball.EditorTools
 
             var spr = new GameObject("Sprite");
             spr.transform.SetParent(root.transform, false);
-            spr.transform.localPosition = new Vector3(0f, 0.85f, 0f);
-            spr.transform.localScale = new Vector3(0.9f, 1.7f, 1f);
+            spr.transform.localPosition = CharacterArt.SpriteLocalPos;
             var sr = spr.AddComponent<SpriteRenderer>();
-            sr.sprite = circle;
-            sr.color = color;
             spr.AddComponent<BillboardSprite>().yAxisOnly = true;
+            // procedural human figure (idle/run/jump/swing) baked in this player's team colour
+            CharacterArt.AttachCharacter(spr, sr, color);
 
             VolleyPlayer vp = human
                 ? root.AddComponent<PlayerController>()
@@ -185,6 +203,18 @@ namespace Volleyball.EditorTools
             float x = halfSign * CourtGeometry.HalfWidth * 0.45f;
             float z = CourtGeometry.SideSign(team) * CourtGeometry.HalfDepth * 0.55f;
             root.transform.position = new Vector3(x, 0f, z);
+
+            // ground shadow that shrinks as the player jumps
+            var shadow = new GameObject(name + " Shadow");
+            shadow.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+            var ssr = shadow.AddComponent<SpriteRenderer>();
+            ssr.sprite = circle;
+            ssr.color = new Color(0f, 0f, 0f, 0.32f);
+            var ds = shadow.AddComponent<DropShadow>();
+            ds.target = root.transform;
+            ds.baseSize = 1.0f;
+            ds.maxHeight = 2.4f;
+
             return vp;
         }
 
@@ -224,10 +254,15 @@ namespace Volleyball.EditorTools
             panel.AddComponent<SafeArea>();
 
             BuildJoystick(panel.transform, circle);
-            BuildButton(panel.transform, circle, "JumpButton", "JUMP",
-                VirtualButtonKind.Jump, new Vector2(1f, 0f), new Vector2(-180f, 320f), font);
-            BuildButton(panel.transform, circle, "HitButton", "HIT",
-                VirtualButtonKind.Hit, new Vector2(1f, 0f), new Vector2(-360f, 180f), font);
+            // bottom-right action cluster
+            BuildButton(panel.transform, circle, "JumpButton", "JUMP", VirtualButtonKind.Jump,
+                new Vector2(1f, 0f), new Vector2(-330f, 360f), new Color(0.30f, 0.55f, 1f, 0.5f), font);
+            BuildButton(panel.transform, circle, "SpikeButton", "SPIKE", VirtualButtonKind.Spike,
+                new Vector2(1f, 0f), new Vector2(-150f, 360f), new Color(1f, 0.35f, 0.30f, 0.5f), font);
+            BuildButton(panel.transform, circle, "BumpButton", "BUMP", VirtualButtonKind.Bump,
+                new Vector2(1f, 0f), new Vector2(-330f, 180f), new Color(0.30f, 0.80f, 0.40f, 0.5f), font);
+            BuildButton(panel.transform, circle, "SetButton", "SET", VirtualButtonKind.Set,
+                new Vector2(1f, 0f), new Vector2(-150f, 180f), new Color(1f, 0.85f, 0.20f, 0.5f), font);
 
             var touch = canvasGO.AddComponent<TouchControls>();
             touch.panel = panel;
@@ -262,18 +297,18 @@ namespace Volleyball.EditorTools
         }
 
         static void BuildButton(Transform parent, Sprite circle, string name, string label,
-                                 VirtualButtonKind kind, Vector2 anchor, Vector2 pos, Font font)
+                                 VirtualButtonKind kind, Vector2 anchor, Vector2 pos, Color color, Font font)
         {
             var go = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(VirtualButton));
             go.transform.SetParent(parent, false);
             var rt = go.GetComponent<RectTransform>();
             rt.anchorMin = rt.anchorMax = anchor;
             rt.pivot = new Vector2(0.5f, 0.5f);
-            rt.sizeDelta = new Vector2(160f, 160f);
+            rt.sizeDelta = new Vector2(150f, 150f);
             rt.anchoredPosition = pos;
             var img = go.GetComponent<Image>();
             img.sprite = circle;
-            img.color = new Color(1f, 1f, 1f, 0.30f);
+            img.color = color;
             go.GetComponent<VirtualButton>().kind = kind;
 
             Text t = MakeText(go.transform, "Label", font,
@@ -354,6 +389,7 @@ namespace Volleyball.EditorTools
             if (imp != null)
             {
                 imp.textureType = TextureImporterType.Sprite;
+                imp.spriteImportMode = SpriteImportMode.Single;
                 imp.filterMode = FilterMode.Point;
                 imp.textureCompression = TextureImporterCompression.Uncompressed;
                 imp.mipmapEnabled = false;
@@ -361,6 +397,67 @@ namespace Volleyball.EditorTools
                 imp.SaveAndReimport();
             }
             return AssetDatabase.LoadAssetAtPath<Sprite>(SpritePath);
+        }
+
+        static Sprite GetBeachBallSprite()
+        {
+            if (!File.Exists(AbsPath(BeachBallPath)))
+            {
+                const int size = 128;
+                var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+                Vector2 c = new Vector2(size / 2f, size / 2f);
+                float r = size / 2f - 1f;
+
+                Color yellow = new Color(1.00f, 0.83f, 0.10f);
+                Color blue = new Color(0.12f, 0.40f, 0.85f);
+                Color white = new Color(0.96f, 0.96f, 0.96f);
+                Color[] palette = { yellow, blue, white };
+
+                Vector2 highlight = new Vector2(c.x - r * 0.35f, c.y + r * 0.35f);
+
+                for (int y = 0; y < size; y++)
+                    for (int x = 0; x < size; x++)
+                    {
+                        float dx = x + 0.5f - c.x;
+                        float dy = y + 0.5f - c.y;
+                        float dist = Mathf.Sqrt(dx * dx + dy * dy);
+                        if (dist > r) { tex.SetPixel(x, y, Color.clear); continue; }
+
+                        float rn = dist / r;
+                        float theta = Mathf.Atan2(dy, dx);            // -pi..pi
+                        float swirl = theta / (2f * Mathf.PI) + 0.5f * rn; // pinwheel panels
+                        swirl -= Mathf.Floor(swirl);
+                        Color col = palette[Mathf.Clamp((int)(swirl * 3f), 0, 2)];
+
+                        float shade = Mathf.Lerp(1f, 0.72f, rn);      // darken toward the rim (sphere look)
+                        col *= shade;
+
+                        float hd = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), highlight);
+                        float hl = Mathf.Clamp01(1f - hd / (r * 0.6f)) * 0.3f; // soft sheen
+                        col += new Color(hl, hl, hl, 0f);
+
+                        col.a = 1f;
+                        tex.SetPixel(x, y, col);
+                    }
+
+                tex.Apply();
+                File.WriteAllBytes(AbsPath(BeachBallPath), tex.EncodeToPNG());
+                Object.DestroyImmediate(tex);
+                AssetDatabase.ImportAsset(BeachBallPath, ImportAssetOptions.ForceUpdate);
+            }
+
+            var imp = (TextureImporter)AssetImporter.GetAtPath(BeachBallPath);
+            if (imp != null)
+            {
+                imp.textureType = TextureImporterType.Sprite;
+                imp.spriteImportMode = SpriteImportMode.Single;
+                imp.filterMode = FilterMode.Point;
+                imp.textureCompression = TextureImporterCompression.Uncompressed;
+                imp.mipmapEnabled = false;
+                imp.spritePixelsPerUnit = 128f;
+                imp.SaveAndReimport();
+            }
+            return AssetDatabase.LoadAssetAtPath<Sprite>(BeachBallPath);
         }
 
         static Material MakeUnlitMaterial(string name, Color color)

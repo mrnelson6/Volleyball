@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8fbd16f0c88ac0a4696a50409430ef2e, type: 3}
+  m_Name: GameConfig
+  m_EditorClassIdentifier: Assembly-CSharp::Volleyball.GameConfig
+  moveSpeed: 4
+  jumpSpeed: 5.3
+  reach: 1
+  hitReachHeight: 2.4
+  hitBufferTime: 0.35
+  hitChaos: 1.5
+  blockNetDistance: 1.6
+  blockMinHeight: 1.6
+  blockReach: 1
+  blockBallBand: 0.9
+  aiAimError: 1.2
+  aiSpikeHeightThreshold: 1.8
+  pointsToWin: 7
+  maxTouches: 3
+  pointPauseSeconds: 1.5
+  aiServeDelay: 1
+  masterVolume: 1
+  sfxVolume: 1
+  ambientVolume: 0.061
+  movementVolume: 0.028
+  crowdVolume: 0.5
