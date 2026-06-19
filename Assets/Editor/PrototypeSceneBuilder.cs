@@ -345,12 +345,8 @@ namespace Volleyball.EditorTools
             rt.offsetMax = Vector2.zero;
         }
 
-        static void BuildEventSystem()
-        {
-            var go = new GameObject("EventSystem", typeof(EventSystem));
-            var module = go.AddComponent<InputSystemUIInputModule>();
-            module.AssignDefaultActions();
-        }
+        // Delegates to CourtKit so the (version-fragile) UI input wiring lives in one place.
+        static void BuildEventSystem() => CourtKit.EnsureEventSystem();
 
         // ----------------------------------------------------------------- assets
 

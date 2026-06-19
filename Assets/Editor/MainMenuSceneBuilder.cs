@@ -309,13 +309,8 @@ namespace Volleyball.EditorTools
             rt.offsetMax = Vector2.zero;
         }
 
-        static void BuildEventSystem()
-        {
-            if (Object.FindFirstObjectByType<EventSystem>(FindObjectsInactive.Include) != null) return;
-            var go = new GameObject("EventSystem", typeof(EventSystem));
-            var module = go.AddComponent<InputSystemUIInputModule>();
-            module.AssignDefaultActions();
-        }
+        // Delegates to CourtKit so the (version-fragile) UI input wiring lives in one place.
+        static void BuildEventSystem() => CourtKit.EnsureEventSystem();
 
         // Built-in Unity UI sprites (always available) keep the menu self-contained.
         static Sprite UISprite() => AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/UISprite.psd");

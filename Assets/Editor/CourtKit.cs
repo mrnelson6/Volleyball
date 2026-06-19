@@ -3,6 +3,7 @@ using System.IO;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
 
@@ -514,13 +515,55 @@ namespace Volleyball.EditorTools
             rt.offsetMax = Vector2.zero;
         }
 
-        static void EnsureEventSystem()
+        public const string UIActionsPath = "Assets/InputSystem_Actions.inputactions";
+
+        /// <summary>
+        /// Create the EventSystem + UI input module if the scene lacks one. Shared by every scene
+        /// builder so the (sometimes fragile) input wiring lives in one place. Idempotent.
+        /// </summary>
+        public static void EnsureEventSystem()
         {
             if (Exists<EventSystem>()) return;
             var go = new GameObject("EventSystem", typeof(EventSystem));
             var module = go.AddComponent<InputSystemUIInputModule>();
-            module.AssignDefaultActions();
+            WireUIActions(module);
         }
+
+        // InputSystemUIInputModule.AssignDefaultActions() throws on some Input System package
+        // versions ("Action 'UI/Point' must be part of an InputActionAsset"), because the default
+        // actions it builds aren't backed by an asset. So wire the module from the project's saved
+        // actions asset — using its persistent InputActionReference sub-assets, which serialise
+        // cleanly into the scene — and only fall back to the default actions if it's missing.
+        static void WireUIActions(InputSystemUIInputModule module)
+        {
+            var asset = AssetDatabase.LoadAssetAtPath<InputActionAsset>(UIActionsPath);
+            if (asset == null)
+            {
+                module.AssignDefaultActions();
+                return;
+            }
+
+            module.actionsAsset = asset;
+
+            var refs = new Dictionary<string, InputActionReference>();
+            foreach (var obj in AssetDatabase.LoadAllAssetRepresentationsAtPath(UIActionsPath))
+                if (obj is InputActionReference r && r.action != null && r.action.actionMap != null)
+                    refs[$"{r.action.actionMap.name}/{r.action.name}"] = r;
+
+            module.move = Ref(refs, "UI/Navigate");
+            module.submit = Ref(refs, "UI/Submit");
+            module.cancel = Ref(refs, "UI/Cancel");
+            module.point = Ref(refs, "UI/Point");
+            module.leftClick = Ref(refs, "UI/Click");
+            module.rightClick = Ref(refs, "UI/RightClick");
+            module.middleClick = Ref(refs, "UI/MiddleClick");
+            module.scrollWheel = Ref(refs, "UI/ScrollWheel");
+            module.trackedDevicePosition = Ref(refs, "UI/TrackedDevicePosition");
+            module.trackedDeviceOrientation = Ref(refs, "UI/TrackedDeviceOrientation");
+        }
+
+        static InputActionReference Ref(Dictionary<string, InputActionReference> refs, string path)
+            => refs.TryGetValue(path, out var r) ? r : null;
 
         // ----------------------------------------------------------------- assets
 

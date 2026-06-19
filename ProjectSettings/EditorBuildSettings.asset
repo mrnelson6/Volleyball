@@ -14,5 +14,23 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Game.unity
     guid: 0054d3d22144c824e8583c7ac32c2033
+  - enabled: 1
+    path: Assets/Scenes/VolcanoArena.unity
+    guid: e106f268399e3e042b1885d9a68e4d11
+  - enabled: 1
+    path: Assets/Scenes/LunarArena.unity
+    guid: 01ec2b85652babe4294bba002413fe28
+  - enabled: 1
+    path: Assets/Scenes/AtlantisArena.unity
+    guid: 71f6f24b5b92cf443afe29b1d5ce893d
+  - enabled: 1
+    path: Assets/Scenes/SkyArena.unity
+    guid: 57126009ebf26b941b225b48832abfbb
+  - enabled: 1
+    path: Assets/Scenes/GraveyardArena.unity
+    guid: 9d166e3ef02ab744080530c2b278a33b
+  - enabled: 1
+    path: Assets/Scenes/NeonArena.unity
+    guid: 9bc1436a6821092418570f9389830d24
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
