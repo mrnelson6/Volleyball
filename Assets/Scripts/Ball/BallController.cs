@@ -15,6 +15,10 @@ namespace Volleyball
         public TeamSide LastTouchTeam { get; private set; } = TeamSide.None;
         public VolleyPlayer LastTouchPlayer { get; private set; }
 
+        /// <summary>The kind of the most recent contact — lets a spiker tell whether the ball
+        /// was actually set to them (own-team Set) versus dug/passed or sent by the opponent.</summary>
+        public HitType LastHitType { get; private set; }
+
         /// <summary>Visual spin in degrees/second (sign = direction); read by the sprite.</summary>
         public float Spin { get; private set; }
         /// <summary>0 = clean spin, &gt;0 = wobbly/chaotic spin (a shanked bump).</summary>
@@ -59,6 +63,7 @@ namespace Volleyball
             transform.position = pos;
             LastTouchTeam = TeamSide.None;
             LastTouchPlayer = null;
+            LastHitType = HitType.Serve;
             Spin = 0f;
             SpinWobble = 0f;
         }
@@ -116,6 +121,7 @@ namespace Volleyball
 
             LastTouchTeam = team;
             LastTouchPlayer = player;
+            LastHitType = type;
             _hitLockUntil = Time.time + 0.12f;
             // The single consolidated contact log is emitted by the caller (which also knows
             // the resulting touch count), so we don't log here.

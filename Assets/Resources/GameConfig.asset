@@ -17,13 +17,29 @@ MonoBehaviour:
   reach: 1
   hitReachHeight: 2.4
   hitBufferTime: 0.35
-  hitChaos: 1.5
+  setBaseError: 0.25
+  bumpBaseError: 0.7
+  spikeBaseError: 0.5
+  serveBaseError: 0.4
+  blockBaseError: 0.6
+  softBallSpeed: 10
+  setSpeedPenalty: 0.12
+  bumpSpeedPenalty: 0.05
+  spikeSpeedPenalty: 0.02
+  spikeNoSetPenalty: 1.2
+  jumpTimingPenalty: 0.06
+  groundedSpikePenalty: 1.5
+  reachErrorPenalty: 0.5
+  maxContactError: 4
   blockNetDistance: 1.6
   blockMinHeight: 1.6
   blockReach: 1
   blockBallBand: 0.9
   aiAimError: 1.2
   aiSpikeHeightThreshold: 1.8
+  aiReactionMin: 0.18
+  aiReactionMax: 0.38
+  aiErrorMult: 1
   pointsToWin: 7
   maxTouches: 3
   pointPauseSeconds: 1.5

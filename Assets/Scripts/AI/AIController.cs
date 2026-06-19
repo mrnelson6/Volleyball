@@ -13,8 +13,10 @@ namespace Volleyball
     public class AIController : VolleyPlayer
     {
         // AI tuning is global — edit it in the GameConfig asset.
-        float aimError => GameConfig.Instance.aiAimError;
         float spikeHeightThreshold => GameConfig.Instance.aiSpikeHeightThreshold;
+
+        // AI contacts run through the same skill/error model as the human, scaled by aiErrorMult.
+        protected override float ContactSkill => GameConfig.Instance.aiErrorMult;
 
         Vector3 _home;
         Vector2 _desiredMove;
@@ -24,6 +26,11 @@ namespace Volleyball
         HitType _hitType;
         Vector3 _hitTarget;
         float _jumpCooldown;
+
+        // Human-like reaction latency: when an opponent sends the ball our way, we can't act on
+        // it until this time passes — so a ball blocked straight back can't be dug instantly.
+        VolleyPlayer _prevToucher;
+        float _reactUntil;
 
         protected override void Start()
         {
@@ -46,6 +53,18 @@ namespace Volleyball
             _wantJump = false;
             _wantHit = false;
             if (ball == null) return;
+
+            // Reaction latency: the instant an opponent sends the ball our way is when our clock
+            // starts — until it elapses we can't pursue, jump, or contact, so a ball driven
+            // straight back over the net gets past us instead of being dug instantly.
+            if (ball.LastTouchPlayer != _prevToucher)
+            {
+                _prevToucher = ball.LastTouchPlayer;
+                if (ball.LastTouchTeam == team.Other())
+                    _reactUntil = Time.time + Random.Range(GameConfig.Instance.aiReactionMin,
+                                                           GameConfig.Instance.aiReactionMax);
+            }
+            bool reacting = Time.time < _reactUntil;
 
             Vector3 bp = ball.transform.position;
             Vector3 landing = PredictLanding();
@@ -74,7 +93,8 @@ namespace Volleyball
             bool ballComingToUs = landsOnOurSide || landsNearNetForUs;
 
             // (ClosestEligibleTo excludes whoever touched last, so we naturally alternate.)
-            bool pursue = ballComingToUs && ClosestEligibleTo(landing);
+            // While still reacting we hold position rather than chase — caught flat-footed.
+            bool pursue = ballComingToUs && !reacting && ClosestEligibleTo(landing);
 
             // when attacking, move under the ball's apex so we can spike it at its peak
             Vector3 moveTarget;
@@ -110,7 +130,7 @@ namespace Volleyball
             // Contact only a ball that's actually coming to us (never swat one we just sent
             // over). Plus: the single closest *eligible* teammate — never two players on one
             // ball, never the player who just touched it, and never a 4th touch.
-            if (touchesRemain && ballComingToUs && BallInReach() && ClosestEligibleTo(bp))
+            if (!reacting && touchesRemain && ballComingToUs && BallInReach() && ClosestEligibleTo(bp))
                 _wantHit = true;
         }
 
@@ -153,9 +173,11 @@ namespace Volleyball
 
         Vector3 OpponentTarget()
         {
+            // This is the AI's *intent* — a spot inside the opponents' court. Execution error
+            // (the shared contact-error model in VolleyPlayer) is layered on at hit time, so a
+            // pressured AI attack can stray out just like a human's.
             float sign = CourtGeometry.SideSign(team.Other());
-            float x = Random.Range(-CourtGeometry.HalfWidth * 0.8f, CourtGeometry.HalfWidth * 0.8f)
-                      + Random.Range(-aimError, aimError);
+            float x = Random.Range(-CourtGeometry.HalfWidth * 0.8f, CourtGeometry.HalfWidth * 0.8f);
             x = Mathf.Clamp(x, -CourtGeometry.HalfWidth + 0.3f, CourtGeometry.HalfWidth - 0.3f);
             float z = sign * CourtGeometry.HalfDepth * Random.Range(0.5f, 0.9f);
             return new Vector3(x, 0.6f, z);

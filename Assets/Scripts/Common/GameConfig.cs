@@ -19,9 +19,41 @@ namespace Volleyball
         public float reach = 2.6f;          // horizontal hit tolerance
         public float hitReachHeight = 2.4f; // vertical window (stacks on jump height)
         public float hitBufferTime = 0.35f; // how long a hit press is remembered
-        [Tooltip("Random spread (in metres) added to every hit's landing spot. 0 = perfectly " +
-                 "aimed; higher = less predictable, you never quite know where it'll go.")]
-        public float hitChaos = 1.5f;
+
+        [Header("Skill / Contact Error")]
+        [Tooltip("Execution error (metres of spray) is built up from these factors, then sprayed " +
+                 "onto the aim point WITHOUT clamping to the court — so a bad contact can go out " +
+                 "or into the net. Good contacts (in position, ideal set, well-timed spike off a " +
+                 "real set) stay near zero; pressure situations build it up.")]
+        public float setBaseError = 0.25f;
+        public float bumpBaseError = 0.7f;
+        public float spikeBaseError = 0.5f;
+        public float serveBaseError = 0.4f;
+        public float blockBaseError = 0.6f;
+
+        [Tooltip("Incoming ball speed (m/s) below which no speed penalty applies — a soft ball is " +
+                 "easy to control.")]
+        public float softBallSpeed = 10f;
+        [Tooltip("Extra error per m/s of incoming speed above softBallSpeed, per contact type. " +
+                 "Set >> Bump: setting a hard-driven ball is far worse than passing it.")]
+        public float setSpeedPenalty = 0.12f;
+        public float bumpSpeedPenalty = 0.05f;
+        public float spikeSpeedPenalty = 0.02f;
+
+        [Tooltip("Spiking a ball that wasn't set to you (own-team Set) adds this much error.")]
+        public float spikeNoSetPenalty = 1.2f;
+        [Tooltip("Error added per m/s of the spiker's vertical velocity at contact — zero at the " +
+                 "apex of the jump, large when hit while still rising or already falling.")]
+        public float jumpTimingPenalty = 0.06f;
+        [Tooltip("Penalty for spiking while grounded (mistimed jump / not airborne).")]
+        public float groundedSpikePenalty = 1.5f;
+
+        [Tooltip("Error added when reaching for the ball — scales from 0 (ball at your feet) to " +
+                 "this value at the very edge of your reach. Rewards good positioning.")]
+        public float reachErrorPenalty = 0.5f;
+
+        [Tooltip("Hard cap on total contact error (metres), so nothing flies absurdly far.")]
+        public float maxContactError = 4f;
 
         [Header("Blocking")]
         public float blockNetDistance = 1.6f; // how close to the net the player must be
@@ -32,6 +64,14 @@ namespace Volleyball
         [Header("AI")]
         public float aiAimError = 1.2f;
         public float aiSpikeHeightThreshold = 1.8f;
+        [Tooltip("Human-like reaction latency (seconds): after an opponent sends the ball at the " +
+                 "AI, it can't pursue, jump, or contact until a delay in this range elapses — so a " +
+                 "ball blocked straight back can't be dug instantly.")]
+        public float aiReactionMin = 0.18f;
+        public float aiReactionMax = 0.38f;
+        [Tooltip("Multiplier on the AI's contact error (1 = same skill as the player; higher = " +
+                 "the AI mishits more often).")]
+        public float aiErrorMult = 1f;
 
         [Header("Match")]
         public int pointsToWin = 7;

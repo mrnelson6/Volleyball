@@ -209,7 +209,8 @@ namespace Volleyball
             _serveTossed = false;
             ServeInFlight = true;
 
-            Vector3 target = VolleyPlayer.ApplyHitChaos(CourtGeometry.CourtCenter(ServingTeam.Other()));
+            Vector3 target = VolleyPlayer.ApplyContactError(CourtGeometry.CourtCenter(ServingTeam.Other()),
+                                                            GameConfig.Instance.serveBaseError);
             ball.LaunchTo(target, 4f, ServingTeam, _server, HitType.Serve); // high apex to clear the net from behind the baseline
             ball.LockHits(0.45f);
             _server?.TriggerSwing(HitType.Serve); // animate the serve (DoServe bypasses TryHit)
@@ -246,7 +247,8 @@ namespace Volleyball
             float contactY = ball.transform.position.y;
             float apex = Mathf.Lerp(3.4f, 1.4f, Mathf.InverseLerp(1.6f, 4f, contactY));
 
-            Vector3 target = VolleyPlayer.ApplyHitChaos(CourtGeometry.CourtCenter(ServingTeam.Other()));
+            Vector3 target = VolleyPlayer.ApplyContactError(CourtGeometry.CourtCenter(ServingTeam.Other()),
+                                                            GameConfig.Instance.serveBaseError);
             ball.LaunchTo(target, apex, ServingTeam, _server, HitType.Serve);
             ball.LockHits(0.45f);
             _server?.TriggerSwing(HitType.Spike); // spike motion for the jump serve

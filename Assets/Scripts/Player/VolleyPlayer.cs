@@ -183,7 +183,8 @@ namespace Volleyball
             float ox = Mathf.Clamp(contact.x + Random.Range(-0.8f, 0.8f),
                                    -CourtGeometry.HalfWidth + 0.3f, CourtGeometry.HalfWidth - 0.3f);
             float oz = fwd * CourtGeometry.HalfDepth * 0.22f;
-            Vector3 blockTarget = ApplyHitChaos(new Vector3(ox, 0.2f, oz));
+            float blockError = ComputeContactError(HitType.Block, ball.Body.linearVelocity.magnitude);
+            Vector3 blockTarget = ApplyContactError(new Vector3(ox, 0.2f, oz), blockError);
             ball.LaunchTo(blockTarget, 0.5f, team, this, HitType.Block);
             match?.RegisterTouch(team, this);
             LogContact(HitType.Block, blockTarget);
@@ -191,21 +192,65 @@ namespace Volleyball
             return true;
         }
 
-        /// <summary>
-        /// Add the configured random spread to a hit's target, kept on the side it was aimed at
-        /// and inside the court, so each contact lands somewhere a bit unpredictable.
-        /// </summary>
-        public static Vector3 ApplyHitChaos(Vector3 target)
-        {
-            float c = GameConfig.Instance.hitChaos;
-            if (c <= 0f) return target;
+        /// <summary>Per-controller skill multiplier on contact error (1 = baseline human).</summary>
+        protected virtual float ContactSkill => 1f;
 
-            float side = target.z >= 0f ? 1f : -1f;
-            float x = Mathf.Clamp(target.x + Random.Range(-c, c),
-                                  -CourtGeometry.HalfWidth + 0.3f, CourtGeometry.HalfWidth - 0.3f);
-            float z = side * Mathf.Clamp(Mathf.Abs(target.z) + Random.Range(-c, c),
-                                         0.6f, CourtGeometry.HalfDepth - 0.3f);
-            return new Vector3(x, target.y, z);
+        /// <summary>
+        /// How much a contact strays (metres of spray), built from the situation: the contact
+        /// type, how hard the incoming ball was, and — for spikes — whether it was set to us and
+        /// how well-timed the jump was, plus how far we had to reach. Bigger = less controlled.
+        /// </summary>
+        float ComputeContactError(HitType type, float incomingSpeed)
+        {
+            var cfg = GameConfig.Instance;
+
+            float baseErr;
+            float speedPenaltyPerUnit;
+            switch (type)
+            {
+                case HitType.Set:   baseErr = cfg.setBaseError;   speedPenaltyPerUnit = cfg.setSpeedPenalty;   break;
+                case HitType.Spike: baseErr = cfg.spikeBaseError; speedPenaltyPerUnit = cfg.spikeSpeedPenalty; break;
+                case HitType.Serve: baseErr = cfg.serveBaseError; speedPenaltyPerUnit = 0f;                    break;
+                case HitType.Block: baseErr = cfg.blockBaseError; speedPenaltyPerUnit = 0f;                    break;
+                default:            baseErr = cfg.bumpBaseError;  speedPenaltyPerUnit = cfg.bumpSpeedPenalty;  break;
+            }
+
+            float error = baseErr;
+
+            // Hard-driven balls are harder to handle — and far harder to set than to pass.
+            float speedOver = Mathf.Max(0f, incomingSpeed - cfg.softBallSpeed);
+            error += speedOver * speedPenaltyPerUnit;
+
+            // Spike-specific: punish hitting a ball that wasn't set to you and mistimed jumps.
+            if (type == HitType.Spike)
+            {
+                bool setToMe = ball != null && ball.LastHitType == HitType.Set && ball.LastTouchTeam == team;
+                if (!setToMe) error += cfg.spikeNoSetPenalty;
+                if (IsGrounded) error += cfg.groundedSpikePenalty;
+                // |vertVel| is 0 at the apex of the jump and grows the further off the peak we are.
+                error += Mathf.Abs(vertVel) * cfg.jumpTimingPenalty;
+            }
+
+            // Reaching at the edge of our range is a worse contact than one right at our feet.
+            if (ball != null)
+            {
+                float dist = Vector2.Distance(new Vector2(transform.position.x, transform.position.z),
+                                              new Vector2(ball.transform.position.x, ball.transform.position.z));
+                error += cfg.reachErrorPenalty * Mathf.Clamp01(dist / Mathf.Max(reach, 0.01f));
+            }
+
+            return Mathf.Min(error * ContactSkill, cfg.maxContactError);
+        }
+
+        /// <summary>
+        /// Spray the aim point by the computed error. Deliberately NOT clamped to the court — a
+        /// bad enough contact lands out or in the net, which is how rallies end on a mistake.
+        /// </summary>
+        public static Vector3 ApplyContactError(Vector3 target, float error)
+        {
+            if (error <= 0f) return target;
+            Vector2 off = Random.insideUnitCircle * error;
+            return new Vector3(target.x + off.x, target.y, target.z + off.y);
         }
 
         /// <summary>One consolidated log line per contact: the hit data and the touch count.</summary>
@@ -275,7 +320,10 @@ namespace Volleyball
             if (ball == null || !ball.CanBeHit || !BallInReach()) return false;
             if (match != null && !match.CanTeamTouch(team)) return false;
 
-            Vector3 target = ApplyHitChaos(ChooseHitTarget(type));
+            // measure the incoming pace BEFORE we relaunch — a hard-driven ball is harder to handle
+            float incomingSpeed = ball.Body.linearVelocity.magnitude;
+            float error = ComputeContactError(type, incomingSpeed);
+            Vector3 target = ApplyContactError(ChooseHitTarget(type), error);
             ball.LaunchTo(target, ApexFor(type, ball.transform.position.y), team, this, type);
             match?.RegisterTouch(team, this);
             LogContact(type, target);
