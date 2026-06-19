@@ -314,9 +314,9 @@ namespace Volleyball.EditorTools
         {
             (Vector3 pos, Color col)[] spots =
             {
-                (new Vector3(-8f, 0f, -5f), new Color(0.90f, 0.30f, 0.28f)),
-                (new Vector3(-9f, 0f, 4f),  new Color(0.95f, 0.80f, 0.25f)),
-                (new Vector3(9f, 0f, -6f),  new Color(0.30f, 0.55f, 0.85f)),
+                (new Vector3(8.81f, 0f, 7f), new Color(0.90f, 0.30f, 0.28f)),
+                (new Vector3(-9f, 0f, 4f),   new Color(0.95f, 0.80f, 0.25f)),
+                (new Vector3(9f, 0f, -6f),   new Color(0.30f, 0.55f, 0.85f)),
             };
             Material pole = MakeLit("UmbrellaPole", new Color(0.75f, 0.72f, 0.68f));
 

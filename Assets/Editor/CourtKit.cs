@@ -85,6 +85,20 @@ namespace Volleyball.EditorTools
             return match;
         }
 
+        /// <summary>
+        /// Build only the visual court (sand ground, lines, net) — no ball, players, match or UI.
+        /// Used by non-gameplay scenes (e.g. the main menu backdrop) that want the same court look
+        /// as a playable arena. Idempotent: skips if a court already exists.
+        /// </summary>
+        public static void BuildCourtVisual(Transform root = null)
+        {
+            EnsureFolders();
+            Material sand = MakeUnlitMaterial("Sand", new Color(0.93f, 0.85f, 0.62f));
+            Material line = MakeUnlitMaterial("Line", Color.white);
+            Material netMat = MakeUnlitMaterial("Net", new Color(0.9f, 0.9f, 0.9f));
+            EnsureCourt(root, sand, line, netMat);
+        }
+
         // ----------------------------------------------------------------- scene queries
 
         static T FindInScene<T>() where T : Object
@@ -356,6 +370,71 @@ namespace Volleyball.EditorTools
 
             var touch = canvasGO.AddComponent<TouchControls>();
             touch.panel = panel;
+
+            EnsurePauseMenu(canvasGO, circle, font);
+        }
+
+        // Pause/back overlay: an always-visible corner button that opens a dimmed panel with
+        // Resume / Main Menu. Reachable via Esc too (handled by PauseMenu). Gives every playable
+        // scene a path back to the main menu, including after the match is over.
+        static void EnsurePauseMenu(GameObject canvasGO, Sprite circle, Font font)
+        {
+            if (Exists<PauseMenu>()) return;
+
+            // small "MENU" button, top-left, clear of the centred score
+            Button open = MakeButton(canvasGO.transform, circle, font, "PauseOpenButton", "MENU",
+                new Vector2(0f, 1f), new Vector2(120f, -60f), new Vector2(160f, 70f),
+                new Color(0f, 0f, 0f, 0.45f));
+
+            // full-screen dimmed panel (starts hidden)
+            var panel = new GameObject("PausePanel", typeof(RectTransform), typeof(Image));
+            panel.transform.SetParent(canvasGO.transform, false);
+            Stretch(panel.GetComponent<RectTransform>());
+            panel.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.7f);
+
+            Text title = MakeText(panel.transform, "Title", font,
+                new Vector2(0.5f, 0.5f), new Vector2(0f, 160f), new Vector2(800f, 100f), 64,
+                TextAnchor.MiddleCenter);
+            title.text = "Paused";
+
+            Button resume = MakeButton(panel.transform, circle, font, "ResumeButton", "Resume",
+                new Vector2(0.5f, 0.5f), new Vector2(0f, 20f), new Vector2(360f, 90f),
+                new Color(0.30f, 0.55f, 1f, 0.85f));
+            Button menu = MakeButton(panel.transform, circle, font, "MenuButton", "Main Menu",
+                new Vector2(0.5f, 0.5f), new Vector2(0f, -90f), new Vector2(360f, 90f),
+                new Color(0.85f, 0.35f, 0.30f, 0.85f));
+
+            var pm = canvasGO.AddComponent<PauseMenu>();
+            pm.panel = panel;
+            pm.openButton = open;
+            pm.resumeButton = resume;
+            pm.menuButton = menu;
+        }
+
+        // Reusable UI button: an Image background with a centred Text label and a Button component.
+        static Button MakeButton(Transform parent, Sprite sprite, Font font, string name, string label,
+                                 Vector2 anchor, Vector2 pos, Vector2 size, Color color)
+        {
+            var go = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
+            go.transform.SetParent(parent, false);
+            var rt = go.GetComponent<RectTransform>();
+            rt.anchorMin = rt.anchorMax = anchor;
+            rt.pivot = anchor;
+            rt.sizeDelta = size;
+            rt.anchoredPosition = pos;
+
+            var img = go.GetComponent<Image>();
+            img.sprite = sprite;
+            img.type = Image.Type.Sliced;
+            img.color = color;
+            go.GetComponent<Button>().targetGraphic = img;
+
+            Text t = MakeText(go.transform, "Label", font,
+                new Vector2(0.5f, 0.5f), Vector2.zero, size, 30, TextAnchor.MiddleCenter);
+            t.text = label;
+            t.raycastTarget = false;
+
+            return go.GetComponent<Button>();
         }
 
         static void BuildJoystick(Transform parent, Sprite circle)
