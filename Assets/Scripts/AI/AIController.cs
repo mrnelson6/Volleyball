@@ -21,6 +21,7 @@ namespace Volleyball
         Vector3 _home;
         Vector2 _desiredMove;
         bool _wantJump;
+        bool _wantDive;
         bool _wantHit;
         bool _attacking;
         HitType _hitType;
@@ -51,8 +52,15 @@ namespace Volleyball
         {
             _desiredMove = Vector2.zero;
             _wantJump = false;
+            _wantDive = false;
             _wantHit = false;
             if (ball == null) return;
+
+            // A dead ball can't be played: between rallies (the point pause, the ball held in
+            // the server's hand, a jump-serve toss) hold formation instead of chasing. Without
+            // this, a held ball's near-zero flight time reads as an emergency and triggers
+            // dives straight at the server.
+            bool rallyLive = match == null || match.State == MatchState.Rallying;
 
             // Reaction latency: the instant an opponent sends the ball our way is when our clock
             // starts — until it elapses we can't pursue, jump, or contact, so a ball driven
@@ -67,7 +75,7 @@ namespace Volleyball
             bool reacting = Time.time < _reactUntil;
 
             Vector3 bp = ball.transform.position;
-            Vector3 landing = PredictLanding();
+            Vector3 landing = PredictLanding(out float tLand);
 
             bool teamInPossession = match != null && match.Possession == team;
             int nextTouch = teamInPossession ? match.Touches + 1 : 1;
@@ -94,7 +102,7 @@ namespace Volleyball
 
             // (ClosestEligibleTo excludes whoever touched last, so we naturally alternate.)
             // While still reacting we hold position rather than chase — caught flat-footed.
-            bool pursue = ballComingToUs && !reacting && ClosestEligibleTo(landing);
+            bool pursue = rallyLive && ballComingToUs && !reacting && ClosestEligibleTo(landing);
 
             // when attacking, move under the ball's apex so we can spike it at its peak
             Vector3 moveTarget;
@@ -127,10 +135,26 @@ namespace Volleyball
                 _jumpCooldown = 0.9f;
             }
 
+            // Emergency dive: the ball will drop too far away to run to in time, but a dive's
+            // burst of speed can still get a platform under it. Only when defending/receiving
+            // (never to start an attack), only if we're upright on the ground, and only for a
+            // ball that actually comes down on OUR side — a dive can never reach across the
+            // net, so a teammate's block landing just over it must not bait one.
+            if (pursue && landsOnOurSide && !_attacking && IsGrounded && !IsDiving && touchesRemain && tLand < 1.1f)
+            {
+                var cfg = GameConfig.Instance;
+                float dist = Vector2.Distance(new Vector2(GroundPosition.x, GroundPosition.z),
+                                              new Vector2(landing.x, landing.z));
+                bool canRunThere = dist <= moveSpeed * tLand + reach * 0.6f;
+                bool diveGetsThere = dist <= moveSpeed * Mathf.Max(tLand - cfg.diveDuration, 0f)
+                                             + diveSpeed * cfg.diveDuration + cfg.diveReach;
+                if (!canRunThere && diveGetsThere) _wantDive = true;
+            }
+
             // Contact only a ball that's actually coming to us (never swat one we just sent
             // over). Plus: the single closest *eligible* teammate — never two players on one
             // ball, never the player who just touched it, and never a 4th touch.
-            if (!reacting && touchesRemain && ballComingToUs && BallInReach() && ClosestEligibleTo(bp))
+            if (rallyLive && !reacting && touchesRemain && ballComingToUs && BallInReach() && ClosestEligibleTo(bp))
                 _wantHit = true;
         }
 
@@ -159,6 +183,7 @@ namespace Volleyball
 
         protected override Vector2 ReadMove() => _desiredMove;
         protected override bool ReadJumpPressed() => _wantJump;
+        protected override bool ReadDivePressed() => _wantDive;
 
         protected override bool TryGetDesiredHit(out HitType type)
         {
@@ -252,7 +277,9 @@ namespace Volleyball
             return PredictLanding();
         }
 
-        Vector3 PredictLanding()
+        Vector3 PredictLanding() => PredictLanding(out _);
+
+        Vector3 PredictLanding(out float t)
         {
             Vector3 p = ball.transform.position;
             Vector3 v = ball.Body.linearVelocity;
@@ -264,7 +291,6 @@ namespace Volleyball
             float c = targetY - p.y;
             float disc = b * b - 4f * a * c;
 
-            float t;
             if (disc <= 0f) t = Mathf.Max(v.y / g, 0.2f);
             else t = (-b + Mathf.Sqrt(disc)) / (2f * a);
             t = Mathf.Clamp(t, 0.05f, 4f);

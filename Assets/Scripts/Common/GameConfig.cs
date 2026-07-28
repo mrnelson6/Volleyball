@@ -55,6 +55,18 @@ namespace Volleyball
         [Tooltip("Hard cap on total contact error (metres), so nothing flies absurdly far.")]
         public float maxContactError = 4f;
 
+        [Header("Diving")]
+        [Tooltip("A dive is a committed grounded lunge that covers ground fast. If a low ball " +
+                 "comes into reach mid-slide it's dug up chaotically — high, uncontrolled, with a " +
+                 "big error — then the diver is stuck getting up for a moment.")]
+        public float diveSpeed = 10f;        // lunge speed while sliding (vs moveSpeed 6)
+        public float diveDuration = 0.4f;    // seconds the slide lasts
+        public float diveRecoverTime = 0.6f; // seconds stuck on the ground afterwards
+        public float diveReach = 1.5f;       // contact radius while laid out
+        public float diveMaxBallHeight = 1.5f; // a dive only digs balls below this height
+        public float diveBaseError = 3f;     // huge spray — the dig squirts off in a random direction
+        public float divePopApex = 3.4f;     // nominal pop height; each dig rolls 0.6–1.5x this
+
         [Header("Blocking")]
         public float blockNetDistance = 1.6f; // how close to the net the player must be
         public float blockMinHeight = 1.6f;   // minimum ball height to block

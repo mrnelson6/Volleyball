@@ -14,6 +14,9 @@ namespace Volleyball
         protected override bool ReadJumpPressed()
             => GameInput.Instance != null && GameInput.Instance.JumpPressed;
 
+        protected override bool ReadDivePressed()
+            => GameInput.Instance != null && GameInput.Instance.DivePressed;
+
         protected override bool TryGetDesiredHit(out HitType type)
         {
             var gi = GameInput.Instance;

@@ -87,8 +87,12 @@ namespace Volleyball
             {
                 // jump spike / over-the-net block: drive it straight down at the target with
                 // real pace that scales with how high it was hit, instead of lobbing it.
+                // The hitter's height stat then scales that pace directly — a big wingspan
+                // puts real mass behind net contacts, so tall characters hit harder balls
+                // (and harder incoming balls are harder for the receiver to control).
                 Vector3 dir = (target - start).normalized;
                 float pace = Mathf.Clamp(16f + (start.y - CourtGeometry.NetHeight) * 4f, 16f, 28f);
+                if (player != null) pace *= player.Character.height;
                 velocity = dir * pace;
             }
             else
@@ -116,6 +120,7 @@ namespace Volleyball
                 case HitType.Block: Spin = 700f * travelDir; SpinWobble = 0.4f; break;
                 case HitType.Serve: Spin = 520f * travelDir; SpinWobble = 0f; break;
                 case HitType.Bump:  Spin = Random.Range(200f, 480f) * (Random.value < 0.5f ? -1f : 1f); SpinWobble = 1f; break;
+                case HitType.Dive:  Spin = Random.Range(300f, 600f) * (Random.value < 0.5f ? -1f : 1f); SpinWobble = 1f; break; // shanked off the platform
                 default:            Spin = 0f; SpinWobble = 0f; break; // Set: no spin
             }
 
@@ -137,6 +142,7 @@ namespace Volleyball
         {
             if (c.gameObject.GetComponent<GroundMarker>() != null)
             {
+                SandMarks.BallImpact(transform.position, c.relativeVelocity.magnitude);
                 // the single landing log is emitted by MatchManager (it also resolves in/out)
                 OnGroundHit?.Invoke(transform.position, c.relativeVelocity);
             }

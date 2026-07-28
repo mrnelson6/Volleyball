@@ -47,7 +47,40 @@ namespace Volleyball
                 players.AddRange(FindObjectsByType<VolleyPlayer>());
 
             if (ball != null) ball.OnGroundHit += HandleGroundHit;
+            ApplyMatchSetup();
             BeginServe(TeamSide.A);
+        }
+
+        /// <summary>
+        /// Dress the court from the menu's pre-match choices: the human becomes their chosen
+        /// character, and each AI draws a random roster character — distinct from the human's
+        /// and from each other, so every match is a different matchup. No-op when the menu
+        /// didn't set anything (campaign, or playing a scene directly).
+        /// </summary>
+        void ApplyMatchSetup()
+        {
+            var pool = new List<CharacterDef>(CharacterRoster.All);
+
+            if (MatchSetup.humanCharacterId != null)
+            {
+                CharacterDef chosen = CharacterRoster.Get(MatchSetup.humanCharacterId);
+                foreach (var p in players)
+                    if (p is PlayerController)
+                    {
+                        CharacterSprites.Apply(p, chosen);
+                        pool.Remove(chosen);
+                    }
+            }
+
+            if (MatchSetup.randomizeAI)
+                foreach (var p in players)
+                {
+                    if (!(p is AIController)) continue;
+                    if (pool.Count == 0) pool.AddRange(CharacterRoster.All);
+                    CharacterDef draw = pool[Random.Range(0, pool.Count)];
+                    pool.Remove(draw);
+                    CharacterSprites.Apply(p, draw);
+                }
         }
 
         void OnDestroy()

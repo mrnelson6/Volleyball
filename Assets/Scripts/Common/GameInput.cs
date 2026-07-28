@@ -17,7 +17,7 @@ namespace Volleyball
 
         Vector2 _virtualMove;
         bool _vJump, _vBump, _vSet, _vSpike;
-        bool _jumpPrev, _bumpPrev, _setPrev, _spikePrev;
+        bool _jumpPrev, _bumpPrev, _setPrev, _spikePrev, _divePrev;
 
         public Vector2 Move { get; private set; }
         public bool JumpHeld { get; private set; }
@@ -25,6 +25,7 @@ namespace Volleyball
         public bool BumpPressed { get; private set; }
         public bool SetPressed { get; private set; }
         public bool SpikePressed { get; private set; }
+        public bool DivePressed { get; private set; }
 
         /// <summary>Any hit input this frame — used to trigger the serve / restart.</summary>
         public bool AnyHitPressed => BumpPressed || SetPressed || SpikePressed;
@@ -53,7 +54,7 @@ namespace Volleyball
         void Update()
         {
             Vector2 kb = Vector2.zero;
-            bool jump = _vJump, bump = _vBump, set = _vSet, spike = _vSpike;
+            bool jump = _vJump, bump = _vBump, set = _vSet, spike = _vSpike, dive = false;
 
             var k = Keyboard.current;
             if (k != null)
@@ -66,6 +67,7 @@ namespace Volleyball
                 if (k.jKey.isPressed) bump = true;
                 if (k.kKey.isPressed) set = true;
                 if (k.lKey.isPressed) spike = true;
+                if (k.semicolonKey.isPressed || k.leftShiftKey.isPressed) dive = true;
             }
 
             var m = Mouse.current;
@@ -84,11 +86,13 @@ namespace Volleyball
             BumpPressed = bump && !_bumpPrev;
             SetPressed = set && !_setPrev;
             SpikePressed = spike && !_spikePrev;
+            DivePressed = dive && !_divePrev;
 
             _jumpPrev = jump;
             _bumpPrev = bump;
             _setPrev = set;
             _spikePrev = spike;
+            _divePrev = dive;
         }
     }
 }

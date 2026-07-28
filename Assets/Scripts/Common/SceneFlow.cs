@@ -53,9 +53,13 @@ namespace Volleyball
             SceneManager.LoadScene(MainMenu);
         }
 
-        /// <summary>Quick Play — drop straight into a beach match.</summary>
-        public static void LoadQuickPlay()
+        /// <summary>Quick Play — drop into a beach match. With a character id the human plays
+        /// as that character and the three AI players draw random roster characters; with null
+        /// the scene's built-in characters are kept.</summary>
+        public static void LoadQuickPlay(string characterId = null)
         {
+            MatchSetup.humanCharacterId = characterId;
+            MatchSetup.randomizeAI = characterId != null;
             Time.timeScale = 1f;
             SceneManager.LoadScene(BeachArena);
         }
@@ -67,6 +71,7 @@ namespace Volleyball
         /// </summary>
         public static void LoadCampaignMatch()
         {
+            MatchSetup.Clear(); // campaign matches use the scene's built-in characters
             int stage = SaveSystem.Load()?.stage ?? 0;
             LoadArena(stage);
         }

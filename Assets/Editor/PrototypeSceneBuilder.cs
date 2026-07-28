@@ -21,11 +21,12 @@ namespace Volleyball.EditorTools
         const string BeachBallPath = "Assets/Sprites/beachball.png";
         const string MaterialDir = "Assets/Materials";
 
-        // placeholder team colours
-        static readonly Color ColPlayer = new Color(0.20f, 0.50f, 0.95f); // human  (blue)
-        static readonly Color ColMate = new Color(0.45f, 0.80f, 1.00f);   // teammate (cyan)
-        static readonly Color ColOpp1 = new Color(0.95f, 0.30f, 0.25f);   // opponent (red)
-        static readonly Color ColOpp2 = new Color(0.98f, 0.60f, 0.20f);   // opponent (orange)
+        // per-player jersey colours — the runtime constants, so baked sprites match what
+        // CharacterSprites loads back for runtime character swaps
+        static Color ColPlayer => PlayerColors.Human;
+        static Color ColMate => PlayerColors.Mate;
+        static Color ColOpp1 => PlayerColors.Opp1;
+        static Color ColOpp2 => PlayerColors.Opp2;
 
         [MenuItem("Volleyball/Build Prototype Scene")]
         public static void Build()
@@ -46,13 +47,17 @@ namespace Volleyball.EditorTools
 
             BallController ball = BuildBall(beachBall, circle);
 
+            // bake the whole roster in every jersey colour up front — runtime character swaps
+            // (menu pick, random AI draws) load these from Resources
+            CharacterArt.BakeRoster();
+
             var players = new List<VolleyPlayer>();
             // team A — human listed first so it serves for team A
-            players.Add(MakePlayer("Player (You)", TeamSide.A, -1f, ColPlayer, true, circle));
-            players.Add(MakePlayer("Teammate (AI)", TeamSide.A, 1f, ColMate, false, circle));
+            players.Add(MakePlayer("Player (You)", TeamSide.A, -1f, ColPlayer, true, circle, "ace"));
+            players.Add(MakePlayer("Teammate (AI)", TeamSide.A, 1f, ColMate, false, circle, "tower"));
             // team B — opponents
-            players.Add(MakePlayer("Opponent 1 (AI)", TeamSide.B, -1f, ColOpp1, false, circle));
-            players.Add(MakePlayer("Opponent 2 (AI)", TeamSide.B, 1f, ColOpp2, false, circle));
+            players.Add(MakePlayer("Opponent 1 (AI)", TeamSide.B, -1f, ColOpp1, false, circle, "bolt"));
+            players.Add(MakePlayer("Opponent 2 (AI)", TeamSide.B, 1f, ColOpp2, false, circle, "sage"));
 
             new GameObject("GameInput", typeof(GameInput));
 
@@ -182,23 +187,27 @@ namespace Volleyball.EditorTools
         }
 
         static VolleyPlayer MakePlayer(string name, TeamSide team, float halfSign,
-                                       Color color, bool human, Sprite circle)
+                                       Color color, bool human, Sprite circle, string characterId)
         {
+            CharacterDef character = CharacterRoster.Get(characterId);
             var root = new GameObject(name);
 
             var spr = new GameObject("Sprite");
             spr.transform.SetParent(root.transform, false);
-            spr.transform.localPosition = CharacterArt.SpriteLocalPos;
+            spr.transform.localPosition = CharacterArt.SpriteLocalPosFor(character);
             var sr = spr.AddComponent<SpriteRenderer>();
             spr.AddComponent<BillboardSprite>().yAxisOnly = true;
-            // procedural human figure (idle/run/jump/swing) baked in this player's team colour
-            CharacterArt.AttachCharacter(spr, sr, color);
+            // procedural human figure (idle/run/jump/swing) baked in this player's team colour,
+            // at the roster character's height and with their skin/hair
+            CharacterArt.AttachCharacter(spr, sr, color, character);
 
             VolleyPlayer vp = human
                 ? root.AddComponent<PlayerController>()
                 : root.AddComponent<AIController>();
             vp.team = team;
             vp.halfSign = halfSign;
+            vp.characterId = character.id;
+            vp.jerseyColor = color; // lets runtime swaps load the matching baked sprite set
 
             float x = halfSign * CourtGeometry.HalfWidth * 0.45f;
             float z = CourtGeometry.SideSign(team) * CourtGeometry.HalfDepth * 0.55f;
@@ -212,7 +221,7 @@ namespace Volleyball.EditorTools
             ssr.color = new Color(0f, 0f, 0f, 0.32f);
             var ds = shadow.AddComponent<DropShadow>();
             ds.target = root.transform;
-            ds.baseSize = 1.0f;
+            ds.baseSize = 1.0f * character.height; // a bigger body casts a bigger shadow
             ds.maxHeight = 2.4f;
 
             return vp;

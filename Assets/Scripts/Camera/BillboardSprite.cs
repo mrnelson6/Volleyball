@@ -14,6 +14,10 @@ namespace Volleyball
         [Tooltip("Optional: roll the sprite to show this ball's spin (used for the ball).")]
         public BallController spinSource;
 
+        /// <summary>Extra roll (degrees) about the view axis, applied after facing the camera.
+        /// Driven per-frame by <see cref="CharacterAnimator"/> to lay a diving player flat.</summary>
+        [HideInInspector] public float extraRoll;
+
         Transform _cam;
         float _roll;
 
@@ -37,13 +41,15 @@ namespace Volleyball
                 transform.rotation = Quaternion.LookRotation(_cam.forward, _cam.up);
             }
 
-            // roll the sprite about the view axis to convey spin
+            // roll the sprite about the view axis: ball spin and/or an externally-driven roll
+            float roll = extraRoll;
             if (spinSource != null)
             {
                 _roll += spinSource.Spin * Time.deltaTime;
-                float wobble = spinSource.SpinWobble * Mathf.Sin(Time.time * 13f) * 35f;
-                transform.rotation *= Quaternion.Euler(0f, 0f, _roll + wobble);
+                roll += _roll + spinSource.SpinWobble * Mathf.Sin(Time.time * 13f) * 35f;
             }
+            if (roll != 0f)
+                transform.rotation *= Quaternion.Euler(0f, 0f, roll);
         }
     }
 }

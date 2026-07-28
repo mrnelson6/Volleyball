@@ -46,6 +46,7 @@ one AI teammate face two AI opponents in a full match.
 | Bump (over the net) | J | Left-click | Bump button |
 | Set (up, your own side) | K | — | Set button |
 | Spike (attack over the net) | L | Right-click | Spike button |
+| Dive (desperate dig) | ; or Left Shift | — | — |
 
 You choose each contact explicitly:
 
@@ -55,6 +56,11 @@ You choose each contact explicitly:
 - **Set** keeps the ball on your side, lofted near the net to set up an attack.
 - **Spike** drives it over the opponents' court — steep and fast when you hit it at the top
   of a jump (Jump, then Spike).
+- **Dive** is a committed lunge along the direction you're holding (or the way you were last
+  running) that covers ground much faster than running. You lay out flat on the sand as you
+  slide; if a low ball comes into reach you dig it up — but chaotically: it pops high with a
+  big random spray, an uncontrolled emergency touch rather than a pass. Then you're stuck on
+  the ground until you stand back up, so a whiffed dive takes you out of the play.
 - **Block** is automatic: **jump right next to the net** as an opponent attacks, and if the
   ball comes into your reach you'll stuff it straight back down onto their side. Timing your
   jump is the skill — no button needed. **You may not block a serve.**
@@ -68,6 +74,43 @@ You choose each contact explicitly:
 Because the same player can't touch the ball twice in a row, an offensive play is
 *you set → AI partner spikes*, or *AI sets → you spike*. Aim by holding a movement
 direction as you hit.
+
+## Characters
+
+Every player on court is one of a roster of characters, each with stats that trade off
+against each other (defined in code in `Assets/Scripts/Player/CharacterDef.cs`):
+
+- **Height** — scales the sprite and the vertical hit/block reach, tightens spike and
+  block contacts, and directly scales how hard driven spikes and blocks come off the hand.
+  Tall characters dominate the net; short ones give that up.
+- **Speed** — scales run speed and the dive lunge.
+- **Control** — tightens bumps, sets, serves and dive digs (divides their contact error),
+  so touches land where they were aimed.
+
+| Character | Height | Speed | Control | Identity |
+| --------- | ------ | ----- | ------- | -------- |
+| **Ace**   | 1.00   | 1.00  | 1.00    | balanced all-rounder (dark hair) |
+| **Tower** | 1.16   | 0.85  | 0.90    | net dominance, slow (tall, black hair, deep skin) |
+| **Bolt**  | 0.88   | 1.25  | 0.95    | court coverage, small at the net (short, blond) |
+| **Sage**  | 0.95   | 0.90  | 1.35    | surgical ball control (auburn hair, pale skin) |
+| **Rex**   | 1.22   | 0.80  | 0.85    | extreme skyscraper, clumsy (silver hair) |
+| **Dot**   | 0.82   | 1.20  | 1.15    | tiny libero — quick and clean, no block (pink hair) |
+| **Viper** | 1.05   | 1.15  | 0.80    | big fast wildcard, sloppy touches (green hair) |
+| **Pearl** | 1.08   | 0.85  | 1.15    | tall steady setter, heavy feet (platinum hair, dark skin) |
+
+**Quick Play opens a character-select screen**: pick from the roster, preview each
+character's portrait, blurb and stat bars, then Play — you become that character and the
+three AI players draw random (distinct) roster characters, so every match is a different
+matchup. Your last pick is remembered. Campaign matches keep each scene's built-in cast.
+
+Character sprites are baked per character and jersey colour — the height stat literally
+makes the sprite taller (longer legs/torso, same head), and skin/hair colours identify who
+is who while the jersey stays per-player-coloured. They are baked into
+`Assets/Resources/Characters/` so the game can re-dress players at runtime when characters
+are chosen after a scene was built. A `VolleyPlayer`'s character is chosen by its
+`characterId` field. After tweaking a character's stats or colours, delete
+`Assets/Resources/Characters/` to force a re-bake, and re-run the scene builders (the old
+`Assets/Sprites/Characters/` folder from earlier builds is unused and can be deleted).
 
 ## Project layout
 

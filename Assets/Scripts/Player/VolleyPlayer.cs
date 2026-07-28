@@ -3,7 +3,7 @@ using UnityEngine;
 namespace Volleyball
 {
     /// <summary>The kind of contact a player makes with the ball.</summary>
-    public enum HitType { Bump, Set, Spike, Serve, Block }
+    public enum HitType { Bump, Set, Spike, Serve, Block, Dive }
 
     /// <summary>
     /// Shared movement/jump/hit behaviour for both the human player and the AI.
@@ -19,17 +19,30 @@ namespace Volleyball
         [Tooltip("Half of the court this player favours: -1 = left (x<0), +1 = right.")]
         public float halfSign = -1f;
 
-        // Sizes and speeds are global — edit them in the GameConfig asset
-        // (Volleyball → Create Game Config), not per-player.
+        [Header("Character")]
+        [Tooltip("Which roster character this player is — stats (height/speed/control) and " +
+                 "appearance. See CharacterRoster in CharacterDef.cs.")]
+        public string characterId = CharacterRoster.DefaultId;
+
+        [Tooltip("This player slot's jersey colour (set by the scene builders). Used to pick " +
+                 "the right baked sprite set when the character is swapped at runtime.")]
+        public Color jerseyColor = Color.white;
+
+        /// <summary>This player's character (stats + look). Unknown ids fall back to the default.</summary>
+        public CharacterDef Character => CharacterRoster.Get(characterId);
+
+        // Baseline sizes and speeds are global — edit them in the GameConfig asset
+        // (Volleyball → Create Game Config). The character's stats scale them per-player.
         static GameConfig Cfg => GameConfig.Instance;
-        public float moveSpeed => Cfg.moveSpeed;
+        public float moveSpeed => Cfg.moveSpeed * Character.speed;
         public float jumpSpeed => Cfg.jumpSpeed;
         public float reach => Cfg.reach;
-        public float hitReachHeight => Cfg.hitReachHeight;
+        public float hitReachHeight => Cfg.hitReachHeight * Character.height;
         public float hitBufferTime => Cfg.hitBufferTime;
+        public float diveSpeed => Cfg.diveSpeed * Character.speed;
         public float blockNetDistance => Cfg.blockNetDistance;
         public float blockMinHeight => Cfg.blockMinHeight;
-        public float blockReach => Cfg.blockReach;
+        public float blockReach => Cfg.blockReach * Character.height;
         public float blockBallBand => Cfg.blockBallBand;
 
         protected float height;   // current height above the ground (from jumping)
@@ -40,10 +53,41 @@ namespace Volleyball
         float _bufferUntil;
         bool _swingWantedPrev;
 
+        float _diveTimer;    // > 0 while sliding along the dive
+        float _diveRecover;  // > 0 while getting back up afterwards
+        Vector3 _diveDir;
+        Vector2 _lastMoveDir; // last non-zero steering input, so a stationary dive still has a direction
+
+        Vector3 _lastGroundPos; // ground-plane position last frame, for sand-mark spacing
+        float _strideAccum;     // distance run since the last footprint
+        float _footSide = 1f;   // which foot lands next: +1 / -1 alternating
+        float _diveMarkAccum;   // distance slid since the last dive streak
+
         protected MatchManager match;
         protected BallController ball;
 
         public bool IsGrounded => height <= 0.001f;
+        /// <summary>True while laid out on a dive — the slide and the get-up afterwards.</summary>
+        public bool IsDiving => _diveTimer > 0f || _diveRecover > 0f;
+        /// <summary>World direction of the current/last dive (unit XZ). Read by the visuals
+        /// to pick a sideways vs toward/away-from-camera dive pose.</summary>
+        public Vector3 DiveDir => _diveDir;
+
+        /// <summary>
+        /// How horizontal the diver's body is, 0 (upright) → 1 (flat on the ground). Ramps up
+        /// over the slide, holds flat while down, and eases back to 0 as they stand up at the
+        /// end of the recovery. Drives the visuals (sprite roll); gameplay ignores it.
+        /// </summary>
+        public float DiveFlat01
+        {
+            get
+            {
+                const float standUpTime = 0.25f; // the last part of the recovery = getting up
+                if (_diveTimer > 0f) return 1f - _diveTimer / Mathf.Max(Cfg.diveDuration, 0.01f);
+                if (_diveRecover > 0f) return Mathf.Clamp01(_diveRecover / standUpTime);
+                return 0f;
+            }
+        }
         public Vector3 GroundPosition => new Vector3(transform.position.x, 0f, transform.position.z);
 
         /// <summary>Raised when the player swings — a hit attempt (even a whiff), a landed
@@ -57,10 +101,12 @@ namespace Volleyball
         {
             match = FindAnyObjectByType<MatchManager>();
             ball = FindAnyObjectByType<BallController>();
+            _lastGroundPos = GroundPosition;
         }
 
         protected abstract Vector2 ReadMove();
         protected abstract bool ReadJumpPressed();
+        protected abstract bool ReadDivePressed();
         protected abstract Vector3 ChooseHitTarget(HitType type);
 
         /// <summary>Return true to hit this frame, with the explicitly chosen contact type.</summary>
@@ -75,6 +121,7 @@ namespace Volleyball
                 case HitType.Spike: return Mathf.Max(1.0f, CourtGeometry.NetHeight + 0.7f - startY);
                 case HitType.Set: return 3.4f;  // high, soft, hangs for the spiker
                 case HitType.Bump: return 2.8f; // lofted return
+                case HitType.Dive: return GameConfig.Instance.divePopApex; // desperate pop straight up
                 default: return 4f;             // serve
             }
         }
@@ -84,6 +131,8 @@ namespace Volleyball
             height = 0f;
             vertVel = 0f;
             hitCooldown = 0f;
+            _diveTimer = 0f;
+            _diveRecover = 0f;
         }
 
         protected virtual void Update()
@@ -91,11 +140,29 @@ namespace Volleyball
             float dt = Time.deltaTime;
             hitCooldown -= dt;
 
+            if (_diveTimer > 0f)
+            {
+                _diveTimer -= dt;
+                if (_diveTimer <= 0f) _diveRecover = Cfg.diveRecoverTime; // slide over — get up
+            }
+            else if (_diveRecover > 0f) _diveRecover -= dt;
+
             // --- horizontal movement (clamped to own side of the net) ---
             Vector2 mv = ReadMove();
+            if (mv.sqrMagnitude > 0.01f) _lastMoveDir = mv;
             Vector3 pos = transform.position;
-            pos.x += mv.x * moveSpeed * dt;
-            pos.z += mv.y * moveSpeed * dt;
+            if (_diveTimer > 0f)
+            {
+                // mid-dive: committed to the lunge — the dive direction overrides steering
+                pos.x += _diveDir.x * diveSpeed * dt;
+                pos.z += _diveDir.z * diveSpeed * dt;
+            }
+            else if (_diveRecover <= 0f)
+            {
+                pos.x += mv.x * moveSpeed * dt;
+                pos.z += mv.y * moveSpeed * dt;
+            }
+            // (while recovering: face down in the sand — no movement)
 
             const float margin = 1f;
             pos.x = Mathf.Clamp(pos.x, -(CourtGeometry.HalfWidth + margin), CourtGeometry.HalfWidth + margin);
@@ -111,8 +178,13 @@ namespace Volleyball
                 else pos.z = Mathf.Max(pos.z, CourtGeometry.HalfDepth);
             }
 
-            // --- jump + gravity ---
-            if (ReadJumpPressed() && IsGrounded)
+            // --- diving: a grounded lunge toward the steer direction (or the ball) ---
+            if (ReadDivePressed() && IsGrounded && !IsDiving
+                && !(match != null && match.IsServePhaseFor(this)))
+                StartDive(mv);
+
+            // --- jump + gravity (you can't jump out of a dive) ---
+            if (ReadJumpPressed() && IsGrounded && !IsDiving)
                 vertVel = jumpSpeed;
             vertVel += Physics.gravity.y * dt;
             height += vertVel * dt;
@@ -120,9 +192,17 @@ namespace Volleyball
             pos.y = height;
 
             transform.position = pos;
+            LeaveSandMarks(pos);
 
+            if (IsDiving)
+            {
+                // laid out: the only possible contact is the chaotic dive dig, and only
+                // while still sliding — once recovering, we're face down and out of the play
+                if (_diveTimer > 0f && hitCooldown <= 0f) TryDiveHit();
+                _bufferUntil = 0f;
+            }
             // --- blocking: jumping at the net into an opponent's attack auto-blocks it ---
-            if (hitCooldown <= 0f && TryBlock())
+            else if (hitCooldown <= 0f && TryBlock())
             {
                 _bufferUntil = 0f;
             }
@@ -144,6 +224,43 @@ namespace Volleyball
                 }
                 if (hitCooldown <= 0f && Time.time <= _bufferUntil && TryHit(_bufferedHit))
                     _bufferUntil = 0f;
+            }
+        }
+
+        /// <summary>Drop footprints while running and drag streaks while dive-sliding,
+        /// spaced by ground distance actually covered this frame.</summary>
+        void LeaveSandMarks(Vector3 pos)
+        {
+            Vector3 flat = new Vector3(pos.x, 0f, pos.z);
+            Vector3 delta = flat - _lastGroundPos;
+            _lastGroundPos = flat;
+
+            float moved = delta.magnitude;
+            if (moved < 1e-5f || moved > 1f) return; // idle, or teleported by a rally reset
+            Vector3 dir = delta / moved;
+
+            if (_diveTimer > 0f)
+            {
+                _diveMarkAccum += moved;
+                if (_diveMarkAccum >= 0.3f)
+                {
+                    _diveMarkAccum = 0f;
+                    SandMarks.DiveStreak(flat, dir);
+                }
+            }
+            else if (IsGrounded)
+            {
+                _strideAccum += moved;
+                if (_strideAccum >= 0.75f)
+                {
+                    _strideAccum = 0f;
+                    _footSide = -_footSide;
+                    SandMarks.Footstep(flat, dir, _footSide);
+                }
+            }
+            else
+            {
+                _strideAccum = 0f; // airborne: the stride restarts on landing
             }
         }
 
@@ -192,6 +309,51 @@ namespace Volleyball
             return true;
         }
 
+        /// <summary>Commit to a dive: a fast grounded lunge along the held steer direction,
+        /// or the way we were last running when nothing is held right now.</summary>
+        void StartDive(Vector2 steer)
+        {
+            if (steer.sqrMagnitude < 0.01f) steer = _lastMoveDir;
+            Vector3 dir = new Vector3(steer.x, 0f, steer.y);
+            if (dir.sqrMagnitude < 0.01f) dir = new Vector3(0f, 0f, CourtGeometry.SideSign(team.Other()));
+            _diveDir = dir.normalized;
+            _diveTimer = Cfg.diveDuration;
+            TriggerSwing(HitType.Dive);
+            VBLog.Event($"DIVE by '{name}' team={team} dir={VBLog.V(_diveDir)}");
+        }
+
+        /// <summary>
+        /// The dive contact: a desperate one-armed dig on a low ball while laid out. There is
+        /// no aim at all — the ball squirts off the platform in a completely random direction
+        /// (sometimes straight up, sometimes shanked metres sideways) at a random height.
+        /// Returns true if contact was made.
+        /// </summary>
+        protected bool TryDiveHit()
+        {
+            if (ball == null || !ball.CanBeHit) return false;
+            if (match != null && !match.CanTeamTouch(team)) return false;
+
+            Vector3 bp = ball.transform.position;
+            if (CourtGeometry.SideOf(bp) != team) return false;      // never reach across the net
+            if (bp.y < 0f || bp.y > Cfg.diveMaxBallHeight) return false; // a dive only digs low balls
+            if (Vector2.Distance(new Vector2(transform.position.x, transform.position.z),
+                                 new Vector2(bp.x, bp.z)) > Cfg.diveReach) return false;
+
+            float incomingSpeed = ball.Body.linearVelocity.magnitude;
+            float error = ComputeContactError(HitType.Dive, incomingSpeed);
+
+            // Spray around the contact point itself — no drift toward anywhere "safe", so the
+            // dig is as likely to squirt sideways or backwards as up-court. The pop height is
+            // rolled too: anything from a flat shank to a sky ball.
+            Vector3 target = ApplyContactError(new Vector3(bp.x, 0.6f, bp.z), error);
+            float apex = Cfg.divePopApex * Random.Range(0.6f, 1.5f);
+            ball.LaunchTo(target, apex, team, this, HitType.Dive);
+            match?.RegisterTouch(team, this);
+            LogContact(HitType.Dive, target);
+            hitCooldown = 0.25f;
+            return true;
+        }
+
         /// <summary>Per-controller skill multiplier on contact error (1 = baseline human).</summary>
         protected virtual float ContactSkill => 1f;
 
@@ -212,6 +374,7 @@ namespace Volleyball
                 case HitType.Spike: baseErr = cfg.spikeBaseError; speedPenaltyPerUnit = cfg.spikeSpeedPenalty; break;
                 case HitType.Serve: baseErr = cfg.serveBaseError; speedPenaltyPerUnit = 0f;                    break;
                 case HitType.Block: baseErr = cfg.blockBaseError; speedPenaltyPerUnit = 0f;                    break;
+                case HitType.Dive:  baseErr = cfg.diveBaseError;  speedPenaltyPerUnit = cfg.bumpSpeedPenalty;  break;
                 default:            baseErr = cfg.bumpBaseError;  speedPenaltyPerUnit = cfg.bumpSpeedPenalty;  break;
             }
 
@@ -239,7 +402,9 @@ namespace Volleyball
                 error += cfg.reachErrorPenalty * Mathf.Clamp01(dist / Mathf.Max(reach, 0.01f));
             }
 
-            return Mathf.Min(error * ContactSkill, cfg.maxContactError);
+            // The character's stats shape the final spray: height tightens net work
+            // (spike/block), control tightens everything else (bump/set/serve/dive).
+            return Mathf.Min(error * ContactSkill * Character.ErrorMult(type), cfg.maxContactError);
         }
 
         /// <summary>

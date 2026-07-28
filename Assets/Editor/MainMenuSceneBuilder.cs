@@ -58,6 +58,7 @@ namespace Volleyball.EditorTools
 
             GameObject settingsPanel = BuildSettingsPanel(canvasGO.transform, font);
             GameObject campaignPanel = BuildCampaignPanel(canvasGO.transform, font);
+            GameObject characterSelectPanel = BuildCharacterSelectPanel(canvasGO.transform, font);
 
             var ctrl = canvasGO.AddComponent<MainMenuController>();
             ctrl.quickPlayButton = quickPlay;
@@ -66,6 +67,7 @@ namespace Volleyball.EditorTools
             ctrl.quitButton = quit;
             ctrl.settingsPanel = settingsPanel;
             ctrl.campaignPanel = campaignPanel;
+            ctrl.characterSelectPanel = characterSelectPanel;
 
             BuildEventSystem();
 
@@ -165,6 +167,143 @@ namespace Volleyball.EditorTools
 
             panel.SetActive(false);
             return panel;
+        }
+
+        /// <summary>
+        /// The Quick Play character-select screen: an entry per roster character (baked idle
+        /// portrait + name) in a 4×2 grid on the left, and a preview pane on the right — big
+        /// portrait, name, blurb and height/speed/control stat bars — plus Play and Back.
+        /// Portrait sprites are the human-blue baked idle frames, assigned at build time; the
+        /// live selection logic is <see cref="CharacterSelectPanel"/>.
+        /// </summary>
+        static GameObject BuildCharacterSelectPanel(Transform parent, Font font)
+        {
+            GameObject panel = MakeDimPanel(parent, "CharacterSelectPanel");
+            var cs = panel.AddComponent<CharacterSelectPanel>();
+
+            Text title = MakeText(panel.transform, "Title", font,
+                new Vector2(0.5f, 1f), new Vector2(0f, -100f), new Vector2(1200f, 100f), 72,
+                TextAnchor.MiddleCenter);
+            title.text = "Choose Your Character";
+
+            // ---- roster grid (left) ----
+            var entries = new List<CharacterSelectPanel.Entry>();
+            for (int i = 0; i < CharacterRoster.All.Length; i++)
+            {
+                CharacterDef ch = CharacterRoster.All[i];
+                var pos = new Vector2(-810f + (i % 4) * 190f, i < 4 ? 140f : -100f);
+
+                var go = new GameObject(ch.displayName + " Entry",
+                    typeof(RectTransform), typeof(Image), typeof(Button));
+                go.transform.SetParent(panel.transform, false);
+                var rt = go.GetComponent<RectTransform>();
+                rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+                rt.sizeDelta = new Vector2(180f, 220f);
+                rt.anchoredPosition = pos;
+
+                var frame = go.GetComponent<Image>();
+                frame.sprite = UISprite();
+                frame.type = Image.Type.Sliced;
+                frame.color = new Color(1f, 1f, 1f, 0.10f); // panel re-tints on selection
+                go.GetComponent<Button>().targetGraphic = frame;
+
+                var portraitGO = new GameObject("Portrait", typeof(RectTransform), typeof(Image));
+                portraitGO.transform.SetParent(go.transform, false);
+                var prt = portraitGO.GetComponent<RectTransform>();
+                prt.anchorMin = prt.anchorMax = prt.pivot = new Vector2(0.5f, 0.5f);
+                prt.sizeDelta = new Vector2(150f, 160f);
+                prt.anchoredPosition = new Vector2(0f, 22f);
+                var portrait = portraitGO.GetComponent<Image>();
+                portrait.sprite = CharacterArt.GetCharacterFrames(PlayerColors.Human, ch)[0]; // idle
+                portrait.preserveAspect = true; // heights differ per character — don't stretch
+                portrait.raycastTarget = false;
+
+                Text nameLabel = MakeText(go.transform, "Name", font,
+                    new Vector2(0.5f, 0f), new Vector2(0f, 12f), new Vector2(180f, 40f), 28,
+                    TextAnchor.MiddleCenter);
+                nameLabel.text = ch.displayName;
+                nameLabel.raycastTarget = false;
+
+                entries.Add(new CharacterSelectPanel.Entry
+                {
+                    characterId = ch.id,
+                    button = go.GetComponent<Button>(),
+                    frame = frame,
+                    portrait = portrait,
+                });
+            }
+            cs.entries = entries.ToArray();
+
+            // ---- preview pane (right) ----
+            cs.previewName = MakeText(panel.transform, "PreviewName", font,
+                new Vector2(0.5f, 0.5f), new Vector2(430f, 320f), new Vector2(500f, 60f), 52,
+                TextAnchor.MiddleCenter);
+
+            var previewGO = new GameObject("PreviewPortrait", typeof(RectTransform), typeof(Image));
+            previewGO.transform.SetParent(panel.transform, false);
+            var pvRt = previewGO.GetComponent<RectTransform>();
+            pvRt.anchorMin = pvRt.anchorMax = pvRt.pivot = new Vector2(0.5f, 0.5f);
+            pvRt.sizeDelta = new Vector2(250f, 330f);
+            pvRt.anchoredPosition = new Vector2(430f, 120f);
+            cs.previewPortrait = previewGO.GetComponent<Image>();
+            cs.previewPortrait.preserveAspect = true; // sprite comes from the selected entry
+
+            cs.previewBlurb = MakeText(panel.transform, "PreviewBlurb", font,
+                new Vector2(0.5f, 0.5f), new Vector2(430f, -80f), new Vector2(680f, 60f), 26,
+                TextAnchor.MiddleCenter);
+
+            cs.heightBar = BuildStatBar(panel.transform, font, "Height", -150f);
+            cs.speedBar = BuildStatBar(panel.transform, font, "Speed", -210f);
+            cs.controlBar = BuildStatBar(panel.transform, font, "Control", -270f);
+
+            cs.playButton = MakeButton(panel.transform, font, "PlayButton", "Play",
+                new Vector2(0.5f, 0.5f), new Vector2(430f, -370f), new Vector2(360f, 90f), MenuBlue);
+            cs.backButton = MakeButton(panel.transform, font, "BackButton", "Back",
+                new Vector2(0.5f, 0.5f), new Vector2(-525f, -370f), new Vector2(300f, 80f), MenuRed);
+
+            panel.SetActive(false);
+            return panel;
+        }
+
+        // One preview stat row: right-aligned label, a bar whose fill the panel resizes, and a
+        // value label ("×1.16"). Returns the pieces CharacterSelectPanel drives at runtime.
+        static CharacterSelectPanel.StatBar BuildStatBar(Transform parent, Font font,
+                                                         string label, float y)
+        {
+            Text name = MakeText(parent, label + " Label", font,
+                new Vector2(0.5f, 0.5f), new Vector2(190f, y), new Vector2(180f, 40f), 30,
+                TextAnchor.MiddleRight);
+            name.text = label;
+
+            var bg = new GameObject(label + " Bar", typeof(RectTransform), typeof(Image));
+            bg.transform.SetParent(parent, false);
+            var rt = bg.GetComponent<RectTransform>();
+            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.sizeDelta = new Vector2(330f, 28f);
+            rt.anchoredPosition = new Vector2(475f, y);
+            var bgImg = bg.GetComponent<Image>();
+            bgImg.sprite = UIBackground();
+            bgImg.type = Image.Type.Sliced;
+            bgImg.color = new Color(0.10f, 0.12f, 0.16f, 0.95f);
+
+            var fill = new GameObject("Fill", typeof(RectTransform), typeof(Image));
+            fill.transform.SetParent(bg.transform, false);
+            var fillRt = fill.GetComponent<RectTransform>();
+            fillRt.anchorMin = Vector2.zero;
+            fillRt.anchorMax = new Vector2(0.5f, 1f); // panel sets the real fraction
+            fillRt.offsetMin = Vector2.zero;
+            fillRt.offsetMax = Vector2.zero;
+            var fillImg = fill.GetComponent<Image>();
+            fillImg.sprite = UISprite();
+            fillImg.type = Image.Type.Sliced;
+            fillImg.color = new Color(0.30f, 0.65f, 1f, 1f);
+
+            Text value = MakeText(parent, label + " Value", font,
+                new Vector2(0.5f, 0.5f), new Vector2(665f, y), new Vector2(120f, 40f), 28,
+                TextAnchor.MiddleLeft);
+            value.text = "";
+
+            return new CharacterSelectPanel.StatBar { fill = fillRt, valueLabel = value };
         }
 
         static GameObject MakeDimPanel(Transform parent, string name)

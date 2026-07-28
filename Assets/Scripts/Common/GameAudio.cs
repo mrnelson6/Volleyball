@@ -193,6 +193,7 @@ namespace Volleyball
             _hitClips[HitType.Serve] = MakeHit("hit_serve", 200f, 0.8f, 0.5f, 0.14f, 30f);
             _hitClips[HitType.Bump]  = MakeHit("hit_bump", 150f, 0.7f, 0.8f, 0.18f, 22f);
             _hitClips[HitType.Set]   = MakeHit("hit_set", 320f, 0.5f, 0.3f, 0.10f, 45f);
+            _hitClips[HitType.Dive]  = MakeHit("hit_dive", 120f, 0.75f, 0.95f, 0.22f, 16f); // scuffed, sandy dig
 
             _netClip = MakeNet();
             _whistleClip = MakeWhistle();
