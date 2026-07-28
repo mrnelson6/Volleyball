@@ -16,7 +16,13 @@ namespace Volleyball
         float spikeHeightThreshold => GameConfig.Instance.aiSpikeHeightThreshold;
 
         // AI contacts run through the same skill/error model as the human, scaled by aiErrorMult.
-        protected override float ContactSkill => GameConfig.Instance.aiErrorMult;
+        // A campaign match overrides the global value per-opponent-team (the difficulty ramp).
+        protected override float ContactSkill
+            => MatchSetup.aiErrorMult > 0f ? MatchSetup.aiErrorMult
+                                           : GameConfig.Instance.aiErrorMult;
+
+        // Campaign difficulty also scales how fast the AI reacts to an incoming ball.
+        static float ReactionScale => MatchSetup.aiReactionScale > 0f ? MatchSetup.aiReactionScale : 1f;
 
         Vector3 _home;
         Vector2 _desiredMove;
@@ -62,15 +68,17 @@ namespace Volleyball
             // dives straight at the server.
             bool rallyLive = match == null || match.State == MatchState.Rallying;
 
-            // Reaction latency: the instant an opponent sends the ball our way is when our clock
-            // starts — until it elapses we can't pursue, jump, or contact, so a ball driven
-            // straight back over the net gets past us instead of being dug instantly.
+            // Reaction latency: the instant an opponent sends the ball our way is when our
+            // clock starts — until it elapses we can't contact the ball and our pursuit is
+            // sluggish (see below), so a hard-driven ball can beat the read without us
+            // standing frozen while it does.
             if (ball.LastTouchPlayer != _prevToucher)
             {
                 _prevToucher = ball.LastTouchPlayer;
                 if (ball.LastTouchTeam == team.Other())
                     _reactUntil = Time.time + Random.Range(GameConfig.Instance.aiReactionMin,
-                                                           GameConfig.Instance.aiReactionMax);
+                                                           GameConfig.Instance.aiReactionMax)
+                                            * ReactionScale;
             }
             bool reacting = Time.time < _reactUntil;
 
@@ -101,8 +109,9 @@ namespace Volleyball
             bool ballComingToUs = landsOnOurSide || landsNearNetForUs;
 
             // (ClosestEligibleTo excludes whoever touched last, so we naturally alternate.)
-            // While still reacting we hold position rather than chase — caught flat-footed.
-            bool pursue = rallyLive && ballComingToUs && !reacting && ClosestEligibleTo(landing);
+            // A serve must cross the net on its own — never chase our own serve in flight.
+            bool ownServeInFlight = match != null && match.ServeInFlight && teamInPossession;
+            bool pursue = rallyLive && ballComingToUs && !ownServeInFlight && ClosestEligibleTo(landing);
 
             // when attacking, move under the ball's apex so we can spike it at its peak
             Vector3 moveTarget;
@@ -114,6 +123,11 @@ namespace Volleyball
             Vector2 dir = new Vector2(to.x, to.z);
             _desiredMove = dir.magnitude > 0.15f ? Vector2.ClampMagnitude(dir, 1f) : Vector2.zero;
 
+            // Reaction latency is a sluggish first step, not a freeze: while "reacting" we
+            // still visibly start toward the ball, just too slowly to make every get — the
+            // imperfection reads as a late read instead of a statue watching the spike land.
+            if (reacting) _desiredMove *= 0.35f;
+
             // Jump so we reach the top of our jump exactly when the ball is in the strike zone.
             // The time-to-apex and apex height both come from jumpSpeed, so the timing tracks
             // that value: predict where the ball will be after tApex and jump only if it'll be
@@ -124,7 +138,8 @@ namespace Volleyball
             float apexHeight = jumpSpeed * jumpSpeed / (2f * g);  // how high our jump reaches
             float maxReach = apexHeight + hitReachHeight;         // highest we can contact at apex
             Vector3 ballAtApex = bp + ball.Body.linearVelocity * tApex
-                                 + 0.5f * Physics.gravity * (tApex * tApex);
+                                 + 0.5f * (Physics.gravity + CourtEnvironment.Active.wind)
+                                        * (tApex * tApex);
             float hDistApex = Vector2.Distance(new Vector2(GroundPosition.x, GroundPosition.z),
                                                new Vector2(ballAtApex.x, ballAtApex.z));
             if (pursue && _attacking && IsGrounded && touchesRemain && _jumpCooldown <= 0f
@@ -272,7 +287,9 @@ namespace Volleyball
             if (v.y > 0.1f)
             {
                 float tA = v.y / (-Physics.gravity.y);
-                return new Vector3(p.x + v.x * tA, 0f, p.z + v.z * tA);
+                Vector3 w = CourtEnvironment.Active.wind;
+                return new Vector3(p.x + v.x * tA + 0.5f * w.x * tA * tA, 0f,
+                                   p.z + v.z * tA + 0.5f * w.z * tA * tA);
             }
             return PredictLanding();
         }
@@ -295,7 +312,11 @@ namespace Volleyball
             else t = (-b + Mathf.Sqrt(disc)) / (2f * a);
             t = Mathf.Clamp(t, 0.05f, 4f);
 
-            return new Vector3(p.x + v.x * t, 0f, p.z + v.z * t);
+            // compensate for the CONSTANT part of any regional wind (drift ~ ½·w·t²); the
+            // gust component stays unmodelled on purpose — it reads as honest misjudgement
+            Vector3 wind = CourtEnvironment.Active.wind;
+            return new Vector3(p.x + v.x * t + 0.5f * wind.x * t * t, 0f,
+                               p.z + v.z * t + 0.5f * wind.z * t * t);
         }
     }
 }

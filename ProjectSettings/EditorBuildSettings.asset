@@ -32,5 +32,29 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/NeonArena.unity
     guid: 9bc1436a6821092418570f9389830d24
+  - enabled: 1
+    path: Assets/Scenes/SavannaArena.unity
+    guid: 4a2897f2084fa354a936e34ac262849e
+  - enabled: 1
+    path: Assets/Scenes/AmazonArena.unity
+    guid: ec91dad4890125e4e98a495c5a84ae73
+  - enabled: 1
+    path: Assets/Scenes/OutbackArena.unity
+    guid: de6f5c1339770a245a84a8bffe3b7085
+  - enabled: 1
+    path: Assets/Scenes/HimalayaArena.unity
+    guid: 090f3cd1bc2f5124596622cf28191253
+  - enabled: 1
+    path: Assets/Scenes/ForestArena.unity
+    guid: 7c59fc0d384137846814a1725d5e1382
+  - enabled: 1
+    path: Assets/Scenes/SaharaArena.unity
+    guid: 20a4be703d1952f4d8939e909f89423c
+  - enabled: 1
+    path: Assets/Scenes/RockiesArena.unity
+    guid: d47759c0307642f41b425ea02d6d8e0c
+  - enabled: 1
+    path: Assets/Scenes/ArcticArena.unity
+    guid: f5b89450d6984e2409c68876bc89e5d5
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}

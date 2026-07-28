@@ -33,11 +33,13 @@ namespace Volleyball
         /// <summary>Prevent any contact with the ball for a while (e.g. just after a serve).</summary>
         public void LockHits(float duration) => _hitLockUntil = Mathf.Max(_hitLockUntil, Time.time + duration);
 
-        /// <summary>Toss the ball straight up (a self-toss for a jump serve — not a contact).</summary>
-        public void Toss(float upSpeed)
+        /// <summary>Toss the ball up (a self-toss for a jump serve — not a contact), with an
+        /// optional horizontal <paramref name="carryVelocity"/> — the jump-serve toss uses it
+        /// to throw the ball forward toward the baseline for the run-up.</summary>
+        public void Toss(float upSpeed, Vector3 carryVelocity = default)
         {
             _rb.isKinematic = false;
-            _rb.linearVelocity = new Vector3(0f, upSpeed, 0f);
+            _rb.linearVelocity = new Vector3(carryVelocity.x, upSpeed, carryVelocity.z);
             _rb.angularVelocity = Vector3.zero;
             Spin = 0f;
             SpinWobble = 0f;
@@ -49,6 +51,14 @@ namespace Volleyball
             _rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
             _rb.interpolation = RigidbodyInterpolation.Interpolate;
             if (GetComponent<BallTrail>() == null) gameObject.AddComponent<BallTrail>();
+        }
+
+        void FixedUpdate()
+        {
+            // regional wind (constant + gusts) pushes the ball while it's in free flight
+            if (_rb.isKinematic) return;
+            Vector3 wind = CourtEnvironment.WindNow(Time.time);
+            if (wind != Vector3.zero) _rb.AddForce(wind, ForceMode.Acceleration);
         }
 
         /// <summary>Freeze the ball at a position (used while waiting to serve).</summary>
@@ -87,12 +97,12 @@ namespace Volleyball
             {
                 // jump spike / over-the-net block: drive it straight down at the target with
                 // real pace that scales with how high it was hit, instead of lobbing it.
-                // The hitter's height stat then scales that pace directly — a big wingspan
-                // puts real mass behind net contacts, so tall characters hit harder balls
+                // The hitter's power stat then scales that pace directly — raw strength
+                // puts real mass behind net contacts, so strong animals hit harder balls
                 // (and harder incoming balls are harder for the receiver to control).
                 Vector3 dir = (target - start).normalized;
                 float pace = Mathf.Clamp(16f + (start.y - CourtGeometry.NetHeight) * 4f, 16f, 28f);
-                if (player != null) pace *= player.Character.height;
+                if (player != null) pace *= player.Character.power;
                 velocity = dir * pace;
             }
             else

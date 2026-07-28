@@ -53,11 +53,13 @@ namespace Volleyball.EditorTools
 
             var players = new List<VolleyPlayer>();
             // team A — human listed first so it serves for team A
-            players.Add(MakePlayer("Player (You)", TeamSide.A, -1f, ColPlayer, true, circle, "ace"));
-            players.Add(MakePlayer("Teammate (AI)", TeamSide.A, 1f, ColMate, false, circle, "tower"));
+            players.Add(MakePlayer("Player (You)", TeamSide.A, -1f, ColPlayer, true, circle,
+                                   CharacterRoster.ProtagonistId));
+            players.Add(MakePlayer("Teammate (AI)", TeamSide.A, 1f, ColMate, false, circle,
+                                   CharacterRoster.TeammateId));
             // team B — opponents
-            players.Add(MakePlayer("Opponent 1 (AI)", TeamSide.B, -1f, ColOpp1, false, circle, "bolt"));
-            players.Add(MakePlayer("Opponent 2 (AI)", TeamSide.B, 1f, ColOpp2, false, circle, "sage"));
+            players.Add(MakePlayer("Opponent 1 (AI)", TeamSide.B, -1f, ColOpp1, false, circle, "lion"));
+            players.Add(MakePlayer("Opponent 2 (AI)", TeamSide.B, 1f, ColOpp2, false, circle, "jaguar"));
 
             new GameObject("GameInput", typeof(GameInput));
 

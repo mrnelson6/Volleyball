@@ -1,28 +1,33 @@
-# Volleyball — 2.5D 2v2 Pixel-Art Volleyball
+# Animal Volleyball World Tour — 2.5D 2v2 Pixel-Art Volleyball
 
-A 2.5D pixel-art **2v2 beach volleyball** game built in Unity 6, targeting **web browsers
-(WebGL)** and **mobile** (touch). Players move on a 3D court (X/Z ground plane) while the
-ball arcs through 3D space (Y height) using real physics. Characters and the ball are
-pixel-art sprites that billboard toward a tilted perspective camera.
+A 2.5D pixel-art **2v2 volleyball** game built in Unity 6, targeting **web browsers
+(WebGL)** and **mobile** (touch), starring a cast of **35 animals** whose real-world traits
+are their stats — the giraffe is tall, the cougar is fast, the buffalo is strong. Players
+move on a 3D court (X/Z ground plane) while the ball arcs through 3D space (Y height) using
+real physics. Characters and the ball are pixel-art sprites that billboard toward a tilted
+perspective camera.
 
-This repository currently contains a **single-player vs AI prototype**: a human player and
-one AI teammate face two AI opponents in a full match.
+The campaign is a **world tour**: you and your partner (Finn the Fox + Bruno the Bear)
+travel the globe, and at each stop you must win a **regional mini-tournament** against
+duos of animals native to that region, on a court with that region's own **environmental
+quirks** — thin Himalayan air, outback crosswinds, humid Amazon drag — before travelling on.
 
-## Status: Prototype
+## Status
 
-- 3D court + net + perspective camera
-- Ball physics (arc, bounce, net collision)
-- Player movement, jump, serve/hit
-- AI teammate + opponents (predict landing → chase → return)
+- 3D court + net + perspective camera; ball physics (arc, bounce, net collision)
+- Player movement, jump, serve/hit; AI teammate + opponents (predict landing → chase → return)
 - Rally rules: serve, max 3 touches per side, in/out detection, rally scoring
 - Touch controls (on-screen joystick + jump/hit) and keyboard
-- Procedurally-baked human characters with simple animation (idle / run / jump / swing),
-  in per-player team colours — generated in code, no art files needed (real pixel art can
-  drop in later by replacing the baked frames)
-- Procedural sound (`GameAudio`), also synthesised in code with no audio files: a looping
-  beach ambience, a continuous soft sand-shuffle that swells as players move, and one-shot
-  SFX for ball contacts (by hit type), net hits, the serve whistle, a crowd cheer on points,
-  match win, and the ball landing in vs out of bounds. Volumes are tunable in `GameConfig`
+- **World-tour campaign**: 9 stops (8 regional courts + the Cloud Kingdom World Finals),
+  33 matches, per-match AI difficulty ramp, saved progress (JSON, versioned)
+- **Regional environments**: per-region gravity / wind (with gusts) / ball drag / ambience,
+  applied at match start by `CourtEnvironment` — the AI compensates for constant wind but
+  not gusts, so weather reads as honest misjudgement
+- Procedurally-baked animal characters (shared bipedal rig + per-species head/ears/horns/
+  neck/tail/markings parameters), in per-player team colours — generated in code, no art files
+- Procedural sound (`GameAudio`), also synthesised in code with no audio files: regional
+  ambience beds (surf / wind / jungle / rain / snow), a movement shuffle, and one-shot SFX
+  for contacts, net, whistle, points, match win and landings. Volumes tunable in `GameConfig`
 
 ## Requirements
 
@@ -32,10 +37,9 @@ one AI teammate face two AI opponents in a full match.
 ## Getting started
 
 1. Open the project in Unity Hub with Unity `6000.4.8f1`.
-2. Run the menu command **`Volleyball → Build Prototype Scene`**. This generates
-   `Assets/Scenes/Game.unity` with the court, net, camera, players, ball, and UI fully
-   wired (placeholder art).
-3. Open `Assets/Scenes/Game.unity` and press **Play**.
+2. Run the menu command **`Volleyball → Build World Tour (Everything)`**. This bakes every
+   animal's sprites and generates all 15 arena scenes plus the main menu, fully wired.
+3. Open `Assets/Scenes/MainMenu.unity` and press **Play**.
 
 ## Controls
 
@@ -75,52 +79,75 @@ Because the same player can't touch the ball twice in a row, an offensive play i
 *you set → AI partner spikes*, or *AI sets → you spike*. Aim by holding a movement
 direction as you hit.
 
-## Characters
+## Characters — the animal roster
 
-Every player on court is one of a roster of characters, each with stats that trade off
-against each other (defined in code in `Assets/Scripts/Player/CharacterDef.cs`):
+Every player on court is one of **35 animals**, each with stats that mirror the real
+creature and trade off against each other (defined in code in
+`Assets/Scripts/Player/CharacterDef.cs`):
 
-- **Height** — scales the sprite and the vertical hit/block reach, tightens spike and
-  block contacts, and directly scales how hard driven spikes and blocks come off the hand.
-  Tall characters dominate the net; short ones give that up.
-- **Speed** — scales run speed and the dive lunge.
-- **Control** — tightens bumps, sets, serves and dive digs (divides their contact error),
-  so touches land where they were aimed.
+- **Height** — scales the sprite and the vertical hit/block reach and tightens spike and
+  block contacts. Tall animals (giraffe, moose, camel) dominate the net.
+- **Speed** — scales run speed and the dive lunge (cougar, hare, jaguar).
+- **Power** — raw strength: scales the pace of driven spikes and blocks (buffalo, yak,
+  polar bear), independent of height.
+- **Control** — tightens bumps, sets, serves and dive digs (penguin, raccoon, capybara).
+- **Jump** — jump height, applied as sqrt so apex height scales linearly (kangaroo,
+  jerboa, markhor).
 
-| Character | Height | Speed | Control | Identity |
-| --------- | ------ | ----- | ------- | -------- |
-| **Ace**   | 1.00   | 1.00  | 1.00    | balanced all-rounder (dark hair) |
-| **Tower** | 1.16   | 0.85  | 0.90    | net dominance, slow (tall, black hair, deep skin) |
-| **Bolt**  | 0.88   | 1.25  | 0.95    | court coverage, small at the net (short, blond) |
-| **Sage**  | 0.95   | 0.90  | 1.35    | surgical ball control (auburn hair, pale skin) |
-| **Rex**   | 1.22   | 0.80  | 0.85    | extreme skyscraper, clumsy (silver hair) |
-| **Dot**   | 0.82   | 1.20  | 1.15    | tiny libero — quick and clean, no block (pink hair) |
-| **Viper** | 1.05   | 1.15  | 0.80    | big fast wildcard, sloppy touches (green hair) |
-| **Pearl** | 1.08   | 0.85  | 1.15    | tall steady setter, heavy feet (platinum hair, dark skin) |
+The protagonists are **Finn the Fox** (you — quick and clever) and **Bruno the Bear**
+(your teammate — big paws, bigger spikes). The other 33 animals are grouped by home
+region — savanna (meerkat, zebra, warthog, giraffe, lion), Amazon (capybara, toucan,
+sloth, jaguar), outback (wombat, dingo, emu, kangaroo), Himalaya (red panda, yak, markhor,
+snow leopard), Black Forest (hare, badger, boar, stag), Sahara (jerboa, fennec, oryx,
+camel), Rockies (raccoon, moose, buffalo, cougar) and Arctic (penguin, snowy owl, walrus,
+polar bear). Full stat lines live in the roster table in `CharacterDef.cs`.
 
-**Quick Play opens a character-select screen**: pick from the roster, preview each
-character's portrait, blurb and stat bars, then Play — you become that character and the
-three AI players draw random (distinct) roster characters, so every match is a different
-matchup. Your last pick is remembered. Campaign matches keep each scene's built-in cast.
+**Quick Play opens a character-select screen**: pick any animal from the scrollable
+roster, preview its portrait, blurb and five stat bars, choose a **venue** (any of the 15
+courts — regional venues keep their weather), then Play — the two opponents draw random
+roster animals while your teammate stays Bruno. Your last pick and venue are remembered.
 
-Character sprites are baked per character and jersey colour — the height stat literally
-makes the sprite taller (longer legs/torso, same head), and skin/hair colours identify who
-is who while the jersey stays per-player-coloured. They are baked into
-`Assets/Resources/Characters/` so the game can re-dress players at runtime when characters
-are chosen after a scene was built. A `VolleyPlayer`'s character is chosen by its
-`characterId` field. After tweaking a character's stats or colours, delete
-`Assets/Resources/Characters/` to force a re-bake, and re-run the scene builders (the old
-`Assets/Sprites/Characters/` folder from earlier builds is unused and can be deleted).
+Sprites are baked per animal and jersey colour from **one shared bipedal rig** plus
+per-species `SpeciesArt` parameters (head shape, ears, horns/antlers/tusks, neck length,
+tail, stripe/spot/mask markings) into `Assets/Resources/Characters/`, so the game can
+re-dress players at runtime. The cache is stamped with an art version and wipes itself
+when the draw code changes; use **`Volleyball → Force Rebake Character Sprites`** after
+tweaking a single animal's colours, and **`Volleyball → Save Character Contact Sheet`**
+to render the whole cast into one PNG for a quick look.
+
+## The World Tour campaign
+
+Campaign progress lives in `Assets/Scripts/Campaign/RegionDef.cs` (`RegionRoster` — the
+tour ladder) and a versioned JSON save (`SaveSystem` / `CampaignSave`). Each region defines
+its court scene, its species pool, a tournament of 3–4 named opponent duos with a per-match
+AI difficulty (`aiErrorMult`, reaction scale), and an `EnvironmentProfile`:
+
+| # | Region | Court quirk |
+| - | ------ | ----------- |
+| 1 | Sunny Savanna | baseline physics (the tutorial stop) |
+| 2 | Amazon Rainforest | humid air — ball drag 0.2 |
+| 3 | Australian Outback | crosswind with gusts |
+| 4 | Himalayan Peaks | thin air — 0.85× gravity, floaty everything |
+| 5 | Black Forest | drizzle — ball drag 0.15 |
+| 6 | Sahara Dunes | strong gusting sandstorm wind |
+| 7 | Rocky Mountains | wind straight down the court |
+| 8 | Polar Ice | 0.95× gravity, icy hush |
+| 9 | Cloud Kingdom Finals | 0.9× gravity showcase (reuses the SkyArena) |
+
+Win a match to advance the bracket; lose and you retry it. Clearing a region unlocks the
+next stop on the tour board (Campaign menu), and results save immediately —
+quitting at the end-of-match banner loses nothing. `MatchManager` routes the Hit key at
+match end to the next match, a retry, or back to the tour board.
 
 ## Project layout
 
 ```
 Assets/
-  Scripts/{Ball,Player,AI,Court,Game,Camera,UI,Common}/   gameplay code
+  Scripts/{Ball,Player,AI,Court,Game,Camera,UI,Common,Campaign}/   gameplay code
   Editor/                                                  scene-builder menu commands
   Sprites/{Characters,Ball,Court,UI}/                      art (placeholders for now)
   Prefabs/                                                 generated prefabs
-  Scenes/Game.unity                                        the playable scene
+  Scenes/                                                  MainMenu + 15 arena scenes
   Settings/                                                URP render pipeline assets
 ```
 
@@ -137,6 +164,11 @@ compose the reusable gameplay "keys" into a scene you've dressed however you lik
   (`Assets/Scenes/BeachArena.unity`): a procedural golden-hour beach — sunset skybox + sun,
   ocean, grandstands with a crowd, palms, tiki torches, umbrellas, clouds — with a fully
   playable court dropped in.
+- **`Volleyball → Themed Levels`** / **`Build All Themed Arenas`** builds the other 14
+  courts from data: 6 fantasy venues (`ThemedArenaDecorator`) and the 8 world-tour regional
+  courts (`RegionalArenaThemes`, keyed to `RegionRoster` scene names). Cosmetics live in
+  the theme; each region's *gameplay* weather lives in its `EnvironmentProfile` and is
+  applied at runtime by `CourtEnvironment` — including in Quick Play.
 
 Gameplay is locked to a court centred on the **world origin** (player clamping, in/out
 detection and camera-relative controls all read `CourtGeometry`'s origin-centred constants),

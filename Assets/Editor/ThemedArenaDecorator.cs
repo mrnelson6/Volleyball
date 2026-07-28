@@ -74,8 +74,26 @@ namespace Volleyball.EditorTools
 
         static ArenaTheme[] _themes;
 
-        /// <summary>The six outlandish arenas, built lazily so prop delegates resolve cleanly.</summary>
-        public static ArenaTheme[] Themes => _themes ??= new[]
+        /// <summary>
+        /// Every buildable arena: the six fantasy venues below plus the world-tour regional
+        /// courts from <see cref="RegionalArenaThemes"/>. Lazy so prop delegates resolve cleanly.
+        /// </summary>
+        public static ArenaTheme[] Themes
+        {
+            get
+            {
+                if (_themes != null) return _themes;
+                ArenaTheme[] fantasy = FantasyThemes();
+                ArenaTheme[] regional = RegionalArenaThemes.All();
+                _themes = new ArenaTheme[fantasy.Length + regional.Length];
+                fantasy.CopyTo(_themes, 0);
+                regional.CopyTo(_themes, fantasy.Length);
+                return _themes;
+            }
+        }
+
+        /// <summary>The six original fantasy arenas.</summary>
+        static ArenaTheme[] FantasyThemes() => new[]
         {
             new ArenaTheme
             {
@@ -847,8 +865,8 @@ namespace Volleyball.EditorTools
 
         // ----------------------------------------------------------------- primitive helpers
 
-        static GameObject Spawn(PrimitiveType type, Transform parent, string name, Vector3 pos,
-                                Vector3 scale, Material mat, Vector3? euler = null)
+        internal static GameObject Spawn(PrimitiveType type, Transform parent, string name, Vector3 pos,
+                                         Vector3 scale, Material mat, Vector3? euler = null)
         {
             var go = GameObject.CreatePrimitive(type);
             StripCollider(go);
@@ -861,7 +879,7 @@ namespace Volleyball.EditorTools
             return go;
         }
 
-        static Light AddPoint(Transform parent, Vector3 pos, Color color, float range, float intensity)
+        internal static Light AddPoint(Transform parent, Vector3 pos, Color color, float range, float intensity)
         {
             var go = new GameObject("Point Light");
             go.transform.SetParent(parent, true);
@@ -888,8 +906,8 @@ namespace Volleyball.EditorTools
 
         // ----------------------------------------------------------------- material helpers
 
-        static Material Mat(ArenaTheme t, string suffix, Color color, float smoothness = 0.1f,
-                            float metallic = 0f, Color? emission = null)
+        internal static Material Mat(ArenaTheme t, string suffix, Color color, float smoothness = 0.1f,
+                                     float metallic = 0f, Color? emission = null)
             => MakeLit($"{t.key}_{suffix}", color, smoothness, metallic, emission);
 
         static Material MakeLit(string name, Color color, float smoothness = 0.1f,

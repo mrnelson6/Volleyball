@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace Volleyball
 {
@@ -47,18 +48,36 @@ namespace Volleyball
                 players.AddRange(FindObjectsByType<VolleyPlayer>());
 
             if (ball != null) ball.OnGroundHit += HandleGroundHit;
+            // every playable scene passes through here, so this also RESETS gravity/drag
+            // to stock when the scene has no regional environment
+            CourtEnvironment.ApplyFor(
+                UnityEngine.SceneManagement.SceneManager.GetActiveScene().name, ball);
             ApplyMatchSetup();
             BeginServe(TeamSide.A);
         }
 
         /// <summary>
-        /// Dress the court from the menu's pre-match choices: the human becomes their chosen
-        /// character, and each AI draws a random roster character — distinct from the human's
-        /// and from each other, so every match is a different matchup. No-op when the menu
-        /// didn't set anything (campaign, or playing a scene directly).
+        /// Dress the court from the menu's pre-match choices. A campaign match casts all four
+        /// slots explicitly (protagonist duo vs the region's opponent duo). Quick Play dresses
+        /// the human as their pick and randomizes whichever sides were asked for — opponents
+        /// only by default, so the teammate stays your usual partner. No-op when the menu
+        /// didn't set anything (playing a scene directly from the editor).
         /// </summary>
         void ApplyMatchSetup()
         {
+            if (MatchSetup.teamAIds != null && MatchSetup.teamBIds != null)
+            {
+                foreach (var p in players)
+                {
+                    bool isHumanSlot = p is PlayerController;
+                    string id = p.team == TeamSide.A
+                        ? MatchSetup.teamAIds[isHumanSlot ? 0 : 1]
+                        : MatchSetup.teamBIds[p.halfSign < 0f ? 0 : 1];
+                    CharacterSprites.Apply(p, CharacterRoster.Get(id));
+                }
+                return;
+            }
+
             var pool = new List<CharacterDef>(CharacterRoster.All);
 
             if (MatchSetup.humanCharacterId != null)
@@ -72,15 +91,17 @@ namespace Volleyball
                     }
             }
 
-            if (MatchSetup.randomizeAI)
-                foreach (var p in players)
-                {
-                    if (!(p is AIController)) continue;
-                    if (pool.Count == 0) pool.AddRange(CharacterRoster.All);
-                    CharacterDef draw = pool[Random.Range(0, pool.Count)];
-                    pool.Remove(draw);
-                    CharacterSprites.Apply(p, draw);
-                }
+            foreach (var p in players)
+            {
+                if (!(p is AIController)) continue;
+                bool randomize = p.team == TeamSide.A ? MatchSetup.randomizeTeammate
+                                                      : MatchSetup.randomizeOpponents;
+                if (!randomize) continue;
+                if (pool.Count == 0) pool.AddRange(CharacterRoster.All);
+                CharacterDef draw = pool[Random.Range(0, pool.Count)];
+                pool.Remove(draw);
+                CharacterSprites.Apply(p, draw);
+            }
         }
 
         void OnDestroy()
@@ -88,10 +109,17 @@ namespace Volleyball
             if (ball != null) ball.OnGroundHit -= HandleGroundHit;
         }
 
-        public bool CanTeamTouch(TeamSide t) => State == MatchState.Rallying;
+        /// <summary>A serve has to cross the net on its own: until the receivers touch it,
+        /// the serving team may not play the ball — no rescuing a netted serve.</summary>
+        public bool CanTeamTouch(TeamSide t)
+            => State == MatchState.Rallying && !(ServeInFlight && t == ServingTeam);
 
         /// <summary>True while this player is the server and the serve hasn't happened yet.</summary>
         public bool IsServePhaseFor(VolleyPlayer p) => State == MatchState.Serving && _server == p;
+
+        /// <summary>True once the server has tossed for a jump serve (ball in the air, not yet
+        /// struck). The behind-the-baseline clamp releases so the server can chase their toss.</summary>
+        public bool ServeTossed => _serveTossed;
 
         public void RegisterTouch(TeamSide t, VolleyPlayer p)
         {
@@ -109,7 +137,11 @@ namespace Volleyball
             if (t == Possession) Touches++;
             else { Possession = t; Touches = 1; }
 
-            if (t != ServingTeam) ServeInFlight = false; // serve received — blocking is legal again
+            if (t != ServingTeam)
+            {
+                ServeInFlight = false; // serve received — blocking is legal again
+                if (Banner == PerfectBanner) Banner = "";
+            }
 
             if (Touches > maxTouches)
                 EndRally(Possession.Other(), $"over {maxTouches} touches");
@@ -144,8 +176,11 @@ namespace Volleyball
             if (ScoreA >= pointsToWin || ScoreB >= pointsToWin)
             {
                 State = MatchState.MatchOver;
-                Banner = (ScoreA > ScoreB ? "You win the match!" : "Opponents win the match!")
-                         + "  —  press Hit to play again";
+                if (MatchSetup.isCampaign)
+                    ResolveCampaignResult(ScoreA > ScoreB);
+                else
+                    Banner = (ScoreA > ScoreB ? "You win the match!" : "Opponents win the match!")
+                             + "  —  press Hit to play again";
                 GameAudio.PlayMatchWin();
             }
             else
@@ -185,8 +220,23 @@ namespace Volleyball
             VBLog.Event($"BEGIN SERVE team={t} server='{(_server != null ? _server.name : "?")}' score A={ScoreA} B={ScoreB}");
         }
 
+        const string ServeHint = "Your serve —  J: underhand    K: toss, then Space + L: jump serve";
+        const string TossHint = "Run in — Jump (Space) and Spike (L) at the peak!";
+        const string PerfectBanner = "PERFECT SERVE!";
+
         void Update()
         {
+            // debug shortcut: instantly win the current match (campaign advances normally)
+            if ((Application.isEditor || Debug.isDebugBuild)
+                && State != MatchState.MatchOver
+                && Keyboard.current != null && Keyboard.current.f9Key.wasPressedThisFrame)
+            {
+                VBLog.Event("DEBUG F9 — auto-win match");
+                ScoreA = pointsToWin - 1;
+                EndRally(TeamSide.A, "debug win");
+                return;
+            }
+
             switch (State)
             {
                 case MatchState.Serving:
@@ -202,6 +252,7 @@ namespace Volleyball
                         if (!_serveTossed)
                         {
                             ball.Hold(ServePosition());
+                            Banner = ServeHint;
                             if (gi != null)
                             {
                                 if (gi.BumpPressed) DoServe();        // underhand serve (J)
@@ -211,6 +262,7 @@ namespace Volleyball
                         else
                         {
                             // ball is in the air: jump and Spike (L) to jump-serve it
+                            Banner = TossHint;
                             Vector3 bp = ball.transform.position;
                             if (gi != null && gi.SpikePressed && _server != null
                                 && !_server.IsGrounded && bp.y > 1.5f)
@@ -228,7 +280,21 @@ namespace Volleyball
 
                 case MatchState.MatchOver:
                     if (GameInput.Instance != null && GameInput.Instance.AnyHitPressed)
-                        RestartMatch();
+                    {
+                        if (!MatchSetup.isCampaign) { RestartMatch(); break; }
+                        switch (_campaignOutcome)
+                        {
+                            case CampaignOutcome.RegionComplete:
+                            case CampaignOutcome.TourComplete:
+                                // back to the tour board so the player sees the ladder advance
+                                MainMenuController.openCampaignOnLoad = true;
+                                SceneFlow.LoadMenu();
+                                break;
+                            default: // next match or a retry — both just relaunch from the save
+                                SceneFlow.LoadCampaignMatch();
+                                break;
+                        }
+                    }
                     break;
             }
         }
@@ -241,9 +307,11 @@ namespace Volleyball
             _lastToucher = _server;
             _serveTossed = false;
             ServeInFlight = true;
+            Banner = "";
 
-            Vector3 target = VolleyPlayer.ApplyContactError(CourtGeometry.CourtCenter(ServingTeam.Other()),
-                                                            GameConfig.Instance.serveBaseError);
+            Vector3 target = VolleyPlayer.ApplyContactError(ServeTarget(),
+                                                            _server != null ? _server.ServeError()
+                                                                            : GameConfig.Instance.serveBaseError);
             ball.LaunchTo(target, 4f, ServingTeam, _server, HitType.Serve); // high apex to clear the net from behind the baseline
             ball.LockHits(0.45f);
             _server?.TriggerSwing(HitType.Serve); // animate the serve (DoServe bypasses TryHit)
@@ -254,13 +322,44 @@ namespace Volleyball
                         $"vel={VBLog.V(sv)} speed={sv.magnitude:F1} spin={ball.Spin:F0}");
         }
 
-        /// <summary>Toss the ball up for a jump serve; the server then jumps and spikes it.</summary>
+        /// <summary>Serve aim at a fraction of the receivers' court depth (1 = their baseline).
+        /// Serves carry deep on normal air — and simply land shorter through heavy jungle air
+        /// (the environment moves the landing spot; the launch never changes per region).</summary>
+        Vector3 ServeTarget(float depthFrac = 0.75f)
+            => new Vector3(0f, 0f, CourtGeometry.SideSign(ServingTeam.Other()) * CourtGeometry.HalfDepth * depthFrac);
+
+        /// <summary>Where the jump-serve toss wants to be struck — the sweet spot the toss
+        /// descends through above the baseline, and the top of the contact-quality ramp.</summary>
+        const float JumpServeIdealContactY = 3.2f;
+
+        /// <summary>
+        /// Toss the ball up for a jump serve: high, and thrown forward so it comes down over
+        /// the server's own baseline — regardless of how the server is moving. The skill is in
+        /// what follows: time the run forward and the jump to meet the ball at the peak of the
+        /// jump, near the line.
+        /// </summary>
         void DoToss()
         {
             _serveTossed = true;
-            ball.Toss(6f);
+
+            const float upSpeed = 7.5f; // a high toss: plenty of time to run in under it
+
+            // How long until the toss descends back through ideal contact height — then throw
+            // it forward exactly hard enough to be above our baseline at that moment.
+            float g = -Physics.gravity.y;
+            Vector3 bp = ball.transform.position;
+            float drop = JumpServeIdealContactY - bp.y;
+            float tFlight = (upSpeed + Mathf.Sqrt(Mathf.Max(upSpeed * upSpeed - 2f * g * drop, 0.01f))) / g;
+
+            float baselineZ = CourtGeometry.SideSign(ServingTeam) * CourtGeometry.HalfDepth;
+            float toward = CourtGeometry.SideSign(ServingTeam.Other()); // net-ward direction
+            float dz = (baselineZ - bp.z) * toward;                     // forward distance to the line
+            float forwardSpeed = Mathf.Clamp(dz / tFlight, 0f, 3.5f) * toward;
+
+            ball.Toss(upSpeed, new Vector3(0f, 0f, forwardSpeed));
             _server?.TriggerSwing(HitType.Set); // small toss motion
-            VBLog.Event($"SERVE TOSS by '{(_server != null ? _server.name : "?")}' team={ServingTeam}");
+            VBLog.Event($"SERVE TOSS by '{(_server != null ? _server.name : "?")}' team={ServingTeam} " +
+                        $"forward={forwardSpeed:F2} tFlight={tFlight:F2}");
         }
 
         /// <summary>
@@ -275,21 +374,41 @@ namespace Volleyball
             _lastToucher = _server;
             _serveTossed = false;
             ServeInFlight = true;
+            Banner = "";
 
-            // higher contact → lower apex → flatter, faster, harder-to-receive serve
-            float contactY = ball.transform.position.y;
-            float apex = Mathf.Lerp(3.4f, 1.4f, Mathf.InverseLerp(1.6f, 4f, contactY));
+            // Timing quality is measured off ONE thing: how close the server is to the peak
+            // of their jump at the strike (vertical speed hits zero exactly at the apex).
+            // Quality drives the pace two ways the ballistic solver keeps honest (the serve
+            // always lands where it's aimed): a flatter arc AND a deeper target. Strike inside
+            // the apex window and both jump off a cliff — a PERFECT serve, flat to the back line.
+            float vertSpeed = _server != null ? Mathf.Abs(_server.VerticalVelocity) : float.MaxValue;
+            float takeoff = _server != null ? _server.jumpSpeed : 1f;
+            float quality = 1f - Mathf.Clamp01(vertSpeed / Mathf.Max(takeoff, 0.01f));
+            bool perfect = vertSpeed <= 1.2f; // ~±0.12s around the apex
 
-            Vector3 target = VolleyPlayer.ApplyContactError(CourtGeometry.CourtCenter(ServingTeam.Other()),
-                                                            GameConfig.Instance.serveBaseError);
+            // The apex here is measured ABOVE the (already ~3m high) contact, so anything
+            // over ~1 still reads as a rainbow. The ramp runs from a slow floater down to a
+            // low, driven trajectory; a perfect strike barely rises at all and goes out flat.
+            float apex = perfect ? 0.35f : Mathf.Lerp(3.2f, 0.9f, quality);
+            float depth = perfect ? 0.92f : Mathf.Lerp(0.62f, 0.85f, quality);
+
+            Vector3 target = VolleyPlayer.ApplyContactError(ServeTarget(depth),
+                                                            _server != null ? _server.ServeError()
+                                                                            : GameConfig.Instance.serveBaseError);
             ball.LaunchTo(target, apex, ServingTeam, _server, HitType.Serve);
             ball.LockHits(0.45f);
             _server?.TriggerSwing(HitType.Spike); // spike motion for the jump serve
             GameAudio.PlayHit(HitType.Spike, ball.transform.position);
+            if (perfect)
+            {
+                Banner = PerfectBanner;      // cleared when the receivers touch it
+                GameAudio.PlayCrowd(0.4f);   // the crowd knows a perfect strike when it sees one
+            }
 
             Vector3 sv = ball.Body.linearVelocity;
             VBLog.Event($"JUMP SERVE by '{(_server != null ? _server.name : "?")}' team={ServingTeam} touch#1 " +
-                        $"contactY={contactY:F2} apex={apex:F2} vel={VBLog.V(sv)} speed={sv.magnitude:F1} spin={ball.Spin:F0}");
+                        $"apexSpeed={vertSpeed:F2} quality={quality:F2} perfect={perfect} apex={apex:F2} " +
+                        $"depth={depth:F2} vel={VBLog.V(sv)} speed={sv.magnitude:F1} spin={ball.Spin:F0}");
         }
 
         void RestartMatch()
@@ -297,6 +416,62 @@ namespace Volleyball
             ScoreA = 0;
             ScoreB = 0;
             BeginServe(TeamSide.A);
+        }
+
+        enum CampaignOutcome { None, Retry, NextMatch, RegionComplete, TourComplete }
+        CampaignOutcome _campaignOutcome = CampaignOutcome.None;
+
+        /// <summary>
+        /// Write a campaign match result to the save and set the end-of-match banner. A win
+        /// advances the tournament ladder (and the region / the whole tour on rollover); a
+        /// loss counts an attempt. Saved immediately so quitting at the banner loses nothing.
+        /// </summary>
+        void ResolveCampaignResult(bool won)
+        {
+            CampaignSave save = SaveSystem.Load();
+            if (save == null) { Banner = "You win!  —  press Hit to play again"; return; }
+
+            RegionDef region = RegionRoster.Get(save.regionIndex);
+
+            if (!won)
+            {
+                save.matchesLost++;
+                save.attemptsThisMatch++;
+                _campaignOutcome = CampaignOutcome.Retry;
+                Banner = "Match lost  —  press Hit to retry";
+            }
+            else
+            {
+                save.matchesWon++;
+                save.attemptsThisMatch = 0;
+                save.matchIndex++;
+
+                if (save.matchIndex < region.matches.Length)
+                {
+                    _campaignOutcome = CampaignOutcome.NextMatch;
+                    Banner = $"Match won!  —  press Hit for match " +
+                             $"{save.matchIndex + 1}/{region.matches.Length}";
+                }
+                else if (save.regionIndex + 1 < RegionRoster.All.Length)
+                {
+                    save.regionIndex++;
+                    save.matchIndex = 0;
+                    _campaignOutcome = CampaignOutcome.RegionComplete;
+                    Banner = $"{region.displayName} conquered!  —  press Hit to travel on";
+                }
+                else
+                {
+                    // stay parked on the grand final so Continue can replay it
+                    save.matchIndex = region.matches.Length - 1;
+                    save.tourComplete = true;
+                    _campaignOutcome = CampaignOutcome.TourComplete;
+                    Banner = "WORLD TOUR CHAMPIONS!  —  press Hit to take the trophy home";
+                }
+            }
+
+            SaveSystem.Save(save);
+            VBLog.Event($"CAMPAIGN result won={won} -> region={save.regionIndex} " +
+                        $"match={save.matchIndex} outcome={_campaignOutcome}");
         }
 
         Vector3 ServePosition()

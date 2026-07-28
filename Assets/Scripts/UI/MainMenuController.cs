@@ -10,6 +10,10 @@ namespace Volleyball
     /// </summary>
     public class MainMenuController : MonoBehaviour
     {
+        /// <summary>Set before loading the menu scene to land straight on the tour board —
+        /// used when a campaign match sends the player home to see the ladder advance.</summary>
+        public static bool openCampaignOnLoad;
+
         [Header("Buttons")]
         public Button quickPlayButton;
         public Button campaignButton;
@@ -20,6 +24,9 @@ namespace Volleyball
         public GameObject settingsPanel;
         public GameObject campaignPanel;
         public GameObject characterSelectPanel;
+
+        [Header("Home screen (title + top-level buttons), hidden while any panel is open")]
+        public GameObject homeRoot;
 
         void Start()
         {
@@ -35,10 +42,11 @@ namespace Volleyball
             if (settingsButton != null) settingsButton.onClick.AddListener(() => Show(settingsPanel));
             if (quitButton != null) quitButton.onClick.AddListener(Quit);
 
-            // panels start closed
+            // panels start closed — unless a campaign match sent us home to the tour board
             if (settingsPanel != null) settingsPanel.SetActive(false);
-            if (campaignPanel != null) campaignPanel.SetActive(false);
+            if (campaignPanel != null) campaignPanel.SetActive(openCampaignOnLoad);
             if (characterSelectPanel != null) characterSelectPanel.SetActive(false);
+            openCampaignOnLoad = false;
         }
 
         void Show(GameObject panel)
@@ -46,6 +54,18 @@ namespace Volleyball
             if (settingsPanel != null) settingsPanel.SetActive(panel == settingsPanel);
             if (campaignPanel != null) campaignPanel.SetActive(panel == campaignPanel);
             if (characterSelectPanel != null) characterSelectPanel.SetActive(panel == characterSelectPanel);
+        }
+
+        // Panels close themselves via their own Back buttons (plain SetActive(false)), so the
+        // home screen's visibility is polled rather than event-wired: hidden the moment any
+        // panel is open, back the moment none are.
+        void Update()
+        {
+            if (homeRoot == null) return;
+            bool anyPanelOpen = (settingsPanel != null && settingsPanel.activeSelf)
+                                || (campaignPanel != null && campaignPanel.activeSelf)
+                                || (characterSelectPanel != null && characterSelectPanel.activeSelf);
+            if (homeRoot.activeSelf == anyPanelOpen) homeRoot.SetActive(!anyPanelOpen);
         }
 
         static void Quit()

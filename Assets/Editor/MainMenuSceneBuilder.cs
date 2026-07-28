@@ -40,20 +40,32 @@ namespace Volleyball.EditorTools
             Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             GameObject canvasGO = BuildCanvas();
 
+            // Home screen root: the title and top-level buttons live under one container so
+            // MainMenuController can hide the whole home screen while a panel is open.
+            var homeRoot = new GameObject("HomeRoot", typeof(RectTransform));
+            homeRoot.transform.SetParent(canvasGO.transform, false);
+            Stretch(homeRoot.GetComponent<RectTransform>());
+
             // Title
-            Text title = MakeText(canvasGO.transform, "Title", font,
-                new Vector2(0.5f, 1f), new Vector2(0f, -150f), new Vector2(1400f, 160f), 96,
+            Text title = MakeText(homeRoot.transform, "Title", font,
+                new Vector2(0.5f, 1f), new Vector2(0f, -130f), new Vector2(1500f, 130f), 96,
                 TextAnchor.MiddleCenter);
-            title.text = "BEACH VOLLEYBALL";
+            title.text = "ANIMAL VOLLEYBALL";
+
+            Text subtitle = MakeText(homeRoot.transform, "Subtitle", font,
+                new Vector2(0.5f, 1f), new Vector2(0f, -230f), new Vector2(1000f, 60f), 40,
+                TextAnchor.MiddleCenter);
+            subtitle.text = "— WORLD TOUR —";
+            subtitle.color = new Color(1f, 1f, 1f, 0.85f);
 
             // Top-level buttons (lower-centre stack)
-            Button quickPlay = MakeButton(canvasGO.transform, font, "QuickPlayButton", "Quick Play",
+            Button quickPlay = MakeButton(homeRoot.transform, font, "QuickPlayButton", "Quick Play",
                 new Vector2(0.5f, 0.5f), new Vector2(0f, 60f), MenuBtnSize, MenuBlue);
-            Button campaign = MakeButton(canvasGO.transform, font, "CampaignButton", "Campaign",
+            Button campaign = MakeButton(homeRoot.transform, font, "CampaignButton", "Campaign",
                 new Vector2(0.5f, 0.5f), new Vector2(0f, -60f), MenuBtnSize, MenuBlue);
-            Button settings = MakeButton(canvasGO.transform, font, "SettingsButton", "Settings",
+            Button settings = MakeButton(homeRoot.transform, font, "SettingsButton", "Settings",
                 new Vector2(0.5f, 0.5f), new Vector2(0f, -180f), MenuBtnSize, MenuBlue);
-            Button quit = MakeButton(canvasGO.transform, font, "QuitButton", "Quit",
+            Button quit = MakeButton(homeRoot.transform, font, "QuitButton", "Quit",
                 new Vector2(0.5f, 0.5f), new Vector2(0f, -300f), MenuBtnSize, MenuRed);
 
             GameObject settingsPanel = BuildSettingsPanel(canvasGO.transform, font);
@@ -68,6 +80,7 @@ namespace Volleyball.EditorTools
             ctrl.settingsPanel = settingsPanel;
             ctrl.campaignPanel = campaignPanel;
             ctrl.characterSelectPanel = characterSelectPanel;
+            ctrl.homeRoot = homeRoot;
 
             BuildEventSystem();
 
@@ -143,38 +156,134 @@ namespace Volleyball.EditorTools
             return panel;
         }
 
+        /// <summary>
+        /// The world-tour board: a scrollable card per <see cref="RegionRoster"/> region (name +
+        /// state line, refreshed from the save by <see cref="CampaignPanel"/>), a tour summary,
+        /// and Play / New Game / Back.
+        /// </summary>
         static GameObject BuildCampaignPanel(Transform parent, Font font)
         {
             GameObject panel = MakeDimPanel(parent, "CampaignPanel");
             var cp = panel.AddComponent<CampaignPanel>();
 
             Text title = MakeText(panel.transform, "Title", font,
-                new Vector2(0.5f, 1f), new Vector2(0f, -120f), new Vector2(800f, 100f), 72,
+                new Vector2(0.5f, 1f), new Vector2(0f, -100f), new Vector2(800f, 100f), 72,
                 TextAnchor.MiddleCenter);
-            title.text = "Campaign";
+            title.text = "World Tour";
 
             cp.statusLabel = MakeText(panel.transform, "Status", font,
-                new Vector2(0.5f, 0.5f), new Vector2(0f, 170f), new Vector2(1000f, 70f), 34,
+                new Vector2(0.5f, 1f), new Vector2(0f, -190f), new Vector2(1200f, 50f), 32,
                 TextAnchor.MiddleCenter);
             cp.statusLabel.text = "";
 
+            // ---- region cards in a vertical scroll view ----
+            var scrollGO = new GameObject("TourScroll",
+                typeof(RectTransform), typeof(Image), typeof(RectMask2D), typeof(ScrollRect));
+            scrollGO.transform.SetParent(panel.transform, false);
+            var scrollRt = scrollGO.GetComponent<RectTransform>();
+            scrollRt.anchorMin = scrollRt.anchorMax = scrollRt.pivot = new Vector2(0.5f, 0.5f);
+            scrollRt.sizeDelta = new Vector2(1120f, 560f);
+            scrollRt.anchoredPosition = new Vector2(0f, 10f);
+            var scrollBg = scrollGO.GetComponent<Image>();
+            scrollBg.sprite = UIBackground();
+            scrollBg.type = Image.Type.Sliced;
+            scrollBg.color = new Color(0f, 0f, 0f, 0.25f);
+
+            var contentGO = new GameObject("Content",
+                typeof(RectTransform), typeof(GridLayoutGroup), typeof(ContentSizeFitter));
+            contentGO.transform.SetParent(scrollGO.transform, false);
+            var contentRt = contentGO.GetComponent<RectTransform>();
+            contentRt.anchorMin = new Vector2(0f, 1f);
+            contentRt.anchorMax = new Vector2(1f, 1f);
+            contentRt.pivot = new Vector2(0.5f, 1f);
+            contentRt.offsetMin = Vector2.zero;
+            contentRt.offsetMax = Vector2.zero;
+            var grid = contentGO.GetComponent<GridLayoutGroup>();
+            grid.cellSize = new Vector2(1080f, 100f);
+            grid.spacing = new Vector2(0f, 10f);
+            grid.padding = new RectOffset(10, 10, 10, 10);
+            grid.childAlignment = TextAnchor.UpperCenter;
+            grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+            grid.constraintCount = 1;
+            contentGO.GetComponent<ContentSizeFitter>().verticalFit =
+                ContentSizeFitter.FitMode.PreferredSize;
+
+            var scroll = scrollGO.GetComponent<ScrollRect>();
+            scroll.content = contentRt;
+            scroll.horizontal = false;
+            scroll.vertical = true;
+            scroll.movementType = ScrollRect.MovementType.Clamped;
+            scroll.scrollSensitivity = 40f;
+
+            var rows = new List<CampaignPanel.RegionRow>();
+            foreach (RegionDef region in RegionRoster.All)
+            {
+                var card = new GameObject(region.displayName + " Card",
+                    typeof(RectTransform), typeof(Image));
+                card.transform.SetParent(contentGO.transform, false);
+                var cardImg = card.GetComponent<Image>();
+                cardImg.sprite = UISprite();
+                cardImg.type = Image.Type.Sliced;
+                cardImg.color = new Color(1f, 1f, 1f, 0.05f); // CampaignPanel re-tints by state
+
+                Text name = MakeText(card.transform, "Name", font,
+                    new Vector2(0f, 0.5f), new Vector2(30f, 0f), new Vector2(380f, 90f), 34,
+                    TextAnchor.MiddleLeft);
+                name.text = region.displayName;
+                name.raycastTarget = false;
+
+                // a little lineup of the region's native animals
+                for (int s = 0; s < region.speciesPool.Length && s < 5; s++)
+                {
+                    CharacterDef ch = CharacterRoster.Get(region.speciesPool[s]);
+                    var mini = new GameObject("Species", typeof(RectTransform), typeof(Image));
+                    mini.transform.SetParent(card.transform, false);
+                    var mrt = mini.GetComponent<RectTransform>();
+                    mrt.anchorMin = mrt.anchorMax = mrt.pivot = new Vector2(0f, 0.5f);
+                    mrt.sizeDelta = new Vector2(46f, 62f);
+                    mrt.anchoredPosition = new Vector2(420f + s * 52f, 0f);
+                    var img = mini.GetComponent<Image>();
+                    img.sprite = CharacterArt.GetCharacterFrames(PlayerColors.Opp1, ch)[0]; // idle
+                    img.preserveAspect = true;
+                    img.raycastTarget = false;
+                }
+
+                Text state = MakeText(card.transform, "State", font,
+                    new Vector2(1f, 0.5f), new Vector2(-30f, 0f), new Vector2(380f, 90f), 24,
+                    TextAnchor.MiddleRight);
+                state.text = "";
+                state.raycastTarget = false;
+
+                rows.Add(new CampaignPanel.RegionRow
+                {
+                    regionId = region.id,
+                    card = cardImg,
+                    nameLabel = name,
+                    stateLabel = state,
+                });
+            }
+            cp.rows = rows.ToArray();
+
+            // ---- bottom buttons ----
+            cp.playButton = MakeButton(panel.transform, font, "PlayButton", "Play Next Match",
+                new Vector2(0.5f, 0.5f), new Vector2(0f, -370f), new Vector2(520f, 95f), MenuBlue);
+            cp.playButtonLabel = cp.playButton.GetComponentInChildren<Text>();
             cp.newGameButton = MakeButton(panel.transform, font, "NewGameButton", "New Game",
-                new Vector2(0.5f, 0.5f), new Vector2(0f, 40f), new Vector2(440f, 90f), MenuBlue);
-            cp.continueButton = MakeButton(panel.transform, font, "ContinueButton", "Continue",
-                new Vector2(0.5f, 0.5f), new Vector2(0f, -70f), new Vector2(440f, 90f), MenuBlue);
+                new Vector2(0.5f, 0.5f), new Vector2(-640f, -370f), new Vector2(340f, 80f), MenuRed);
+            cp.newGameButtonLabel = cp.newGameButton.GetComponentInChildren<Text>();
             cp.backButton = MakeButton(panel.transform, font, "BackButton", "Back",
-                new Vector2(0.5f, 0.5f), new Vector2(0f, -200f), new Vector2(300f, 80f), MenuRed);
+                new Vector2(0.5f, 0.5f), new Vector2(640f, -370f), new Vector2(300f, 80f), MenuRed);
 
             panel.SetActive(false);
             return panel;
         }
 
         /// <summary>
-        /// The Quick Play character-select screen: an entry per roster character (baked idle
-        /// portrait + name) in a 4×2 grid on the left, and a preview pane on the right — big
-        /// portrait, name, blurb and height/speed/control stat bars — plus Play and Back.
-        /// Portrait sprites are the human-blue baked idle frames, assigned at build time; the
-        /// live selection logic is <see cref="CharacterSelectPanel"/>.
+        /// The Quick Play character-select screen: an entry per roster animal (baked idle
+        /// portrait + name) in a scrollable grid on the left, and a preview pane on the right —
+        /// big portrait, name, blurb and height/speed/power/control/jump stat bars — plus Play
+        /// and Back. Portrait sprites are the human-blue baked idle frames, assigned at build
+        /// time; the live selection logic is <see cref="CharacterSelectPanel"/>.
         /// </summary>
         static GameObject BuildCharacterSelectPanel(Transform parent, Font font)
         {
@@ -184,22 +293,56 @@ namespace Volleyball.EditorTools
             Text title = MakeText(panel.transform, "Title", font,
                 new Vector2(0.5f, 1f), new Vector2(0f, -100f), new Vector2(1200f, 100f), 72,
                 TextAnchor.MiddleCenter);
-            title.text = "Choose Your Character";
+            title.text = "Choose Your Animal";
 
-            // ---- roster grid (left) ----
+            // ---- roster grid (left): a vertical scroll view, since the roster is far
+            //      bigger than one screen ----
+            var scrollGO = new GameObject("RosterScroll",
+                typeof(RectTransform), typeof(Image), typeof(RectMask2D), typeof(ScrollRect));
+            scrollGO.transform.SetParent(panel.transform, false);
+            var scrollRt = scrollGO.GetComponent<RectTransform>();
+            scrollRt.anchorMin = scrollRt.anchorMax = scrollRt.pivot = new Vector2(0.5f, 0.5f);
+            scrollRt.sizeDelta = new Vector2(780f, 660f);
+            scrollRt.anchoredPosition = new Vector2(-460f, -30f);
+            var scrollBg = scrollGO.GetComponent<Image>();
+            scrollBg.sprite = UIBackground();
+            scrollBg.type = Image.Type.Sliced;
+            scrollBg.color = new Color(0f, 0f, 0f, 0.25f); // subtle well; also catches drags
+
+            var contentGO = new GameObject("Content",
+                typeof(RectTransform), typeof(GridLayoutGroup), typeof(ContentSizeFitter));
+            contentGO.transform.SetParent(scrollGO.transform, false);
+            var contentRt = contentGO.GetComponent<RectTransform>();
+            contentRt.anchorMin = new Vector2(0f, 1f);
+            contentRt.anchorMax = new Vector2(1f, 1f);
+            contentRt.pivot = new Vector2(0.5f, 1f);
+            contentRt.offsetMin = Vector2.zero;
+            contentRt.offsetMax = Vector2.zero;
+            var grid = contentGO.GetComponent<GridLayoutGroup>();
+            grid.cellSize = new Vector2(180f, 220f);
+            grid.spacing = new Vector2(10f, 10f);
+            grid.padding = new RectOffset(10, 10, 10, 10);
+            grid.startCorner = GridLayoutGroup.Corner.UpperLeft;
+            grid.startAxis = GridLayoutGroup.Axis.Horizontal;
+            grid.childAlignment = TextAnchor.UpperCenter;
+            grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+            grid.constraintCount = 4;
+            var fitter = contentGO.GetComponent<ContentSizeFitter>();
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            var scroll = scrollGO.GetComponent<ScrollRect>();
+            scroll.content = contentRt;
+            scroll.horizontal = false;
+            scroll.vertical = true;
+            scroll.movementType = ScrollRect.MovementType.Clamped;
+            scroll.scrollSensitivity = 40f;
+
             var entries = new List<CharacterSelectPanel.Entry>();
-            for (int i = 0; i < CharacterRoster.All.Length; i++)
+            foreach (CharacterDef ch in CharacterRoster.All)
             {
-                CharacterDef ch = CharacterRoster.All[i];
-                var pos = new Vector2(-810f + (i % 4) * 190f, i < 4 ? 140f : -100f);
-
                 var go = new GameObject(ch.displayName + " Entry",
                     typeof(RectTransform), typeof(Image), typeof(Button));
-                go.transform.SetParent(panel.transform, false);
-                var rt = go.GetComponent<RectTransform>();
-                rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
-                rt.sizeDelta = new Vector2(180f, 220f);
-                rt.anchoredPosition = pos;
+                go.transform.SetParent(contentGO.transform, false); // grid lays it out
 
                 var frame = go.GetComponent<Image>();
                 frame.sprite = UISprite();
@@ -219,7 +362,7 @@ namespace Volleyball.EditorTools
                 portrait.raycastTarget = false;
 
                 Text nameLabel = MakeText(go.transform, "Name", font,
-                    new Vector2(0.5f, 0f), new Vector2(0f, 12f), new Vector2(180f, 40f), 28,
+                    new Vector2(0.5f, 0f), new Vector2(0f, 12f), new Vector2(180f, 40f), 24,
                     TextAnchor.MiddleCenter);
                 nameLabel.text = ch.displayName;
                 nameLabel.raycastTarget = false;
@@ -252,14 +395,22 @@ namespace Volleyball.EditorTools
                 new Vector2(0.5f, 0.5f), new Vector2(430f, -80f), new Vector2(680f, 60f), 26,
                 TextAnchor.MiddleCenter);
 
-            cs.heightBar = BuildStatBar(panel.transform, font, "Height", -150f);
-            cs.speedBar = BuildStatBar(panel.transform, font, "Speed", -210f);
-            cs.controlBar = BuildStatBar(panel.transform, font, "Control", -270f);
+            cs.heightBar = BuildStatBar(panel.transform, font, "Height", -140f);
+            cs.speedBar = BuildStatBar(panel.transform, font, "Speed", -188f);
+            cs.powerBar = BuildStatBar(panel.transform, font, "Power", -236f);
+            cs.controlBar = BuildStatBar(panel.transform, font, "Control", -284f);
+            cs.jumpBar = BuildStatBar(panel.transform, font, "Jump", -332f);
+
+            cs.venueButton = MakeButton(panel.transform, font, "VenueButton", "Venue",
+                new Vector2(0.5f, 0.5f), new Vector2(430f, -392f), new Vector2(520f, 54f),
+                new Color(0.16f, 0.30f, 0.50f, 0.92f));
+            cs.venueLabel = cs.venueButton.GetComponentInChildren<Text>();
+            cs.venueLabel.fontSize = 26;
 
             cs.playButton = MakeButton(panel.transform, font, "PlayButton", "Play",
-                new Vector2(0.5f, 0.5f), new Vector2(430f, -370f), new Vector2(360f, 90f), MenuBlue);
+                new Vector2(0.5f, 0.5f), new Vector2(430f, -460f), new Vector2(360f, 80f), MenuBlue);
             cs.backButton = MakeButton(panel.transform, font, "BackButton", "Back",
-                new Vector2(0.5f, 0.5f), new Vector2(-525f, -370f), new Vector2(300f, 80f), MenuRed);
+                new Vector2(0.5f, 0.5f), new Vector2(-820f, -460f), new Vector2(300f, 80f), MenuRed);
 
             panel.SetActive(false);
             return panel;

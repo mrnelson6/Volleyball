@@ -23,18 +23,25 @@ namespace Volleyball
         public const string NeonArena = "NeonArena";
 
         /// <summary>
-        /// Every playable arena, in ladder order (beach first). The campaign walks this list and a
-        /// future level-select can drive its buttons from it; <see cref="LoadArena"/> loads by index.
+        /// Every playable venue for Quick Play's venue cycler (beach first, then the world-tour
+        /// regional courts, then the fantasy arenas). Campaign matches don't use this list —
+        /// they load each region's <see cref="RegionDef.sceneName"/> directly.
         /// </summary>
         public static readonly string[] Arenas =
         {
-            BeachArena, VolcanoArena, LunarArena, AtlantisArena, SkyArena, GraveyardArena, NeonArena,
+            BeachArena,
+            "SavannaArena", "AmazonArena", "OutbackArena", "HimalayaArena",
+            "ForestArena", "SaharaArena", "RockiesArena", "ArcticArena",
+            VolcanoArena, LunarArena, AtlantisArena, SkyArena, GraveyardArena, NeonArena,
         };
 
         /// <summary>Human-readable names parallel to <see cref="Arenas"/>, for menus/HUD.</summary>
         public static readonly string[] ArenaNames =
         {
-            "Sunset Beach", "Volcano Rim", "Lunar Base", "Atlantis Deep",
+            "Sunset Beach",
+            "Sunny Savanna", "Amazon Rainforest", "Australian Outback", "Himalayan Peaks",
+            "Black Forest", "Sahara Dunes", "Rocky Mountains", "Polar Ice",
+            "Volcano Rim", "Lunar Base", "Atlantis Deep",
             "Cloud Kingdom", "Haunted Graveyard", "Neon Rooftop",
         };
 
@@ -53,27 +60,45 @@ namespace Volleyball
             SceneManager.LoadScene(MainMenu);
         }
 
-        /// <summary>Quick Play — drop into a beach match. With a character id the human plays
-        /// as that character and the three AI players draw random roster characters; with null
-        /// the scene's built-in characters are kept.</summary>
-        public static void LoadQuickPlay(string characterId = null)
+        /// <summary>Quick Play — drop into a match at any venue from <see cref="Arenas"/>
+        /// (default: the beach). With a character id the human plays as that character and the
+        /// two opposing AIs draw random roster characters (the teammate stays the scene's —
+        /// your usual partner); with null the scene's built-in characters are kept. Regional
+        /// venues keep their environment quirks (wind, thin air…) in Quick Play too.</summary>
+        public static void LoadQuickPlay(string characterId = null, int arenaIndex = 0)
         {
+            MatchSetup.Clear();
             MatchSetup.humanCharacterId = characterId;
-            MatchSetup.randomizeAI = characterId != null;
-            Time.timeScale = 1f;
-            SceneManager.LoadScene(BeachArena);
+            MatchSetup.randomizeOpponents = characterId != null;
+            LoadArena(arenaIndex);
         }
 
         /// <summary>
-        /// Launch a campaign match: the stage index in the saved <see cref="CampaignSave"/> selects
-        /// the arena from the <see cref="Arenas"/> ladder (beach → … → neon, then wrapping). With no
-        /// save present it falls back to the first arena.
+        /// Launch the next world-tour match from the save: the current region picks the court
+        /// scene and environment, the current tournament match picks the opponent duo and AI
+        /// difficulty, and the human always plays the protagonist duo. Regions whose courts
+        /// aren't built yet fall back to the beach so the campaign stays playable mid-development.
         /// </summary>
         public static void LoadCampaignMatch()
         {
-            MatchSetup.Clear(); // campaign matches use the scene's built-in characters
-            int stage = SaveSystem.Load()?.stage ?? 0;
-            LoadArena(stage);
+            CampaignSave save = SaveSystem.Load() ?? SaveSystem.NewGame();
+            RegionDef region = RegionRoster.Get(save.regionIndex);
+            int mi = Mathf.Clamp(save.matchIndex, 0, region.matches.Length - 1);
+            MatchDef match = region.matches[mi];
+
+            MatchSetup.Clear();
+            MatchSetup.isCampaign = true;
+            MatchSetup.teamAIds = new[] { CharacterRoster.ProtagonistId, CharacterRoster.TeammateId };
+            MatchSetup.teamBIds = new[] { match.opp1Id, match.opp2Id };
+            MatchSetup.aiErrorMult = match.aiErrorMult;
+            MatchSetup.aiReactionScale = match.aiReactionScale;
+            MatchSetup.matchLabel =
+                $"{region.displayName} — Match {mi + 1}/{region.matches.Length} vs {match.teamName}";
+
+            Time.timeScale = 1f;
+            string scene = Application.CanStreamedLevelBeLoaded(region.sceneName)
+                ? region.sceneName : BeachArena;
+            SceneManager.LoadScene(scene);
         }
     }
 }

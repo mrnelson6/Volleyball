@@ -102,7 +102,8 @@ namespace Volleyball
                     ds.baseSize = 1.0f * ch.height;
 
             VBLog.Event($"CHARACTER '{player.name}' -> {ch.displayName} " +
-                        $"(h={ch.height:F2} s={ch.speed:F2} c={ch.control:F2})");
+                        $"(h={ch.height:F2} s={ch.speed:F2} p={ch.power:F2} " +
+                        $"c={ch.control:F2} j={ch.jump:F2})");
         }
     }
 }

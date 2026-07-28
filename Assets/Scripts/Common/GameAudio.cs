@@ -26,7 +26,11 @@ namespace Volleyball
 
         AudioClip _ambientClip, _sandClip, _netClip, _crowdClip;
         AudioClip _whistleClip, _thudClip, _outClip, _pointUpClip, _pointDownClip, _winClip;
+        AudioClip _windAmb, _jungleAmb, _rainAmb, _snowAmb; // regional beds, synthesised on demand
         readonly Dictionary<HitType, AudioClip> _hitClips = new Dictionary<HitType, AudioClip>();
+
+        static string _requestedAmbience = "surf"; // survives being set before the singleton exists
+        string _currentAmbience;
 
         // movement tracking, to drive the sand shuffle's volume
         List<VolleyPlayer> _players;
@@ -47,7 +51,8 @@ namespace Volleyball
 
             BuildClips();
 
-            _ambient = AddLoop(_ambientClip, Cfg.ambientVolume * Cfg.masterVolume);
+            _currentAmbience = _requestedAmbience;
+            _ambient = AddLoop(AmbienceFor(_currentAmbience), Cfg.ambientVolume * Cfg.masterVolume);
             _sand = AddLoop(_sandClip, 0f); // starts silent, rises while players move
 
             _pool = new AudioSource[12];
@@ -73,6 +78,35 @@ namespace Volleyball
         }
 
         // ----------------------------------------------------------------- public API
+
+        /// <summary>
+        /// Switch the looping ambience bed to a regional flavour: "surf" (default beach),
+        /// "wind", "jungle", "rain" or "snow". Called by <see cref="CourtEnvironment"/> at
+        /// match start; safe to call before the singleton exists (applied on boot) and a
+        /// no-op when the flavour is already playing.
+        /// </summary>
+        public static void SetAmbience(string key)
+        {
+            _requestedAmbience = string.IsNullOrEmpty(key) ? "surf" : key;
+            var inst = Instance;
+            if (inst == null || inst._ambient == null) return;
+            if (inst._currentAmbience == _requestedAmbience) return;
+            inst._currentAmbience = _requestedAmbience;
+            inst._ambient.clip = inst.AmbienceFor(_requestedAmbience);
+            inst._ambient.Play();
+        }
+
+        AudioClip AmbienceFor(string key)
+        {
+            switch (key)
+            {
+                case "wind":   return _windAmb != null ? _windAmb : _windAmb = MakeWindAmbient();
+                case "jungle": return _jungleAmb != null ? _jungleAmb : _jungleAmb = MakeJungleAmbient();
+                case "rain":   return _rainAmb != null ? _rainAmb : _rainAmb = MakeRainAmbient();
+                case "snow":   return _snowAmb != null ? _snowAmb : _snowAmb = MakeSnowAmbient();
+                default:       return _ambientClip; // "surf"
+            }
+        }
 
         /// <summary>A ball contact (swing / set / bump / serve / block), coloured by hit type.</summary>
         public static void PlayHit(HitType type, Vector3 pos)
@@ -422,6 +456,137 @@ namespace Volleyball
             }
             Normalize(d, 0.5f);
             return MakeClip("sand_move", d);
+        }
+
+        // Turn an over-long buffer into a seamless loop by crossfading its tail over its head.
+        AudioClip LoopFromBuffer(string name, float[] s, int n, int m, float peak)
+        {
+            var d = new float[n];
+            for (int i = 0; i < n; i++) d[i] = s[i];
+            for (int i = 0; i < m; i++)
+            {
+                float wgt = (float)i / m;
+                d[i] = s[i] * wgt + s[n + i] * (1f - wgt);
+            }
+            Normalize(d, peak);
+            return MakeClip(name, d);
+        }
+
+        // Dry open-country wind: hollow brown-noise swells with a faint moaning whistle.
+        AudioClip MakeWindAmbient()
+        {
+            float dur = 6f, cross = 0.8f;
+            int n = (int)(SR * dur), m = (int)(SR * cross);
+            var s = new float[n + m];
+            float brown = 0f, phase = 0f;
+            for (int i = 0; i < n + m; i++)
+            {
+                float t = (float)i / SR;
+                float w = Random.value * 2f - 1f;
+                brown = brown * 0.988f + w * 0.10f;
+                float swell = 0.45f + 0.40f * Mathf.Sin(2f * Mathf.PI * 0.05f * t)
+                                    + 0.25f * Mathf.Sin(2f * Mathf.PI * 0.13f * t + 2.1f);
+                if (swell < 0.05f) swell = 0.05f;
+                float f = 600f + 250f * Mathf.Sin(2f * Mathf.PI * 0.021f * t);
+                phase += 2f * Mathf.PI * f / SR;
+                float whistle = Mathf.Sin(phase) * 0.05f;
+                s[i] = (brown * 1.4f + whistle) * swell;
+            }
+            return LoopFromBuffer("ambient_wind", s, n, m, 0.55f);
+        }
+
+        // Deep-jungle bed: a soft humid rumble sprinkled with bird chirps and a low hoot.
+        AudioClip MakeJungleAmbient()
+        {
+            float dur = 8f, cross = 1f;
+            int n = (int)(SR * dur), m = (int)(SR * cross);
+            var s = new float[n + m];
+            float brown = 0f;
+            for (int i = 0; i < n + m; i++)
+            {
+                float w = Random.value * 2f - 1f;
+                brown = brown * 0.985f + w * 0.10f;
+                s[i] = brown * 0.45f;
+            }
+
+            for (int c = 0; c < 18; c++) // bright little bird chirps
+            {
+                float f0 = Random.Range(1400f, 2400f);
+                float f1 = f0 + Random.Range(-500f, 500f);
+                float len = Random.Range(0.08f, 0.22f);
+                int start = Random.Range(0, n - (int)(len * SR) - 1);
+                int cnt = (int)(len * SR);
+                float phase = 0f;
+                for (int j = 0; j < cnt; j++)
+                {
+                    float u = (float)j / cnt;
+                    phase += 2f * Mathf.PI * Mathf.Lerp(f0, f1, u) / SR;
+                    s[start + j] += Mathf.Sin(phase) * Mathf.Sin(u * Mathf.PI) * 0.22f;
+                }
+            }
+
+            for (int h = 0; h < 3; h++) // a distant hooting call
+            {
+                int start = Random.Range(0, n - (int)(0.4f * SR) - 1);
+                int cnt = (int)(0.35f * SR);
+                float phase = 0f;
+                for (int j = 0; j < cnt; j++)
+                {
+                    float u = (float)j / cnt;
+                    phase += 2f * Mathf.PI * 380f / SR;
+                    float trem = 0.6f + 0.4f * Mathf.Sin(2f * Mathf.PI * 9f * u);
+                    s[start + j] += Mathf.Sin(phase) * Mathf.Sin(u * Mathf.PI) * trem * 0.12f;
+                }
+            }
+            return LoopFromBuffer("ambient_jungle", s, n, m, 0.55f);
+        }
+
+        // Steady drizzle: a hissy filtered bed peppered with tiny drop ticks.
+        AudioClip MakeRainAmbient()
+        {
+            float dur = 4f, cross = 0.5f;
+            int n = (int)(SR * dur), m = (int)(SR * cross);
+            var s = new float[n + m];
+            float lp = 0f;
+            for (int i = 0; i < n + m; i++)
+            {
+                float w = Random.value * 2f - 1f;
+                lp = lp * 0.55f + w * 0.45f;
+                s[i] = lp * 0.35f;
+            }
+            const int drops = 900;
+            for (int c = 0; c < drops; c++)
+            {
+                int start = Random.Range(0, n + m - 80);
+                int len = Random.Range(20, 60);
+                float amp = Random.Range(0.15f, 0.45f);
+                for (int j = 0; j < len; j++)
+                    s[start + j] += (Random.value * 2f - 1f) * amp * Mathf.Exp(-j * 0.12f);
+            }
+            return LoopFromBuffer("ambient_rain", s, n, m, 0.5f);
+        }
+
+        // High cold stillness: a hushed, hollow wind with a thin icy shimmer.
+        AudioClip MakeSnowAmbient()
+        {
+            float dur = 6f, cross = 0.8f;
+            int n = (int)(SR * dur), m = (int)(SR * cross);
+            var s = new float[n + m];
+            float brown = 0f, lp = 0f, phase = 0f;
+            for (int i = 0; i < n + m; i++)
+            {
+                float t = (float)i / SR;
+                float w = Random.value * 2f - 1f;
+                brown = brown * 0.992f + w * 0.06f;
+                lp = lp * 0.9f + brown * 0.1f; // double-filtered: soft and hollow
+                float swell = 0.5f + 0.35f * Mathf.Sin(2f * Mathf.PI * 0.03f * t)
+                                   + 0.15f * Mathf.Sin(2f * Mathf.PI * 0.09f * t + 1.2f);
+                if (swell < 0.1f) swell = 0.1f;
+                float f = 900f + 120f * Mathf.Sin(2f * Mathf.PI * 0.017f * t);
+                phase += 2f * Mathf.PI * f / SR;
+                s[i] = (lp * 1.6f + Mathf.Sin(phase) * 0.03f) * swell;
+            }
+            return LoopFromBuffer("ambient_snow", s, n, m, 0.45f);
         }
 
         // A seamless beach loop: leaky-integrated (brown) noise washed by slow wave swells.

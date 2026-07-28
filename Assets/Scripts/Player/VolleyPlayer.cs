@@ -20,8 +20,8 @@ namespace Volleyball
         public float halfSign = -1f;
 
         [Header("Character")]
-        [Tooltip("Which roster character this player is — stats (height/speed/control) and " +
-                 "appearance. See CharacterRoster in CharacterDef.cs.")]
+        [Tooltip("Which roster animal this player is — stats (height/speed/power/control/jump) " +
+                 "and appearance. See CharacterRoster in CharacterDef.cs.")]
         public string characterId = CharacterRoster.DefaultId;
 
         [Tooltip("This player slot's jersey colour (set by the scene builders). Used to pick " +
@@ -35,7 +35,9 @@ namespace Volleyball
         // (Volleyball → Create Game Config). The character's stats scale them per-player.
         static GameConfig Cfg => GameConfig.Instance;
         public float moveSpeed => Cfg.moveSpeed * Character.speed;
-        public float jumpSpeed => Cfg.jumpSpeed;
+        // sqrt: apex height scales with jumpSpeed², so this makes apex height scale
+        // linearly with the jump stat (a 1.35 jumper peaks 35% higher, not 82%)
+        public float jumpSpeed => Cfg.jumpSpeed * Mathf.Sqrt(Character.jump);
         public float reach => Cfg.reach;
         public float hitReachHeight => Cfg.hitReachHeight * Character.height;
         public float hitBufferTime => Cfg.hitBufferTime;
@@ -67,6 +69,10 @@ namespace Volleyball
         protected BallController ball;
 
         public bool IsGrounded => height <= 0.001f;
+
+        /// <summary>Current vertical speed of the manual jump integration (+up, −falling).
+        /// Zero exactly at the peak of the jump — the jump serve reads it to score timing.</summary>
+        public float VerticalVelocity => vertVel;
         /// <summary>True while laid out on a dive — the slide and the get-up afterwards.</summary>
         public bool IsDiving => _diveTimer > 0f || _diveRecover > 0f;
         /// <summary>World direction of the current/last dive (unit XZ). Read by the visuals
@@ -164,15 +170,20 @@ namespace Volleyball
             }
             // (while recovering: face down in the sand — no movement)
 
-            const float margin = 1f;
-            pos.x = Mathf.Clamp(pos.x, -(CourtGeometry.HalfWidth + margin), CourtGeometry.HalfWidth + margin);
+            // The deep zone behind the baseline is walkable ALL match — same space whether
+            // serving or rallying, so ending a serve never snaps anyone forward. (Standing
+            // deep is its own punishment: deep balls are already out.)
+            const float backMargin = 4f;
+            bool servePhase = match != null && match.IsServePhaseFor(this);
+            pos.x = Mathf.Clamp(pos.x, -(CourtGeometry.HalfWidth + 1f), CourtGeometry.HalfWidth + 1f);
             if (team == TeamSide.A)
-                pos.z = Mathf.Clamp(pos.z, -(CourtGeometry.HalfDepth + margin), -CourtGeometry.NetBuffer);
+                pos.z = Mathf.Clamp(pos.z, -(CourtGeometry.HalfDepth + backMargin), -CourtGeometry.NetBuffer);
             else
-                pos.z = Mathf.Clamp(pos.z, CourtGeometry.NetBuffer, CourtGeometry.HalfDepth + margin);
+                pos.z = Mathf.Clamp(pos.z, CourtGeometry.NetBuffer, CourtGeometry.HalfDepth + backMargin);
 
-            // the server must stay behind their own back line until they serve
-            if (match != null && match.IsServePhaseFor(this))
+            // The server must stay behind their own back line while holding the ball — but
+            // once the jump-serve toss is up they may run in after it, like a real run-up.
+            if (servePhase && !(match != null && match.ServeTossed))
             {
                 if (team == TeamSide.A) pos.z = Mathf.Min(pos.z, -CourtGeometry.HalfDepth);
                 else pos.z = Mathf.Max(pos.z, CourtGeometry.HalfDepth);
@@ -356,6 +367,13 @@ namespace Volleyball
 
         /// <summary>Per-controller skill multiplier on contact error (1 = baseline human).</summary>
         protected virtual float ContactSkill => 1f;
+
+        /// <summary>
+        /// The serve's contact error for this player. Serves are launched by MatchManager
+        /// (outside TryHit), so this exposes the full error model — the character's control
+        /// stat and the controller's skill both shape serve placement.
+        /// </summary>
+        public float ServeError() => ComputeContactError(HitType.Serve, 0f);
 
         /// <summary>
         /// How much a contact strays (metres of spray), built from the situation: the contact

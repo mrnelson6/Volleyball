@@ -256,11 +256,13 @@ namespace Volleyball.EditorTools
             var players = new List<VolleyPlayer>
             {
                 // team A — human listed first so it serves for team A
-                MakePlayer(root, "Player (You)", TeamSide.A, -1f, ColPlayer, true, circle, "ace"),
-                MakePlayer(root, "Teammate (AI)", TeamSide.A, 1f, ColMate, false, circle, "tower"),
+                MakePlayer(root, "Player (You)", TeamSide.A, -1f, ColPlayer, true, circle,
+                           CharacterRoster.ProtagonistId),
+                MakePlayer(root, "Teammate (AI)", TeamSide.A, 1f, ColMate, false, circle,
+                           CharacterRoster.TeammateId),
                 // team B — opponents
-                MakePlayer(root, "Opponent 1 (AI)", TeamSide.B, -1f, ColOpp1, false, circle, "bolt"),
-                MakePlayer(root, "Opponent 2 (AI)", TeamSide.B, 1f, ColOpp2, false, circle, "sage"),
+                MakePlayer(root, "Opponent 1 (AI)", TeamSide.B, -1f, ColOpp1, false, circle, "lion"),
+                MakePlayer(root, "Opponent 2 (AI)", TeamSide.B, 1f, ColOpp2, false, circle, "jaguar"),
             };
             return players;
         }
@@ -355,11 +357,16 @@ namespace Volleyball.EditorTools
             Text banner = MakeText(canvasGO.transform, "Banner", font,
                 new Vector2(0.5f, 0.5f), new Vector2(0f, 200f), new Vector2(1200f, 100f), 54,
                 TextAnchor.MiddleCenter);
+            Text matchLabel = MakeText(canvasGO.transform, "MatchLabel", font,
+                new Vector2(0.5f, 1f), new Vector2(0f, -128f), new Vector2(1400f, 44f), 28,
+                TextAnchor.UpperCenter);
+            matchLabel.color = new Color(1f, 1f, 1f, 0.85f);
 
             var hud = canvasGO.AddComponent<ScoreHUD>();
             hud.match = match;
             hud.scoreText = score;
             hud.bannerText = banner;
+            hud.matchLabelText = matchLabel;
 
             // touch controls (auto-hidden on non-touch platforms)
             var panel = new GameObject("TouchPanel", typeof(RectTransform));

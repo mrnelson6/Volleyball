@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8fbd16f0c88ac0a4696a50409430ef2e, type: 3}
   m_Name: GameConfig
   m_EditorClassIdentifier: Assembly-CSharp::Volleyball.GameConfig
-  moveSpeed: 4
+  moveSpeed: 3.6
   jumpSpeed: 5.3
   reach: 1
   hitReachHeight: 2.4

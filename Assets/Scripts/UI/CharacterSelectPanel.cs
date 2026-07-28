@@ -33,14 +33,19 @@ namespace Volleyball
         public Image previewPortrait;
         public Text previewName;
         public Text previewBlurb;
-        public StatBar heightBar, speedBar, controlBar;
+        public StatBar heightBar, speedBar, powerBar, controlBar, jumpBar;
 
         public Button playButton;
         public Button backButton;
+        public Button venueButton;  // cycles through SceneFlow.Arenas
+        public Text venueLabel;
 
         // stats live in this range across the roster; bars are drawn against it
         const float StatMin = 0.7f, StatMax = 1.4f;
         const string PrefKey = "vb.character";
+        const string VenuePrefKey = "vb.arena";
+
+        int _venueIndex;
 
         static readonly Color FrameNormal = new Color(1f, 1f, 1f, 0.10f);
         static readonly Color FrameSelected = new Color(0.30f, 0.65f, 1f, 0.55f);
@@ -56,9 +61,29 @@ namespace Volleyball
             }
             if (playButton != null) playButton.onClick.AddListener(Play);
             if (backButton != null) backButton.onClick.AddListener(Close);
+            if (venueButton != null) venueButton.onClick.AddListener(CycleVenue);
         }
 
-        void OnEnable() => Select(PlayerPrefs.GetString(PrefKey, CharacterRoster.DefaultId));
+        void OnEnable()
+        {
+            _venueIndex = Mathf.Clamp(PlayerPrefs.GetInt(VenuePrefKey, 0),
+                                      0, SceneFlow.Arenas.Length - 1);
+            UpdateVenueLabel();
+            Select(PlayerPrefs.GetString(PrefKey, CharacterRoster.DefaultId));
+        }
+
+        void CycleVenue()
+        {
+            _venueIndex = (_venueIndex + 1) % SceneFlow.Arenas.Length;
+            PlayerPrefs.SetInt(VenuePrefKey, _venueIndex);
+            UpdateVenueLabel();
+        }
+
+        void UpdateVenueLabel()
+        {
+            if (venueLabel != null)
+                venueLabel.text = $"Venue:  {SceneFlow.ArenaNames[_venueIndex]}  ▶";
+        }
 
         void Select(string id)
         {
@@ -82,7 +107,9 @@ namespace Volleyball
 
             SetBar(heightBar, ch.height);
             SetBar(speedBar, ch.speed);
+            SetBar(powerBar, ch.power);
             SetBar(controlBar, ch.control);
+            SetBar(jumpBar, ch.jump);
         }
 
         static void SetBar(StatBar bar, float stat)
@@ -102,7 +129,7 @@ namespace Volleyball
         void Play()
         {
             PlayerPrefs.SetString(PrefKey, _selectedId);
-            SceneFlow.LoadQuickPlay(_selectedId);
+            SceneFlow.LoadQuickPlay(_selectedId, _venueIndex);
         }
 
         void Close() => gameObject.SetActive(false);
