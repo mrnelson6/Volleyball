@@ -85,6 +85,15 @@ namespace Volleyball
                  "the AI mishits more often).")]
         public float aiErrorMult = 1f;
 
+        [Header("Power-Ups")]
+        [Tooltip("Master switch for the whole power-up system (meters, activation, AI usage).")]
+        public bool powerUpsEnabled = true;
+        [Tooltip("Meter gained by the toucher on every ball contact (serves included). " +
+                 "1 = a full meter.")]
+        public float powerChargePerTouch = 0.15f;
+        [Tooltip("Meter every player on court gains when a rally ends, win or lose.")]
+        public float powerChargePerRally = 0.25f;
+
         [Header("Match")]
         public int pointsToWin = 7;
         public int maxTouches = 3;

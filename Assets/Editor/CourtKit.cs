@@ -362,11 +362,47 @@ namespace Volleyball.EditorTools
                 TextAnchor.UpperCenter);
             matchLabel.color = new Color(1f, 1f, 1f, 0.85f);
 
+            // human power-up meter: bottom-centre, clear of the joystick (bottom-left) and
+            // the touch action cluster (bottom-right). ScoreHUD drives the fill each frame.
+            var meterGO = new GameObject("PowerMeter", typeof(RectTransform), typeof(Image));
+            meterGO.transform.SetParent(canvasGO.transform, false);
+            var meterRT = meterGO.GetComponent<RectTransform>();
+            meterRT.anchorMin = meterRT.anchorMax = new Vector2(0.5f, 0f);
+            meterRT.pivot = new Vector2(0.5f, 0f);
+            meterRT.sizeDelta = new Vector2(300f, 26f);
+            meterRT.anchoredPosition = new Vector2(0f, 40f);
+            var meterBg = meterGO.GetComponent<Image>();
+            meterBg.sprite = circle;
+            meterBg.type = Image.Type.Sliced;
+            meterBg.color = new Color(0.10f, 0.12f, 0.16f, 0.8f);
+            meterBg.raycastTarget = false;
+
+            var fillGO = new GameObject("Fill", typeof(RectTransform), typeof(Image));
+            fillGO.transform.SetParent(meterGO.transform, false);
+            var fillRT = fillGO.GetComponent<RectTransform>();
+            fillRT.anchorMin = Vector2.zero;
+            fillRT.anchorMax = new Vector2(0f, 1f); // ScoreHUD widens this with the charge
+            fillRT.offsetMin = Vector2.zero;
+            fillRT.offsetMax = Vector2.zero;
+            var fillImg = fillGO.GetComponent<Image>();
+            fillImg.sprite = circle;
+            fillImg.type = Image.Type.Sliced;
+            fillImg.color = new Color(1f, 0.72f, 0.10f);
+            fillImg.raycastTarget = false;
+
+            Text powerLabel = MakeText(meterGO.transform, "PowerLabel", font,
+                new Vector2(0.5f, 1f), new Vector2(0f, 32f), new Vector2(600f, 30f), 24,
+                TextAnchor.LowerCenter);
+            powerLabel.raycastTarget = false;
+            powerLabel.color = new Color(1f, 1f, 1f, 0.9f);
+
             var hud = canvasGO.AddComponent<ScoreHUD>();
             hud.match = match;
             hud.scoreText = score;
             hud.bannerText = banner;
             hud.matchLabelText = matchLabel;
+            hud.powerFill = fillImg;
+            hud.powerLabel = powerLabel;
 
             // touch controls (auto-hidden on non-touch platforms)
             var panel = new GameObject("TouchPanel", typeof(RectTransform));
@@ -384,6 +420,8 @@ namespace Volleyball.EditorTools
                 new Vector2(1f, 0f), new Vector2(-330f, 180f), new Color(0.30f, 0.80f, 0.40f, 0.5f), font);
             BuildButton(panel.transform, circle, "SetButton", "SET", VirtualButtonKind.Set,
                 new Vector2(1f, 0f), new Vector2(-150f, 180f), new Color(1f, 0.85f, 0.20f, 0.5f), font);
+            BuildButton(panel.transform, circle, "PowerButton", "POWER", VirtualButtonKind.Power,
+                new Vector2(1f, 0f), new Vector2(-510f, 270f), new Color(0.75f, 0.30f, 1f, 0.5f), font);
 
             var touch = canvasGO.AddComponent<TouchControls>();
             touch.panel = panel;

@@ -53,6 +53,8 @@ namespace Volleyball
             CourtEnvironment.ApplyFor(
                 UnityEngine.SceneManagement.SceneManager.GetActiveScene().name, ball);
             ApplyMatchSetup();
+            foreach (var p in players)
+                p?.Power.ResetForMatch();
             BeginServe(TeamSide.A);
         }
 
@@ -125,6 +127,9 @@ namespace Volleyball
         {
             if (State != MatchState.Rallying) return;
 
+            // any participation charges the meter — even a touch that turns out to be a fault
+            p?.Power.AddCharge(Cfg.powerChargePerTouch);
+
             // a player may not contact the ball twice in a row
             if (p != null && p == _lastToucher)
             {
@@ -164,6 +169,13 @@ namespace Volleyball
 
         void EndRally(TeamSide scorer, string reason)
         {
+            // every power-up effect ends with the rally (clean slate for the next serve),
+            // and everyone banks the participation chunk — win or lose the point
+            foreach (var p in players)
+                p?.Power.OnRallyEnd(Cfg.powerChargePerRally);
+            PowerUpDirector.RevertAll();
+            _powerBanner = null;
+
             if (scorer == TeamSide.A) ScoreA++;
             else if (scorer == TeamSide.B) ScoreB++;
 
@@ -224,8 +236,27 @@ namespace Volleyball
         const string TossHint = "Run in — Jump (Space) and Spike (L) at the peak!";
         const string PerfectBanner = "PERFECT SERVE!";
 
+        string _powerBanner;      // the activation shout currently on the banner, if any
+        float _powerBannerUntil;
+
+        /// <summary>Flash a power-up activation on the banner for a moment. The timed clear
+        /// only fires while the banner still shows this exact text, so serve hints and point
+        /// banners are never stomped.</summary>
+        public void ShowPowerBanner(string text)
+        {
+            Banner = text;
+            _powerBanner = text;
+            _powerBannerUntil = Time.time + 2.5f;
+        }
+
         void Update()
         {
+            if (_powerBanner != null)
+            {
+                if (Banner != _powerBanner) _powerBanner = null; // something else took over
+                else if (Time.time >= _powerBannerUntil) { Banner = ""; _powerBanner = null; }
+            }
+
             // debug shortcut: instantly win the current match (campaign advances normally)
             if ((Application.isEditor || Debug.isDebugBuild)
                 && State != MatchState.MatchOver
@@ -308,6 +339,7 @@ namespace Volleyball
             _serveTossed = false;
             ServeInFlight = true;
             Banner = "";
+            _server?.Power.AddCharge(Cfg.powerChargePerTouch); // serves bypass RegisterTouch
 
             Vector3 target = VolleyPlayer.ApplyContactError(ServeTarget(),
                                                             _server != null ? _server.ServeError()
@@ -375,6 +407,7 @@ namespace Volleyball
             _serveTossed = false;
             ServeInFlight = true;
             Banner = "";
+            _server?.Power.AddCharge(Cfg.powerChargePerTouch); // serves bypass RegisterTouch
 
             // Timing quality is measured off ONE thing: how close the server is to the peak
             // of their jump at the strike (vertical speed hits zero exactly at the apex).
@@ -415,6 +448,9 @@ namespace Volleyball
         {
             ScoreA = 0;
             ScoreB = 0;
+            foreach (var p in players)
+                p?.Power.ResetForMatch();
+            PowerUpDirector.RevertAll();
             BeginServe(TeamSide.A);
         }
 

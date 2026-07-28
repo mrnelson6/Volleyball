@@ -26,6 +26,7 @@ namespace Volleyball
 
         AudioClip _ambientClip, _sandClip, _netClip, _crowdClip;
         AudioClip _whistleClip, _thudClip, _outClip, _pointUpClip, _pointDownClip, _winClip;
+        AudioClip _powerReadyClip, _powerFireClip;
         AudioClip _windAmb, _jungleAmb, _rainAmb, _snowAmb; // regional beds, synthesised on demand
         readonly Dictionary<HitType, AudioClip> _hitClips = new Dictionary<HitType, AudioClip>();
 
@@ -150,6 +151,19 @@ namespace Volleyball
             PlayCrowd(1f);
         }
 
+        /// <summary>The human's power-up meter just hit full — a rising ready chime.</summary>
+        public static void PlayPowerReady()
+            => Instance?.OneShot(Instance._powerReadyClip, 0.55f, 1f, Vector3.zero);
+
+        /// <summary>A power-up fires: a big chord at the caster's spot, plus a crowd stir.</summary>
+        public static void PlayPowerUp(Vector3 pos)
+        {
+            var inst = Instance;
+            if (inst == null) return;
+            inst.OneShot(inst._powerFireClip, 0.7f, Random.Range(0.98f, 1.03f), pos);
+            PlayCrowd(0.3f);
+        }
+
         /// <summary>A swell of applause/cheering; intensity 0–1. Uses its own crowd volume.</summary>
         public static void PlayCrowd(float intensity)
         {
@@ -238,6 +252,12 @@ namespace Volleyball
             _pointDownClip = MakeChime("point_down", new[] { N(440f, 0f, 0.4f), N(330f, 0.12f, 0.5f) }, 0.62f);
             _winClip = MakeChime("match_win",
                 new[] { N(523f, 0f, 0.25f), N(659f, 0.16f, 0.25f), N(784f, 0.32f, 0.4f), N(1046f, 0.5f, 0.6f) }, 1.15f);
+
+            // power-ups: a rising three-note "ready" chime and a bigger chord when one fires
+            _powerReadyClip = MakeChime("power_ready",
+                new[] { N(587f, 0f, 0.22f), N(740f, 0.09f, 0.25f), N(880f, 0.18f, 0.4f) }, 0.65f);
+            _powerFireClip = MakeChime("power_fire",
+                new[] { N(392f, 0f, 0.5f), N(494f, 0f, 0.5f), N(587f, 0.05f, 0.55f), N(784f, 0.12f, 0.6f) }, 0.8f);
 
             _crowdClip = MakeCrowd();
             _sandClip = MakeSandLoop();

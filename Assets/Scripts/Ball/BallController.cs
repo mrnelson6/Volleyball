@@ -55,9 +55,10 @@ namespace Volleyball
 
         void FixedUpdate()
         {
-            // regional wind (constant + gusts) pushes the ball while it's in free flight
+            // regional wind (constant + gusts) pushes the ball while it's in free flight,
+            // plus any power-up wind (Cyclone) — which the AI deliberately doesn't predict
             if (_rb.isKinematic) return;
-            Vector3 wind = CourtEnvironment.WindNow(Time.time);
+            Vector3 wind = CourtEnvironment.WindNow(Time.time) + PowerUpDirector.ExtraWind;
             if (wind != Vector3.zero) _rb.AddForce(wind, ForceMode.Acceleration);
         }
 
@@ -102,7 +103,7 @@ namespace Volleyball
                 // (and harder incoming balls are harder for the receiver to control).
                 Vector3 dir = (target - start).normalized;
                 float pace = Mathf.Clamp(16f + (start.y - CourtGeometry.NetHeight) * 4f, 16f, 28f);
-                if (player != null) pace *= player.Character.power;
+                if (player != null) pace *= player.Character.power * player.Power.AttackPaceMult;
                 velocity = dir * pace;
             }
             else

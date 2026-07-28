@@ -95,7 +95,12 @@ namespace Volleyball
                     e.frame.color = e.characterId == ch.id ? FrameSelected : FrameNormal;
 
             if (previewName != null) previewName.text = ch.displayName;
-            if (previewBlurb != null) previewBlurb.text = ch.blurb;
+            if (previewBlurb != null)
+            {
+                PowerUpDef pu = PowerUpRoster.Get(ch.powerUp);
+                previewBlurb.text = $"{ch.blurb}\nPower-up: {pu.displayName} — {pu.blurb}";
+                previewBlurb.resizeTextForBestFit = true; // the second line must still fit
+            }
             if (previewPortrait != null)
             {
                 // reuse the entry's baked portrait so no sprite loading happens here

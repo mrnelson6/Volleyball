@@ -171,6 +171,29 @@ namespace Volleyball
             // ball, never the player who just touched it, and never a 4th touch.
             if (rallyLive && !reacting && touchesRemain && ballComingToUs && BallInReach() && ClosestEligibleTo(bp))
                 _wantHit = true;
+
+            // A full power-up fires at its cue moment, so the effect lands where it matters:
+            // offensive buffs as we move in to attack, defensive ones as the opponents build
+            // their attack, the cyclone right before our own serve.
+            if (GameConfig.Instance.powerUpsEnabled && Power.IsFull)
+            {
+                bool fire;
+                switch (Power.Def.aiCue)
+                {
+                    case PowerAiCue.OwnAttack:
+                        fire = rallyLive && pursue && _attacking; break;
+                    case PowerAiCue.OwnServe:
+                        fire = match != null && match.IsServePhaseFor(this); break;
+                    case PowerAiCue.OwnPossession:
+                        fire = rallyLive && teamInPossession; break;
+                    case PowerAiCue.OpponentAttack:
+                        fire = rallyLive && match != null
+                               && match.Possession == team.Other() && match.Touches >= 2; break;
+                    default: // Anytime
+                        fire = rallyLive; break;
+                }
+                if (fire) TryActivatePower();
+            }
         }
 
         /// <summary>Choose the kind and target of the next contact based on the touch count.</summary>

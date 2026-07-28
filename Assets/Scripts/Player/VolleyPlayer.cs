@@ -31,20 +31,24 @@ namespace Volleyball
         /// <summary>This player's character (stats + look). Unknown ids fall back to the default.</summary>
         public CharacterDef Character => CharacterRoster.Get(characterId);
 
+        /// <summary>This player's power-up meter and any effects currently on them.</summary>
+        public PowerUpState Power { get; } = new PowerUpState();
+
         // Baseline sizes and speeds are global — edit them in the GameConfig asset
-        // (Volleyball → Create Game Config). The character's stats scale them per-player.
+        // (Volleyball → Create Game Config). The character's stats scale them per-player,
+        // and any live power-up effect multiplies on top (1 when nothing is active).
         static GameConfig Cfg => GameConfig.Instance;
-        public float moveSpeed => Cfg.moveSpeed * Character.speed;
+        public float moveSpeed => Cfg.moveSpeed * Character.speed * Power.MoveMult;
         // sqrt: apex height scales with jumpSpeed², so this makes apex height scale
         // linearly with the jump stat (a 1.35 jumper peaks 35% higher, not 82%)
-        public float jumpSpeed => Cfg.jumpSpeed * Mathf.Sqrt(Character.jump);
-        public float reach => Cfg.reach;
-        public float hitReachHeight => Cfg.hitReachHeight * Character.height;
+        public float jumpSpeed => Cfg.jumpSpeed * Mathf.Sqrt(Character.jump) * Power.JumpMult;
+        public float reach => Cfg.reach * Power.ReachMult;
+        public float hitReachHeight => Cfg.hitReachHeight * Character.height * Power.ReachHeightMult;
         public float hitBufferTime => Cfg.hitBufferTime;
-        public float diveSpeed => Cfg.diveSpeed * Character.speed;
+        public float diveSpeed => Cfg.diveSpeed * Character.speed * Power.MoveMult;
         public float blockNetDistance => Cfg.blockNetDistance;
         public float blockMinHeight => Cfg.blockMinHeight;
-        public float blockReach => Cfg.blockReach * Character.height;
+        public float blockReach => Cfg.blockReach * Character.height * Power.BlockReachMult;
         public float blockBallBand => Cfg.blockBallBand;
 
         protected float height;   // current height above the ground (from jumping)
@@ -108,12 +112,41 @@ namespace Volleyball
             match = FindAnyObjectByType<MatchManager>();
             ball = FindAnyObjectByType<BallController>();
             _lastGroundPos = GroundPosition;
+            Power.Bind(this, match);
+
+            // the charged/active glow lives on the sprite child; added at runtime so the
+            // baked arena scenes need no rebuild for it
+            var anim = GetComponentInChildren<CharacterAnimator>();
+            if (anim != null && anim.GetComponent<PowerUpGlow>() == null)
+                anim.gameObject.AddComponent<PowerUpGlow>();
         }
 
         protected abstract Vector2 ReadMove();
         protected abstract bool ReadJumpPressed();
         protected abstract bool ReadDivePressed();
         protected abstract Vector3 ChooseHitTarget(HitType type);
+
+        /// <summary>True to fire the power-up this frame (human: the power button; AI: the
+        /// cue policy in AIController). Default false so serve flow etc. never trigger it.</summary>
+        protected virtual bool ReadPowerPressed() => false;
+
+        /// <summary>
+        /// Fire this player's power-up if the meter is full and the match is live. Handles
+        /// the fanfare (banner, sound, log); the effect itself is applied by
+        /// <see cref="PowerUpState.Activate"/>. Returns true if it fired.
+        /// </summary>
+        public bool TryActivatePower()
+        {
+            if (match != null && match.State != MatchState.Serving
+                              && match.State != MatchState.Rallying) return false;
+            if (!Power.Activate()) return false;
+
+            PowerUpDef def = Power.Def;
+            match?.ShowPowerBanner($"{Character.displayName}: {def.bannerText}");
+            GameAudio.PlayPowerUp(transform.position);
+            VBLog.Event($"POWERUP {def.type} by '{name}' team={team} duration={def.duration:F1}");
+            return true;
+        }
 
         /// <summary>Return true to hit this frame, with the explicitly chosen contact type.</summary>
         protected abstract bool TryGetDesiredHit(out HitType type);
@@ -145,6 +178,8 @@ namespace Volleyball
         {
             float dt = Time.deltaTime;
             hitCooldown -= dt;
+            Power.Tick(dt);
+            if (ReadPowerPressed()) TryActivatePower();
 
             if (_diveTimer > 0f)
             {
@@ -422,7 +457,9 @@ namespace Volleyball
 
             // The character's stats shape the final spray: height tightens net work
             // (spike/block), control tightens everything else (bump/set/serve/dive).
-            return Mathf.Min(error * ContactSkill * Character.ErrorMult(type), cfg.maxContactError);
+            // Live power-ups multiply on top: own accuracy buffs and inflicted debuffs.
+            return Mathf.Min(error * ContactSkill * Character.ErrorMult(type) * Power.ErrorMult,
+                             cfg.maxContactError);
         }
 
         /// <summary>

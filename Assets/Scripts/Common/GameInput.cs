@@ -16,8 +16,8 @@ namespace Volleyball
         public static GameInput Instance { get; private set; }
 
         Vector2 _virtualMove;
-        bool _vJump, _vBump, _vSet, _vSpike;
-        bool _jumpPrev, _bumpPrev, _setPrev, _spikePrev, _divePrev;
+        bool _vJump, _vBump, _vSet, _vSpike, _vPower;
+        bool _jumpPrev, _bumpPrev, _setPrev, _spikePrev, _divePrev, _powerPrev;
 
         public Vector2 Move { get; private set; }
         public bool JumpHeld { get; private set; }
@@ -26,6 +26,7 @@ namespace Volleyball
         public bool SetPressed { get; private set; }
         public bool SpikePressed { get; private set; }
         public bool DivePressed { get; private set; }
+        public bool PowerPressed { get; private set; }
 
         /// <summary>Any hit input this frame — used to trigger the serve / restart.</summary>
         public bool AnyHitPressed => BumpPressed || SetPressed || SpikePressed;
@@ -50,11 +51,13 @@ namespace Volleyball
         public void SetVirtualBump(bool held) => _vBump = held;
         public void SetVirtualSet(bool held) => _vSet = held;
         public void SetVirtualSpike(bool held) => _vSpike = held;
+        public void SetVirtualPower(bool held) => _vPower = held;
 
         void Update()
         {
             Vector2 kb = Vector2.zero;
-            bool jump = _vJump, bump = _vBump, set = _vSet, spike = _vSpike, dive = false;
+            bool jump = _vJump, bump = _vBump, set = _vSet, spike = _vSpike, dive = false,
+                 power = _vPower;
 
             var k = Keyboard.current;
             if (k != null)
@@ -68,6 +71,7 @@ namespace Volleyball
                 if (k.kKey.isPressed) set = true;
                 if (k.lKey.isPressed) spike = true;
                 if (k.semicolonKey.isPressed || k.leftShiftKey.isPressed) dive = true;
+                if (k.eKey.isPressed) power = true;
             }
 
             var m = Mouse.current;
@@ -75,6 +79,7 @@ namespace Volleyball
             {
                 if (m.leftButton.isPressed) bump = true;
                 if (m.rightButton.isPressed) spike = true;
+                if (m.middleButton.isPressed) power = true;
             }
 
             Vector2 mv = kb + _virtualMove;
@@ -87,12 +92,14 @@ namespace Volleyball
             SetPressed = set && !_setPrev;
             SpikePressed = spike && !_spikePrev;
             DivePressed = dive && !_divePrev;
+            PowerPressed = power && !_powerPrev;
 
             _jumpPrev = jump;
             _bumpPrev = bump;
             _setPrev = set;
             _spikePrev = spike;
             _divePrev = dive;
+            _powerPrev = power;
         }
     }
 }

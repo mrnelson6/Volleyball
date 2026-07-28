@@ -3,7 +3,7 @@ using UnityEngine.EventSystems;
 
 namespace Volleyball
 {
-    public enum VirtualButtonKind { Jump, Bump, Set, Spike }
+    public enum VirtualButtonKind { Jump, Bump, Set, Spike, Power }
 
     /// <summary>On-screen hold button that drives a <see cref="GameInput"/> virtual button.</summary>
     public class VirtualButton : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
@@ -23,6 +23,7 @@ namespace Volleyball
                 case VirtualButtonKind.Bump: gi.SetVirtualBump(held); break;
                 case VirtualButtonKind.Set: gi.SetVirtualSet(held); break;
                 case VirtualButtonKind.Spike: gi.SetVirtualSpike(held); break;
+                case VirtualButtonKind.Power: gi.SetVirtualPower(held); break;
             }
         }
     }
