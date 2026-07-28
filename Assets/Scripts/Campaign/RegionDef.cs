@@ -62,6 +62,11 @@ namespace Volleyball
         /// and Build Settings. Falls back to the beach if the scene isn't built yet.</summary>
         public string sceneName;
 
+        /// <summary>Where this stop sits on the campaign world map, as a normalized UV on the
+        /// baked map texture (0,0 = south-west corner, 1,1 = north-east). Consumed by the
+        /// menu's map panel builder; tuned to the stylized continents WorldMapArt draws.</summary>
+        public Vector2 mapSpot;
+
         public string[] speciesPool;   // roster ids native to this region (for UI/flavour)
         public MatchDef[] matches;     // the tournament, in order; last = region champions
         public EnvironmentProfile env = EnvironmentProfile.Default;
@@ -80,7 +85,7 @@ namespace Volleyball
             {
                 id = "savanna", displayName = "Sunny Savanna",
                 blurb = "Dusty grassland under an acacia sky — where the tour begins.",
-                sceneName = "SavannaArena",
+                sceneName = "SavannaArena", mapSpot = new Vector2(0.565f, 0.50f),
                 speciesPool = new[] { "meerkat", "zebra", "warthog", "giraffe", "lion" },
                 env = new EnvironmentProfile { ambience = "wind" },
                 matches = new[]
@@ -97,7 +102,7 @@ namespace Volleyball
             {
                 id = "amazon", displayName = "Amazon Rainforest",
                 blurb = "A court deep under the canopy, where the air is thick enough to chew.",
-                sceneName = "AmazonArena",
+                sceneName = "AmazonArena", mapSpot = new Vector2(0.285f, 0.43f),
                 speciesPool = new[] { "capybara", "toucan", "sloth", "jaguar" },
                 env = new EnvironmentProfile
                 {
@@ -118,7 +123,7 @@ namespace Volleyball
             {
                 id = "outback", displayName = "Australian Outback",
                 blurb = "Red rock, big sky, and a crosswind with opinions of its own.",
-                sceneName = "OutbackArena",
+                sceneName = "OutbackArena", mapSpot = new Vector2(0.83f, 0.285f),
                 speciesPool = new[] { "wombat", "dingo", "emu", "kangaroo" },
                 env = new EnvironmentProfile
                 {
@@ -141,7 +146,7 @@ namespace Volleyball
             {
                 id = "himalaya", displayName = "Himalayan Peaks",
                 blurb = "The highest court on Earth, strung with prayer flags.",
-                sceneName = "HimalayaArena",
+                sceneName = "HimalayaArena", mapSpot = new Vector2(0.665f, 0.68f),
                 speciesPool = new[] { "redpanda", "yak", "markhor", "snowleopard" },
                 env = new EnvironmentProfile
                 {
@@ -164,7 +169,7 @@ namespace Volleyball
             {
                 id = "forest", displayName = "Black Forest",
                 blurb = "A mossy clearing between old pines, kept damp by a permanent drizzle.",
-                sceneName = "ForestArena",
+                sceneName = "ForestArena", mapSpot = new Vector2(0.525f, 0.77f),
                 speciesPool = new[] { "hare", "badger", "boar", "stag" },
                 env = new EnvironmentProfile
                 {
@@ -187,7 +192,7 @@ namespace Volleyball
             {
                 id = "sahara", displayName = "Sahara Dunes",
                 blurb = "An oasis court between the dunes; the sand never quite stays down.",
-                sceneName = "SaharaArena",
+                sceneName = "SaharaArena", mapSpot = new Vector2(0.50f, 0.615f),
                 speciesPool = new[] { "jerboa", "fennec", "oryx", "camel" },
                 env = new EnvironmentProfile
                 {
@@ -210,7 +215,7 @@ namespace Volleyball
             {
                 id = "rockies", displayName = "Rocky Mountains",
                 blurb = "A pine-ringed court below the snowline, with a storm wind down the valley.",
-                sceneName = "RockiesArena",
+                sceneName = "RockiesArena", mapSpot = new Vector2(0.155f, 0.72f),
                 speciesPool = new[] { "raccoon", "moose", "buffalo", "cougar" },
                 env = new EnvironmentProfile
                 {
@@ -233,7 +238,7 @@ namespace Volleyball
             {
                 id = "arctic", displayName = "Polar Ice",
                 blurb = "A court on the floes under the aurora. Bring a scarf.",
-                sceneName = "ArcticArena",
+                sceneName = "ArcticArena", mapSpot = new Vector2(0.345f, 0.90f),
                 speciesPool = new[] { "penguin", "snowyowl", "walrus", "polarbear" },
                 env = new EnvironmentProfile
                 {
@@ -257,6 +262,7 @@ namespace Volleyball
                 id = "skyfinals", displayName = "Cloud Kingdom Finals",
                 blurb = "The World Finals, held above the weather itself. Champions only.",
                 sceneName = SceneFlow.SkyArena, // reuses the existing fantasy arena
+                mapSpot = new Vector2(0.075f, 0.56f), // out over the open Pacific, in the clouds
                 speciesPool = new[] { "snowleopard", "jaguar", "kangaroo", "cougar", "lion", "polarbear" },
                 env = new EnvironmentProfile
                 {

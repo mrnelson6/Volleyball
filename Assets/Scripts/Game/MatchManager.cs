@@ -37,6 +37,13 @@ namespace Volleyball
         VolleyPlayer _lastToucher;
         bool _serveTossed; // the server has tossed the ball for a jump serve
 
+        // Serve rotation, like real volleyball: the same player keeps serving while their
+        // team holds the serve; when a team wins the serve back (side-out), its next player
+        // in rotation steps up. Index 0 = team A, 1 = team B. B starts at -1 so its first
+        // side-out advances to its first player.
+        readonly int[] _serveRotation = { 0, -1 };
+        TeamSide _lastServeTeam = TeamSide.None;
+
         /// <summary>True from the serve until the receiving team first touches it. You may not
         /// block a serve, so blocks check this.</summary>
         public bool ServeInFlight { get; private set; }
@@ -215,7 +222,11 @@ namespace Volleyball
             ServeInFlight = false;
 
             ResetPositions();
-            _server = FirstPlayerOf(t);
+            _server = NextServerOf(t);
+
+            // the human isn't always the server now — say who's up when the partner serves
+            if (_server is AIController && t == TeamSide.A)
+                Banner = $"{_server.Character.displayName}'s serve";
 
             // server stands behind their own back line to serve
             if (_server != null)
@@ -421,14 +432,18 @@ namespace Volleyball
 
             // The apex here is measured ABOVE the (already ~3m high) contact, so anything
             // over ~1 still reads as a rainbow. The ramp runs from a slow floater down to a
-            // low, driven trajectory; a perfect strike barely rises at all and goes out flat.
+            // low, driven trajectory. A perfect strike ignores the apex model entirely: it
+            // takes the FASTEST flight that still clears the tape and lands on the back
+            // line — a flat laser, and flatter still off a higher contact (tall animals,
+            // Sky Jump, Moon Ball raise the strike point and speed it up further).
             float apex = perfect ? 0.35f : Mathf.Lerp(3.2f, 0.9f, quality);
-            float depth = perfect ? 0.92f : Mathf.Lerp(0.62f, 0.85f, quality);
+            float depth = perfect ? 0.95f : Mathf.Lerp(0.62f, 0.85f, quality);
 
             Vector3 target = VolleyPlayer.ApplyContactError(ServeTarget(depth),
                                                             _server != null ? _server.ServeError()
                                                                             : GameConfig.Instance.serveBaseError);
-            ball.LaunchTo(target, apex, ServingTeam, _server, HitType.Serve);
+            float flight = perfect ? FastestServeFlight(ball.transform.position, target) : 0f;
+            ball.LaunchTo(target, apex, ServingTeam, _server, HitType.Serve, flight);
             ball.LockHits(0.45f);
             _server?.TriggerSwing(HitType.Spike); // spike motion for the jump serve
             GameAudio.PlayHit(HitType.Spike, ball.transform.position);
@@ -444,10 +459,38 @@ namespace Volleyball
                         $"depth={depth:F2} vel={VBLog.V(sv)} speed={sv.magnitude:F1} spin={ball.Spin:F0}");
         }
 
+        /// <summary>
+        /// The shortest ballistic flight time from <paramref name="start"/> to
+        /// <paramref name="target"/> that still crosses the net plane with clearance —
+        /// i.e. the fastest, flattest serve physics allows from this contact. Horizontal
+        /// speed is constant in flight, so the net crossing sits at a fixed fraction of the
+        /// flight time. Returns 0 (caller falls back to the arc solver) if even the slowest
+        /// candidate can't clear — e.g. a strike from very low.
+        /// </summary>
+        static float FastestServeFlight(Vector3 start, Vector3 target)
+        {
+            float g = -Physics.gravity.y;
+            float netFrac = Mathf.Clamp01(Mathf.Abs(start.z)
+                                          / Mathf.Max(Mathf.Abs(target.z - start.z), 0.01f));
+            float clearance = CourtGeometry.NetHeight + 0.25f; // tape + ball radius margin
+
+            for (float t = 0.55f; t <= 1.4f; t += 0.05f)
+            {
+                float vy = (target.y - start.y + 0.5f * g * t * t) / t;
+                float tn = netFrac * t;
+                float yNet = start.y + vy * tn - 0.5f * g * tn * tn;
+                if (yNet >= clearance) return t;
+            }
+            return 0f;
+        }
+
         void RestartMatch()
         {
             ScoreA = 0;
             ScoreB = 0;
+            _serveRotation[0] = 0;
+            _serveRotation[1] = -1;
+            _lastServeTeam = TeamSide.None;
             foreach (var p in players)
                 p?.Power.ResetForMatch();
             PowerUpDirector.RevertAll();
@@ -517,11 +560,20 @@ namespace Volleyball
             return new Vector3(p.x, 1.5f, p.z + CourtGeometry.SideSign(ServingTeam) * 0.3f);
         }
 
-        VolleyPlayer FirstPlayerOf(TeamSide t)
+        /// <summary>The player whose turn it is to serve for <paramref name="t"/>: rotation
+        /// advances only on a side-out, so a scoring server keeps the ball.</summary>
+        VolleyPlayer NextServerOf(TeamSide t)
         {
+            var teamPlayers = new List<VolleyPlayer>();
             foreach (var p in players)
-                if (p != null && p.team == t) return p;
-            return players.Count > 0 ? players[0] : null;
+                if (p != null && p.team == t) teamPlayers.Add(p);
+            if (teamPlayers.Count == 0) return players.Count > 0 ? players[0] : null;
+
+            int idx = t == TeamSide.A ? 0 : 1;
+            if (t != _lastServeTeam && _lastServeTeam != TeamSide.None)
+                _serveRotation[idx]++;
+            _lastServeTeam = t;
+            return teamPlayers[_serveRotation[idx] % teamPlayers.Count];
         }
 
         void ResetPositions()

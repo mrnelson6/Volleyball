@@ -157,9 +157,11 @@ namespace Volleyball.EditorTools
         }
 
         /// <summary>
-        /// The world-tour board: a scrollable card per <see cref="RegionRoster"/> region (name +
-        /// state line, refreshed from the save by <see cref="CampaignPanel"/>), a tour summary,
-        /// and Play / New Game / Back.
+        /// The world-tour map: the baked <see cref="WorldMapArt"/> world with a pin per
+        /// <see cref="RegionRoster"/> region at its <see cref="RegionDef.mapSpot"/>, a dotted
+        /// travel path between consecutive stops, the protagonist fox as a travelling marker,
+        /// an info line, and Play / New Game / Back. All state tinting, the travel animation
+        /// and click handling live in <see cref="CampaignPanel"/>.
         /// </summary>
         static GameObject BuildCampaignPanel(Transform parent, Font font)
         {
@@ -167,115 +169,136 @@ namespace Volleyball.EditorTools
             var cp = panel.AddComponent<CampaignPanel>();
 
             Text title = MakeText(panel.transform, "Title", font,
-                new Vector2(0.5f, 1f), new Vector2(0f, -100f), new Vector2(800f, 100f), 72,
+                new Vector2(0.5f, 1f), new Vector2(0f, -90f), new Vector2(800f, 90f), 64,
                 TextAnchor.MiddleCenter);
             title.text = "World Tour";
 
             cp.statusLabel = MakeText(panel.transform, "Status", font,
-                new Vector2(0.5f, 1f), new Vector2(0f, -190f), new Vector2(1200f, 50f), 32,
+                new Vector2(0.5f, 1f), new Vector2(0f, -160f), new Vector2(1200f, 44f), 30,
                 TextAnchor.MiddleCenter);
             cp.statusLabel.text = "";
 
-            // ---- region cards in a vertical scroll view ----
-            var scrollGO = new GameObject("TourScroll",
-                typeof(RectTransform), typeof(Image), typeof(RectMask2D), typeof(ScrollRect));
-            scrollGO.transform.SetParent(panel.transform, false);
-            var scrollRt = scrollGO.GetComponent<RectTransform>();
-            scrollRt.anchorMin = scrollRt.anchorMax = scrollRt.pivot = new Vector2(0.5f, 0.5f);
-            scrollRt.sizeDelta = new Vector2(1120f, 560f);
-            scrollRt.anchoredPosition = new Vector2(0f, 10f);
-            var scrollBg = scrollGO.GetComponent<Image>();
-            scrollBg.sprite = UIBackground();
-            scrollBg.type = Image.Type.Sliced;
-            scrollBg.color = new Color(0f, 0f, 0f, 0.25f);
+            // ---- the map itself ----
+            Vector2 mapSize = new Vector2(1440f, 720f); // 2:1, same as the baked texture
+            var mapGO = new GameObject("WorldMap", typeof(RectTransform), typeof(Image));
+            mapGO.transform.SetParent(panel.transform, false);
+            var mapRt = mapGO.GetComponent<RectTransform>();
+            mapRt.anchorMin = mapRt.anchorMax = mapRt.pivot = new Vector2(0.5f, 0.5f);
+            mapRt.sizeDelta = mapSize;
+            mapRt.anchoredPosition = new Vector2(0f, 10f);
+            var mapImg = mapGO.GetComponent<Image>();
+            mapImg.sprite = WorldMapArt.GetSprite();
+            mapImg.raycastTarget = false;
 
-            var contentGO = new GameObject("Content",
-                typeof(RectTransform), typeof(GridLayoutGroup), typeof(ContentSizeFitter));
-            contentGO.transform.SetParent(scrollGO.transform, false);
-            var contentRt = contentGO.GetComponent<RectTransform>();
-            contentRt.anchorMin = new Vector2(0f, 1f);
-            contentRt.anchorMax = new Vector2(1f, 1f);
-            contentRt.pivot = new Vector2(0.5f, 1f);
-            contentRt.offsetMin = Vector2.zero;
-            contentRt.offsetMax = Vector2.zero;
-            var grid = contentGO.GetComponent<GridLayoutGroup>();
-            grid.cellSize = new Vector2(1080f, 100f);
-            grid.spacing = new Vector2(0f, 10f);
-            grid.padding = new RectOffset(10, 10, 10, 10);
-            grid.childAlignment = TextAnchor.UpperCenter;
-            grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-            grid.constraintCount = 1;
-            contentGO.GetComponent<ContentSizeFitter>().verticalFit =
-                ContentSizeFitter.FitMode.PreferredSize;
-
-            var scroll = scrollGO.GetComponent<ScrollRect>();
-            scroll.content = contentRt;
-            scroll.horizontal = false;
-            scroll.vertical = true;
-            scroll.movementType = ScrollRect.MovementType.Clamped;
-            scroll.scrollSensitivity = 40f;
-
-            var rows = new List<CampaignPanel.RegionRow>();
-            foreach (RegionDef region in RegionRoster.All)
+            // ---- dotted travel path (under the pins) ----
+            var legs = new List<CampaignPanel.PathLeg>();
+            for (int i = 0; i < RegionRoster.All.Length - 1; i++)
             {
-                var card = new GameObject(region.displayName + " Card",
-                    typeof(RectTransform), typeof(Image));
-                card.transform.SetParent(contentGO.transform, false);
-                var cardImg = card.GetComponent<Image>();
-                cardImg.sprite = UISprite();
-                cardImg.type = Image.Type.Sliced;
-                cardImg.color = new Color(1f, 1f, 1f, 0.05f); // CampaignPanel re-tints by state
-
-                Text name = MakeText(card.transform, "Name", font,
-                    new Vector2(0f, 0.5f), new Vector2(30f, 0f), new Vector2(380f, 90f), 34,
-                    TextAnchor.MiddleLeft);
-                name.text = region.displayName;
-                name.raycastTarget = false;
-
-                // a little lineup of the region's native animals
-                for (int s = 0; s < region.speciesPool.Length && s < 5; s++)
+                Vector2 a = SpotToMapPos(RegionRoster.All[i].mapSpot, mapSize);
+                Vector2 b = SpotToMapPos(RegionRoster.All[i + 1].mapSpot, mapSize);
+                int n = Mathf.Max(2, Mathf.RoundToInt(Vector2.Distance(a, b) / 34f) - 1);
+                var dots = new List<Image>();
+                for (int j = 1; j <= n; j++)
                 {
-                    CharacterDef ch = CharacterRoster.Get(region.speciesPool[s]);
-                    var mini = new GameObject("Species", typeof(RectTransform), typeof(Image));
-                    mini.transform.SetParent(card.transform, false);
-                    var mrt = mini.GetComponent<RectTransform>();
-                    mrt.anchorMin = mrt.anchorMax = mrt.pivot = new Vector2(0f, 0.5f);
-                    mrt.sizeDelta = new Vector2(46f, 62f);
-                    mrt.anchoredPosition = new Vector2(420f + s * 52f, 0f);
-                    var img = mini.GetComponent<Image>();
-                    img.sprite = CharacterArt.GetCharacterFrames(PlayerColors.Opp1, ch)[0]; // idle
-                    img.preserveAspect = true;
-                    img.raycastTarget = false;
+                    var dot = new GameObject($"Leg{i}Dot{j}", typeof(RectTransform), typeof(Image));
+                    dot.transform.SetParent(mapGO.transform, false);
+                    var drt = dot.GetComponent<RectTransform>();
+                    drt.anchorMin = drt.anchorMax = drt.pivot = new Vector2(0.5f, 0.5f);
+                    drt.sizeDelta = new Vector2(10f, 10f);
+                    drt.anchoredPosition = Vector2.Lerp(a, b, j / (n + 1f));
+                    var dimg = dot.GetComponent<Image>();
+                    dimg.sprite = UIKnob();
+                    dimg.color = new Color(1f, 1f, 1f, 0.18f); // CampaignPanel re-tints by state
+                    dimg.raycastTarget = false;
+                    dots.Add(dimg);
                 }
+                legs.Add(new CampaignPanel.PathLeg { dots = dots.ToArray() });
+            }
+            cp.legs = legs.ToArray();
 
-                Text state = MakeText(card.transform, "State", font,
-                    new Vector2(1f, 0.5f), new Vector2(-30f, 0f), new Vector2(380f, 90f), 24,
-                    TextAnchor.MiddleRight);
-                state.text = "";
-                state.raycastTarget = false;
+            // ---- region pins ----
+            var pins = new List<CampaignPanel.MapPin>();
+            for (int i = 0; i < RegionRoster.All.Length; i++)
+            {
+                RegionDef region = RegionRoster.All[i];
+                var pinGO = new GameObject(region.displayName + " Pin",
+                    typeof(RectTransform), typeof(Image), typeof(Button));
+                pinGO.transform.SetParent(mapGO.transform, false);
+                var prt = pinGO.GetComponent<RectTransform>();
+                prt.anchorMin = prt.anchorMax = prt.pivot = new Vector2(0.5f, 0.5f);
+                prt.sizeDelta = new Vector2(42f, 42f);
+                prt.anchoredPosition = SpotToMapPos(region.mapSpot, mapSize);
+                var pinImg = pinGO.GetComponent<Image>();
+                pinImg.sprite = UIKnob();
+                pinImg.color = new Color(0.70f, 0.70f, 0.70f, 0.45f); // panel re-tints by state
+                pinGO.GetComponent<Button>().targetGraphic = pinImg;
 
-                rows.Add(new CampaignPanel.RegionRow
+                Text label = MakeText(pinGO.transform, "Label", font,
+                    new Vector2(0.5f, 0.5f), PinLabelOffset(region.id), new Vector2(320f, 32f), 22,
+                    TextAnchor.MiddleCenter);
+                label.text = $"{i + 1}. {region.displayName}";
+                label.raycastTarget = false;
+
+                pins.Add(new CampaignPanel.MapPin
                 {
                     regionId = region.id,
-                    card = cardImg,
-                    nameLabel = name,
-                    stateLabel = state,
+                    button = pinGO.GetComponent<Button>(),
+                    pin = pinImg,
+                    label = label,
                 });
             }
-            cp.rows = rows.ToArray();
+            cp.pins = pins.ToArray();
 
-            // ---- bottom buttons ----
+            // ---- the travelling fox (last child of the map, so it draws over pins) ----
+            CharacterDef protagonist = CharacterRoster.Get(CharacterRoster.ProtagonistId);
+            var markerGO = new GameObject("TourMarker", typeof(RectTransform), typeof(Image));
+            markerGO.transform.SetParent(mapGO.transform, false);
+            var mrt = markerGO.GetComponent<RectTransform>();
+            mrt.anchorMin = mrt.anchorMax = mrt.pivot = new Vector2(0.5f, 0.5f);
+            mrt.sizeDelta = new Vector2(57f, 76f);
+            var markerImg = markerGO.GetComponent<Image>();
+            markerImg.sprite = CharacterArt.GetCharacterFrames(PlayerColors.Human, protagonist)[0];
+            markerImg.preserveAspect = true;
+            markerImg.raycastTarget = false;
+            cp.marker = mrt;
+
+            // ---- info line + buttons ----
+            cp.infoLabel = MakeText(panel.transform, "Info", font,
+                new Vector2(0.5f, 0.5f), new Vector2(0f, -400f), new Vector2(1500f, 64f), 24,
+                TextAnchor.MiddleCenter);
+            cp.infoLabel.color = new Color(1f, 1f, 1f, 0.9f);
+
             cp.playButton = MakeButton(panel.transform, font, "PlayButton", "Play Next Match",
-                new Vector2(0.5f, 0.5f), new Vector2(0f, -370f), new Vector2(520f, 95f), MenuBlue);
+                new Vector2(0.5f, 0.5f), new Vector2(0f, -485f), new Vector2(520f, 90f), MenuBlue);
             cp.playButtonLabel = cp.playButton.GetComponentInChildren<Text>();
             cp.newGameButton = MakeButton(panel.transform, font, "NewGameButton", "New Game",
-                new Vector2(0.5f, 0.5f), new Vector2(-640f, -370f), new Vector2(340f, 80f), MenuRed);
+                new Vector2(0.5f, 0.5f), new Vector2(-640f, -485f), new Vector2(340f, 80f), MenuRed);
             cp.newGameButtonLabel = cp.newGameButton.GetComponentInChildren<Text>();
             cp.backButton = MakeButton(panel.transform, font, "BackButton", "Back",
-                new Vector2(0.5f, 0.5f), new Vector2(640f, -370f), new Vector2(300f, 80f), MenuRed);
+                new Vector2(0.5f, 0.5f), new Vector2(640f, -485f), new Vector2(300f, 80f), MenuRed);
 
             panel.SetActive(false);
             return panel;
+        }
+
+        /// <summary>Normalized map UV → anchored position on the centred map rect.</summary>
+        static Vector2 SpotToMapPos(Vector2 spot, Vector2 mapSize)
+            => new Vector2((spot.x - 0.5f) * mapSize.x, (spot.y - 0.5f) * mapSize.y);
+
+        /// <summary>Where each pin's name label sits relative to its pin — hand-placed so
+        /// labels stay off the travel path and each other on the drawn continents.</summary>
+        static Vector2 PinLabelOffset(string regionId)
+        {
+            switch (regionId)
+            {
+                case "himalaya":
+                case "forest":
+                case "sahara":
+                case "rockies":
+                case "arctic": return new Vector2(0f, 34f);   // label above the pin
+                case "skyfinals": return new Vector2(0f, -40f);
+                default: return new Vector2(0f, -34f);        // label below the pin
+            }
         }
 
         /// <summary>

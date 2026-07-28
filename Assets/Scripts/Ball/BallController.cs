@@ -82,8 +82,12 @@ namespace Volleyball
         /// <summary>
         /// Launch from the current position to <paramref name="target"/>, peaking
         /// <paramref name="apexHeight"/> above the start. Records who touched it.
+        /// A positive <paramref name="flightTime"/> overrides the apex-derived arc: the ball
+        /// still lands exactly on the target but takes exactly that long — shorter = flatter
+        /// and faster (the perfect jump serve). The caller guarantees net clearance.
         /// </summary>
-        public void LaunchTo(Vector3 target, float apexHeight, TeamSide team, VolleyPlayer player, HitType type)
+        public void LaunchTo(Vector3 target, float apexHeight, TeamSide team, VolleyPlayer player,
+                             HitType type, float flightTime = 0f)
         {
             _rb.isKinematic = false;
 
@@ -108,15 +112,26 @@ namespace Volleyball
             }
             else
             {
-                apexHeight = Mathf.Max(apexHeight, 0.3f);
-                float apexY = start.y + apexHeight;
-                float dropHeight = Mathf.Max(apexY - target.y, 0.05f);
-                float tUp = Mathf.Sqrt(2f * apexHeight / g);
-                float tDown = Mathf.Sqrt(2f * dropHeight / g);
-                float t = Mathf.Max(tUp + tDown, 0.1f);
+                float t, vy;
+                if (flightTime > 0f)
+                {
+                    // explicit flight time: solve the launch velocity that covers the whole
+                    // trip in exactly t — flat, fast, and still dead on the target
+                    t = flightTime;
+                    vy = (target.y - start.y + 0.5f * g * t * t) / t;
+                }
+                else
+                {
+                    apexHeight = Mathf.Max(apexHeight, 0.3f);
+                    float apexY = start.y + apexHeight;
+                    float dropHeight = Mathf.Max(apexY - target.y, 0.05f);
+                    float tUp = Mathf.Sqrt(2f * apexHeight / g);
+                    float tDown = Mathf.Sqrt(2f * dropHeight / g);
+                    t = Mathf.Max(tUp + tDown, 0.1f);
+                    vy = Mathf.Sqrt(2f * g * apexHeight);
+                }
 
                 Vector3 horizontal = new Vector3(target.x - start.x, 0f, target.z - start.z) / t;
-                float vy = Mathf.Sqrt(2f * g * apexHeight);
                 velocity = new Vector3(horizontal.x, vy, horizontal.z);
             }
 
