@@ -36,6 +36,16 @@ namespace Volleyball
 
             foreach (var p in FindObjectsByType<VolleyPlayer>(FindObjectsSortMode.None))
                 if (p.IsHuman && p.IsLocallyControlled) { _viewer = p; break; }
+
+            // Readouts must never swallow pointer input: with the chat bar on the canvas, a
+            // click is now checked against the UI before it counts as a swing, and a full-width
+            // banner rect that still answered raycasts would eat mouse bumps mid-court.
+            foreach (Text t in new[] { scoreText, bannerText, matchLabelText })
+                if (t != null) t.raycastTarget = false;
+
+            // The chat bar builds its own widgets at runtime (like the power-up glow), so every
+            // baked arena gets it without a scene rebuild.
+            if (GetComponent<ChatBar>() == null) gameObject.AddComponent<ChatBar>();
         }
 
         TeamSide ViewerTeam => _viewer != null ? _viewer.team : TeamSide.A;

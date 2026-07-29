@@ -202,13 +202,17 @@ namespace Volleyball
                 SandMarks.BallImpact(transform.position, c.relativeVelocity.magnitude);
                 // the single landing log is emitted by MatchManager (it also resolves in/out)
                 OnGroundHit?.Invoke(transform.position, c.relativeVelocity);
+                return;
             }
-            else
-            {
-                GameAudio.PlayNet(transform.position);
-                VBLog.Event($"NET/{c.gameObject.name} at {VBLog.V(transform.position)} " +
-                            $"impactVel={VBLog.V(c.relativeVelocity)} lastTouch={LastTouchTeam}/'{(LastTouchPlayer != null ? LastTouchPlayer.name : "-")}'");
-            }
+
+            // The net rustles; the solid set dressing (stands, palms — see DecorColliders) gives a
+            // dull thump instead. The name check keeps arenas built before NetMarker existed right.
+            bool isNet = c.gameObject.GetComponent<NetMarker>() != null || c.gameObject.name == "Net";
+            if (isNet) GameAudio.PlayNet(transform.position);
+            else GameAudio.PlayScenery(transform.position);
+
+            VBLog.Event($"{(isNet ? "NET" : "SCENERY")}/{c.gameObject.name} at {VBLog.V(transform.position)} " +
+                        $"impactVel={VBLog.V(c.relativeVelocity)} lastTouch={LastTouchTeam}/'{(LastTouchPlayer != null ? LastTouchPlayer.name : "-")}'");
         }
     }
 }

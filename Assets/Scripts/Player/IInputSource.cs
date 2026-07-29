@@ -21,6 +21,10 @@ namespace Volleyball
         void ConsumeTick(out bool jump, out bool dive, out bool power,
                          out bool hitPressed, out HitType hitType);
 
+        /// <summary>Take and clear the callout latched since the last tick
+        /// (<see cref="ChatCall.None"/> when nothing was said).</summary>
+        ChatCall ConsumeChat();
+
         /// <summary>Key hint for the power-up meter label ("E" on desktop, "" on touch).</summary>
         string PowerHintLabel { get; }
     }

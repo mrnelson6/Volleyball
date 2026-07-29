@@ -50,7 +50,14 @@ quirks** — thin Himalayan air, outback crosswinds, humid Amazon drag — befor
 | Bump (over the net) | J | Left-click | Bump button |
 | Set (up, your own side) | K | — | Set button |
 | Spike (attack over the net) | L | Right-click | Spike button |
-| Dive (desperate dig) | ; or Left Shift | — | — |
+| Dive (desperate dig) | ; or Left Shift | — | Dive button |
+| "I got it!" | Z | Click the button | I GOT IT button (bottom) |
+| "You got it!" | X | Click the button | YOU GOT IT button (bottom) |
+| Emotes | 1–6 | Click the button | `:)` button (bottom) |
+| Pause / controls page | Esc | Click MENU | MENU button |
+
+Pausing (**Esc** or **MENU**) shows this control list on screen, so you never have to leave
+the match to check a binding.
 
 You choose each contact explicitly:
 
@@ -78,6 +85,23 @@ You choose each contact explicitly:
 Because the same player can't touch the ball twice in a row, an offensive play is
 *you set → AI partner spikes*, or *AI sets → you spike*. Aim by holding a movement
 direction as you hit.
+
+### Talking to your partner
+
+Two calls, and your partner actually listens to them — an AI teammate or a human one:
+
+- **"I got it!" (Z)** — you're taking this ball. AI teammates stop pursuing it and drop
+  into cover instead of crowding you.
+- **"You got it!" (X)** — it's theirs. The teammate nearest the ball goes for it even when
+  they'd normally have deferred to whoever was closest.
+
+A call lasts about a second and a half, and is spent the moment your team touches the ball,
+so it can never leave a teammate standing around. The voice is yours alone: an AI partner
+only ever *listens*, and with nothing said it plays exactly as it always did. The remaining
+**emotes (1–6)** are pure expression: a bubble and a blip, no effect on play.
+
+Callouts travel in the same per-tick command stream as hits and serves, so online the server
+decides who said what and every screen sees the same bubble.
 
 ## Characters — the animal roster
 
@@ -172,8 +196,14 @@ compose the reusable gameplay "keys" into a scene you've dressed however you lik
 
 Gameplay is locked to a court centred on the **world origin** (player clamping, in/out
 detection and camera-relative controls all read `CourtGeometry`'s origin-centred constants),
-so build your decorations around `(0,0,0)`. All decorations are collider-stripped, so the
-only surfaces the ball can hit remain the ground and the net.
+so build your decorations around `(0,0,0)`. Decorations are **solid** — a ball hit into the
+stands thumps off the concrete instead of passing through it — which `DecorColliders` applies
+as a post-pass at the end of every arena build. It deliberately leaves three things
+pass-through: anything overlapping the play volume (the court plus a margin, net posts
+included), the horizon-wide ground sheets that sit just under the sand, and props floating
+out of the ball's reach. Scoring still comes from the `GroundMarker` plane alone, and a ball
+that ends up somewhere it can never land from is resolved by the rally watchdog in
+`MatchManager` (`rallyStallSeconds`).
 
 The keys live in `Assets/Editor/CourtKit.cs`, the environment in `ArenaDecorator.cs`, and the
 menus/window in `VolleyballLevelBuilder.cs` — independent of `PrototypeSceneBuilder.cs`.

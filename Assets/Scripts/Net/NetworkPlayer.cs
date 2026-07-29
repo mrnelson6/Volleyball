@@ -146,7 +146,13 @@ namespace Volleyball
                 {
                     int slot = tick & Mask;
                     if (_serverCmdTick[slot] == tick) cmd = _serverCmds[slot];
-                    else cmd = _heldCmd; // gap in the stream: repeat the last known intent
+                    else
+                    {
+                        // gap in the stream: repeat the last known intent, minus the one-shot
+                        // callout — a lost packet must not make the player shout every tick
+                        cmd = _heldCmd;
+                        cmd.chat = ChatCall.None;
+                    }
                     cmd.tick = tick;
                     _heldCmd = cmd;
                 }

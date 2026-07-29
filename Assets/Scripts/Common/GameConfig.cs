@@ -85,6 +85,14 @@ namespace Volleyball
                  "the AI mishits more often).")]
         public float aiErrorMult = 1f;
 
+        [Header("Chat / Callouts")]
+        [Tooltip("How long a teammate's \"I got it\" / \"You got it\" steers the AI (seconds). " +
+                 "A call also dies the moment the calling team plays the ball, so this is only " +
+                 "the ceiling on a call nobody acted on.")]
+        public float chatCallWindow = 1.4f;
+        [Tooltip("Minimum gap between one player's callouts (seconds) — stops chat spam.")]
+        public float chatCooldown = 0.6f;
+
         [Header("Power-Ups")]
         [Tooltip("Master switch for the whole power-up system (meters, activation, AI usage).")]
         public bool powerUpsEnabled = true;
@@ -99,6 +107,10 @@ namespace Volleyball
         public int maxTouches = 3;
         public float pointPauseSeconds = 1.5f;
         public float aiServeDelay = 1f;
+        [Tooltip("Watchdog: a rally where nobody has touched the ball for this long is dead — the " +
+                 "ball is stuck in the scenery or otherwise never coming down. The point goes " +
+                 "against whoever touched it last. Must stay well above any real flight time.")]
+        public float rallyStallSeconds = 8f;
 
         [Header("Visuals")]
         [Tooltip("Ball speed (m/s) above which a motion trail appears — hard spikes / jump serves.")]

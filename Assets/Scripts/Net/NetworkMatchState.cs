@@ -76,6 +76,7 @@ namespace Volleyball
         public override void OnNetworkDespawn()
         {
             if (!IsServer || NetworkManager == null) return;
+            ChatDirector.Relay = null;
             NetworkManager.OnClientConnectedCallback -= OnClientConnected;
             NetworkManager.OnClientDisconnectCallback -= OnClientDisconnectedServer;
             if (NetworkManager.SceneManager != null)
@@ -111,6 +112,7 @@ namespace Volleyball
             NetworkManager.SceneManager.OnSynchronizeComplete += OnClientSynchronized;
             _match.PositionsReset += OnPositionsResetServer;
             _match.RallyEnded += OnRallyEndedServer;
+            ChatDirector.Relay = RelayChat; // callouts the server accepted go out to everyone
             TryStart();
         }
 
@@ -323,6 +325,18 @@ namespace Volleyball
 
         void OnRallyEndedServer(TeamSide scorer, string reason) => RallyEndedRpc(scorer);
 
+        /// <summary>
+        /// A callout the server accepted (from a human's command stream or an AI): tell every
+        /// client who said what, so the bubble and its sound appear on every screen. The
+        /// gameplay meaning stays server-side — clients only ever present it.
+        /// </summary>
+        void RelayChat(VolleyPlayer speaker, ChatCall call)
+        {
+            var no = speaker != null ? speaker.GetComponent<NetworkObject>() : null;
+            if (no == null) return;
+            ChatSaidRpc(no, (byte)call);
+        }
+
         // ------------------------------------------------------------------ client
 
         void SpawnClient()
@@ -394,6 +408,14 @@ namespace Volleyball
             foreach (var p in FindObjectsByType<VolleyPlayer>(FindObjectsSortMode.None))
                 p.Power.MirrorRallyEnd();
             PowerUpDirector.RevertAll();
+        }
+
+        [Rpc(SendTo.NotServer)]
+        void ChatSaidRpc(NetworkObjectReference speakerRef, byte call)
+        {
+            if (!speakerRef.TryGet(out NetworkObject no)) return;
+            var p = no.GetComponent<VolleyPlayer>();
+            if (p != null) ChatDirector.Show(p, (ChatCall)call);
         }
 
         [Rpc(SendTo.NotServer)]

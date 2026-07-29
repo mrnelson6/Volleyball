@@ -12,6 +12,7 @@ namespace Volleyball
     public class LocalInputSource : IInputSource
     {
         bool _jump, _dive, _power, _bump, _set, _spike;
+        ChatCall _chat;
 
         public Vector2 Move
             => GameInput.Instance != null ? GameInput.Instance.Move : Vector2.zero;
@@ -26,6 +27,7 @@ namespace Volleyball
             _bump |= gi.BumpPressed;
             _set |= gi.SetPressed;
             _spike |= gi.SpikePressed;
+            if (gi.ChatPressed != ChatCall.None) _chat = gi.ChatPressed; // newest call wins
         }
 
         public void ConsumeTick(out bool jump, out bool dive, out bool power,
@@ -41,6 +43,13 @@ namespace Volleyball
             hitType = _spike ? HitType.Spike : _set ? HitType.Set : HitType.Bump;
 
             _jump = _dive = _power = _bump = _set = _spike = false;
+        }
+
+        public ChatCall ConsumeChat()
+        {
+            ChatCall c = _chat;
+            _chat = ChatCall.None;
+            return c;
         }
 
         public string PowerHintLabel => Touchscreen.current != null ? "" : "E";

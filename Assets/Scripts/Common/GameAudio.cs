@@ -27,6 +27,7 @@ namespace Volleyball
         AudioClip _ambientClip, _sandClip, _netClip, _crowdClip;
         AudioClip _whistleClip, _thudClip, _outClip, _pointUpClip, _pointDownClip, _winClip;
         AudioClip _powerReadyClip, _powerFireClip;
+        AudioClip _chatClaimClip, _chatCedeClip, _chatEmoteClip;
         AudioClip _windAmb, _jungleAmb, _rainAmb, _snowAmb; // regional beds, synthesised on demand
         readonly Dictionary<HitType, AudioClip> _hitClips = new Dictionary<HitType, AudioClip>();
 
@@ -126,6 +127,10 @@ namespace Volleyball
         public static void PlayWhistle()
             => Instance?.OneShot(Instance._whistleClip, 0.5f, Random.Range(0.99f, 1.02f), Vector3.zero);
 
+        /// <summary>The ball thumping into solid set dressing — the stands, a palm, a rock.</summary>
+        public static void PlayScenery(Vector3 pos)
+            => Instance?.OneShot(Instance._thudClip, 0.45f, Random.Range(0.78f, 0.92f), pos);
+
         /// <summary>The ball landing: a sandy thud, plus an "out" blip when it lands out of bounds.</summary>
         public static void PlayLanding(bool inBounds, Vector3 pos)
         {
@@ -162,6 +167,18 @@ namespace Volleyball
             if (inst == null) return;
             inst.OneShot(inst._powerFireClip, 0.7f, Random.Range(0.98f, 1.03f), pos);
             PlayCrowd(0.3f);
+        }
+
+        /// <summary>A team callout at the speaker's spot: the two ball calls get their own
+        /// rising/falling shout so you can tell them apart without looking.</summary>
+        public static void PlayChat(ChatCall call, Vector3 pos)
+        {
+            var inst = Instance;
+            if (inst == null) return;
+            AudioClip clip = call == ChatCall.IGotIt ? inst._chatClaimClip
+                           : call == ChatCall.YouGotIt ? inst._chatCedeClip
+                                                       : inst._chatEmoteClip;
+            inst.OneShot(clip, 0.6f, Random.Range(0.97f, 1.05f), pos);
         }
 
         /// <summary>A swell of applause/cheering; intensity 0–1. Uses its own crowd volume.</summary>
@@ -258,6 +275,14 @@ namespace Volleyball
                 new[] { N(587f, 0f, 0.22f), N(740f, 0.09f, 0.25f), N(880f, 0.18f, 0.4f) }, 0.65f);
             _powerFireClip = MakeChime("power_fire",
                 new[] { N(392f, 0f, 0.5f), N(494f, 0f, 0.5f), N(587f, 0.05f, 0.55f), N(784f, 0.12f, 0.6f) }, 0.8f);
+
+            // callouts: a rising two-note shout for "mine", the same shape falling for "yours",
+            // and a neutral blip for the emotes — short enough to fire mid-rally without nagging
+            _chatClaimClip = MakeChime("chat_claim",
+                new[] { N(700f, 0f, 0.13f), N(1050f, 0.07f, 0.18f) }, 0.3f);
+            _chatCedeClip = MakeChime("chat_cede",
+                new[] { N(1050f, 0f, 0.13f), N(700f, 0.07f, 0.18f) }, 0.3f);
+            _chatEmoteClip = MakeChime("chat_emote", new[] { N(880f, 0f, 0.14f) }, 0.22f);
 
             _crowdClip = MakeCrowd();
             _sandClip = MakeSandLoop();

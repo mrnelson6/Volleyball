@@ -246,6 +246,10 @@ namespace Volleyball
             if (live) Power.Tick(dt); // real-time effects must never re-tick during replay
             if (authority && cmd.power) TryActivatePower();
 
+            // Callouts ride the command stream like power-ups: authority-only, so a predicting
+            // client never double-says anything and a replay never re-says it.
+            if (authority && cmd.chat != ChatCall.None) ChatDirector.Say(this, cmd.chat);
+
             if (_sim.diveTimer > 0f)
             {
                 _sim.diveTimer -= dt;

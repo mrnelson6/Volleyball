@@ -10,11 +10,12 @@ namespace Volleyball.EditorTools
     /// a sunset skybox + sun, an ocean, palm trees, grandstands packed with a crowd, net posts,
     /// tiki torches with warm point lights, beach umbrellas, drifting clouds and a touch of haze.
     ///
-    /// It is purely cosmetic. Every decorative mesh has its collider stripped and everything sits
-    /// clear of the play volume, so the ball, scoring and player movement are never affected — the
-    /// only colliders the ball can meet remain the GroundMarker plane and the Net built by
-    /// <see cref="CourtKit"/>. Decorations are grouped under a single root so a designer can toggle
-    /// or delete the whole dressing in one click.
+    /// Every decoration sits clear of the play volume, so player movement and scoring are never
+    /// affected: the ball is still scored by the GroundMarker plane alone. The dressing IS solid
+    /// though — a ball hit into the stands bounces off them rather than passing through — which
+    /// <see cref="DecorColliders"/> arranges as a post-pass at the end of the build (and which is
+    /// exactly why it excludes the ocean sheet under the sand). Decorations are grouped under a
+    /// single root so a designer can toggle or delete the whole dressing in one click.
     /// </summary>
     public static class ArenaDecorator
     {
@@ -52,8 +53,13 @@ namespace Volleyball.EditorTools
             BuildUmbrellas(root);
             BuildClouds(root);
 
+            // solid dressing bounces the ball back (stands, palms, umbrellas); the play volume,
+            // the ocean sheet and anything out of reach stay pass-through — see DecorColliders
+            int solids = DecorColliders.ApplyTo(root);
+
             // keep the sun reference live for the skybox sun-disc
             if (sun != null) RenderSettings.sun = sun;
+            Debug.Log($"[Volleyball] Beach arena dressed; {solids} props made solid.");
         }
 
         // ----------------------------------------------------------------- environment + sun

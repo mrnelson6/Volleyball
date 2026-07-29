@@ -5,8 +5,9 @@ namespace Volleyball.EditorTools
 {
     /// <summary>
     /// The world-tour regional courts, one per campaign region in <see cref="RegionRoster"/>.
-    /// Same cosmetic-only contract as the fantasy themes: colliders stripped, everything under
-    /// one decor root, gameplay untouched. The gameplay half of a region (gravity, wind, drag,
+    /// Same contract as the fantasy themes: everything under one decor root, clear of the play
+    /// volume and made solid by <see cref="DecorColliders"/>, so gameplay is untouched but the
+    /// ball bounces off the scenery. The gameplay half of a region (gravity, wind, drag,
     /// ambience) lives in <see cref="EnvironmentProfile"/> on the runtime region table — theme
     /// keys here must match each region's <c>sceneName</c> so the built scene picks it up.
     /// </summary>

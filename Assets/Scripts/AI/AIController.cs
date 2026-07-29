@@ -74,6 +74,7 @@ namespace Volleyball
                 aimMode = AimMode.Explicit, // the AI aims at its planned point, not by steer
                 hitAim = _hitTarget,
                 serve = ServeIntent.None,   // AI serves fire from MatchManager's timer
+                // chat stays None: callouts are the human's voice. The AI only listens (below).
             };
         }
 
@@ -135,12 +136,22 @@ namespace Volleyball
             // (ClosestEligibleTo excludes whoever touched last, so we naturally alternate.)
             // A serve must cross the net on its own — never chase our own serve in flight.
             bool ownServeInFlight = match != null && match.ServeInFlight && teamInPossession;
-            bool pursue = rallyLive && ballComingToUs && !ownServeInFlight && ClosestEligibleTo(landing);
+
+            // A human teammate's callouts (see ChatDirector) override the closest-player rule,
+            // which is the whole point of saying them: "I got it" pulls us off the ball, "You
+            // got it" hands it to us even when we'd have deferred. Both expire quickly and die
+            // the moment our team actually plays the ball, so neither can leave us idle — and
+            // with nothing said, both are false and every decision below is the one we'd have
+            // made before chat existed.
+            bool yielding = ChatDirector.TeammateClaimed(this);
+            bool invited = ChatDirector.InvitedToTake(this, landing);
+            bool designated = invited || ClosestEligibleTo(landing);
+            bool pursue = rallyLive && ballComingToUs && !ownServeInFlight && !yielding && designated;
 
             // when attacking, move under the ball's apex so we can spike it at its peak
             Vector3 moveTarget;
             if (pursue) moveTarget = _attacking ? ApexPoint() : landing;
-            else if (teamInPossession) moveTarget = SupportSpot();
+            else if (yielding || teamInPossession) moveTarget = SupportSpot(); // cover, don't crowd
             else moveTarget = _home;
 
             Vector3 to = moveTarget - GroundPosition;
@@ -193,7 +204,8 @@ namespace Volleyball
             // Contact only a ball that's actually coming to us (never swat one we just sent
             // over). Plus: the single closest *eligible* teammate — never two players on one
             // ball, never the player who just touched it, and never a 4th touch.
-            if (rallyLive && !reacting && touchesRemain && ballComingToUs && BallInReach() && ClosestEligibleTo(bp))
+            if (rallyLive && !reacting && touchesRemain && ballComingToUs && BallInReach()
+                && !yielding && (invited || ClosestEligibleTo(bp)))
                 _wantHit = true;
 
             // A full power-up fires at its cue moment, so the effect lands where it matters:

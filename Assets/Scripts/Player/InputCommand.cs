@@ -54,6 +54,11 @@ namespace Volleyball
         /// <summary>Serve action this tick (only meaningful while this player holds the serve).</summary>
         public ServeIntent serve;
 
+        /// <summary>A callout said this tick ("I got it", an emote, …). Like the hit and serve
+        /// intents it is a REQUEST: only the authority acts on it (<see cref="ChatDirector"/>),
+        /// so prediction and replay ignore it entirely.</summary>
+        public ChatCall chat;
+
         public static InputCommand Empty(int tick) => new InputCommand { tick = tick };
 
         /// <summary>Commands travel client → server every tick; explicit field serialization
@@ -71,6 +76,7 @@ namespace Volleyball
             serializer.SerializeValue(ref aimMode);
             serializer.SerializeValue(ref hitAim);
             serializer.SerializeValue(ref serve);
+            serializer.SerializeValue(ref chat);
         }
     }
 }

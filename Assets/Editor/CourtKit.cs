@@ -216,6 +216,7 @@ namespace Volleyball.EditorTools
 
             var net = GameObject.CreatePrimitive(PrimitiveType.Cube);
             net.name = "Net";
+            net.AddComponent<NetMarker>(); // so the ball can tell the net from solid set dressing
             net.transform.position = new Vector3(0f, CourtGeometry.NetHeight * 0.5f, 0f);
             net.transform.localScale = new Vector3(w * 2f + 1f, CourtGeometry.NetHeight, 0.1f);
             net.GetComponent<MeshRenderer>().sharedMaterial = netMat;
@@ -457,6 +458,8 @@ namespace Volleyball.EditorTools
                 new Vector2(1f, 0f), new Vector2(-150f, 180f), new Color(1f, 0.85f, 0.20f, 0.5f), font);
             BuildButton(panel.transform, circle, "PowerButton", "POWER", VirtualButtonKind.Power,
                 new Vector2(1f, 0f), new Vector2(-510f, 270f), new Color(0.75f, 0.30f, 1f, 0.5f), font);
+            BuildButton(panel.transform, circle, "DiveButton", "DIVE", VirtualButtonKind.Dive,
+                new Vector2(1f, 0f), new Vector2(-510f, 90f), new Color(0.20f, 0.75f, 0.72f, 0.5f), font);
 
             var touch = canvasGO.AddComponent<TouchControls>();
             touch.panel = panel;

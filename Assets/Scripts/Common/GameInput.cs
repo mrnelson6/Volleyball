@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 
 namespace Volleyball
@@ -16,8 +17,10 @@ namespace Volleyball
         public static GameInput Instance { get; private set; }
 
         Vector2 _virtualMove;
-        bool _vJump, _vBump, _vSet, _vSpike, _vPower;
+        bool _vJump, _vBump, _vSet, _vSpike, _vPower, _vDive;
         bool _jumpPrev, _bumpPrev, _setPrev, _spikePrev, _divePrev, _powerPrev;
+        ChatCall _chatRequest;  // pushed in by an on-screen chat button, consumed next Update
+        ChatCall _chatKeyPrev;  // held chat key last frame, for edge detection
 
         public Vector2 Move { get; private set; }
         public bool JumpHeld { get; private set; }
@@ -27,6 +30,10 @@ namespace Volleyball
         public bool SpikePressed { get; private set; }
         public bool DivePressed { get; private set; }
         public bool PowerPressed { get; private set; }
+
+        /// <summary>A team callout requested this frame — hotkey or on-screen button
+        /// (<see cref="ChatCall.None"/> when nothing was said).</summary>
+        public ChatCall ChatPressed { get; private set; }
 
         /// <summary>Any hit input this frame — used to trigger the serve / restart.</summary>
         public bool AnyHitPressed => BumpPressed || SetPressed || SpikePressed;
@@ -52,11 +59,20 @@ namespace Volleyball
         public void SetVirtualSet(bool held) => _vSet = held;
         public void SetVirtualSpike(bool held) => _vSpike = held;
         public void SetVirtualPower(bool held) => _vPower = held;
+        public void SetVirtualDive(bool held) => _vDive = held;
+
+        /// <summary>Called by an on-screen chat button (see <see cref="ChatBar"/>). Chat is a
+        /// discrete press rather than a held control, so it queues instead of latching a bool —
+        /// and the queue survives UI clicks that land after this frame's Update.</summary>
+        public void RequestChat(ChatCall call)
+        {
+            if (call != ChatCall.None) _chatRequest = call;
+        }
 
         void Update()
         {
             Vector2 kb = Vector2.zero;
-            bool jump = _vJump, bump = _vBump, set = _vSet, spike = _vSpike, dive = false,
+            bool jump = _vJump, bump = _vBump, set = _vSet, spike = _vSpike, dive = _vDive,
                  power = _vPower;
 
             var k = Keyboard.current;
@@ -74,8 +90,11 @@ namespace Volleyball
                 if (k.eKey.isPressed) power = true;
             }
 
+            // A click that lands on the HUD (a chat button, MENU) is a UI click, not a swing —
+            // otherwise tapping "I GOT IT" also bumps, which can wreck a real contact.
+            bool overUI = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
             var m = Mouse.current;
-            if (m != null)
+            if (m != null && !overUI)
             {
                 if (m.leftButton.isPressed) bump = true;
                 if (m.rightButton.isPressed) spike = true;
@@ -100,6 +119,22 @@ namespace Volleyball
             _spikePrev = spike;
             _divePrev = dive;
             _powerPrev = power;
+
+            ReadChat(k);
+        }
+
+        /// <summary>Resolve this frame's callout: a freshly-pressed chat hotkey wins, otherwise
+        /// whatever an on-screen button queued. Held keys don't repeat.</summary>
+        void ReadChat(Keyboard k)
+        {
+            ChatCall held = ChatCall.None;
+            if (k != null)
+                foreach (var def in ChatCalls.All)
+                    if (def.hotkey != Key.None && k[def.hotkey].isPressed) { held = def.call; break; }
+
+            ChatPressed = held != ChatCall.None && held != _chatKeyPrev ? held : _chatRequest;
+            _chatKeyPrev = held;
+            _chatRequest = ChatCall.None;
         }
     }
 }

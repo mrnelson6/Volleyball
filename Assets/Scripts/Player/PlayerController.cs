@@ -59,6 +59,7 @@ namespace Volleyball
                 hitType = hitType,
                 aimMode = AimMode.Steer, // humans aim by steering — see VolleyPlayer.SteerAim
                 serve = serve,
+                chat = Input.ConsumeChat(),
             };
         }
 

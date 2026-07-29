@@ -11,10 +11,12 @@ namespace Volleyball.EditorTools
     /// fog, surrounding floor, grandstands and a signature-prop callback) and builds it generically,
     /// so a whole roster of "outlandish places to play volleyball" can share one well-tested core.
     ///
-    /// Like the beach decorator it is purely cosmetic: every mesh has its collider stripped and sits
-    /// clear of the origin-centred play volume, so the only colliders the ball can meet remain the
-    /// GroundMarker plane and the Net built by <see cref="CourtKit"/>. Everything is parented under a
-    /// single "<i>Theme</i> Decor" root so a designer can toggle or delete the dressing in one click.
+    /// Like the beach decorator, every mesh sits clear of the origin-centred play volume, so
+    /// gameplay and scoring are untouched (the GroundMarker plane still decides every landing) —
+    /// but the dressing is solid, so balls bounce off it instead of through it. <see
+    /// cref="DecorColliders"/> applies that at the end of the build under the same rules for
+    /// every theme. Everything is parented under a single "<i>Theme</i> Decor" root so a designer
+    /// can toggle or delete the dressing in one click.
     /// </summary>
     public static class ThemedArenaDecorator
     {
@@ -239,7 +241,12 @@ namespace Volleyball.EditorTools
 
             theme.props?.Invoke(root, theme);
 
+            // solid dressing bounces the ball back; the play volume, the horizon floor sheet and
+            // anything out of reach stay pass-through — see DecorColliders
+            int solids = DecorColliders.ApplyTo(root);
+
             if (sun != null) RenderSettings.sun = sun;
+            Debug.Log($"[Volleyball] {theme.displayName} dressed; {solids} props made solid.");
         }
 
         // ----------------------------------------------------------------- environment + sun

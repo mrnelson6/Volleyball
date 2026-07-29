@@ -40,6 +40,8 @@ namespace Volleyball
         VolleyPlayer _server;
         VolleyPlayer _lastToucher;
         bool _serveTossed; // the server has tossed the ball for a jump serve
+        Collider _groundCollider; // the scoring plane's footprint — see CheckRallyAlive
+        float _lastContactTime;   // wall clock of the last touch, for the stall watchdog
 
         // Serve rotation, like real volleyball: the same player keeps serving while their
         // team holds the serve; when a team wins the serve back (side-out), its next player
@@ -72,6 +74,10 @@ namespace Volleyball
                 players.AddRange(FindObjectsByType<VolleyPlayer>());
 
             if (ball != null) ball.OnGroundHit += HandleGroundHit;
+            ChatDirector.Bind(this); // callouts are judged against this court's roster and ball
+
+            var groundMarker = FindAnyObjectByType<GroundMarker>();
+            if (groundMarker != null) _groundCollider = groundMarker.GetComponent<Collider>();
             // every playable scene passes through here, so this also RESETS gravity/drag
             // to stock when the scene has no regional environment
             CourtEnvironment.ApplyFor(
@@ -130,6 +136,7 @@ namespace Volleyball
         void OnDestroy()
         {
             if (ball != null) ball.OnGroundHit -= HandleGroundHit;
+            ChatDirector.Unbind(this);
         }
 
         /// <summary>A serve has to cross the net on its own: until the receivers touch it,
@@ -147,6 +154,7 @@ namespace Volleyball
         public void RegisterTouch(TeamSide t, VolleyPlayer p)
         {
             if (State != MatchState.Rallying) return;
+            _lastContactTime = Time.time; // the stall watchdog measures from the last real touch
 
             // any participation charges the meter — even a touch that turns out to be a fault
             p?.Power.AddCharge(Cfg.powerChargePerTouch);
@@ -235,6 +243,8 @@ namespace Volleyball
             Banner = BannerMessage.None;
             _serveTossed = false;
             ServeInFlight = false;
+            _lastContactTime = Time.time;
+            ChatDirector.ClearCalls(); // nobody is calling for a ball that hasn't been served
 
             ResetPositions();
             _server = NextServerOf(t);
@@ -394,6 +404,10 @@ namespace Volleyball
                     }
                     break;
 
+                case MatchState.Rallying:
+                    CheckRallyAlive();
+                    break;
+
                 case MatchState.PointScored:
                     _timer -= Time.deltaTime;
                     if (_timer <= 0f) BeginServe(ServingTeam);
@@ -401,6 +415,46 @@ namespace Volleyball
 
                 // MatchOver: waits on OnContinuePressed from a human's command
             }
+        }
+
+        /// <summary>
+        /// The rally ends when the ball lands — so a ball that can never land would hang the match
+        /// forever. Two ways that happens: hit hard enough sideways it flies past the EDGE of the
+        /// ground plane (no ground collider under it, so no landing is ever reported), or it comes
+        /// to rest somewhere it can't roll off, like a grandstand step. Both are resolved exactly
+        /// as an out ball is — the point goes against whoever touched it last.
+        /// </summary>
+        void CheckRallyAlive()
+        {
+            if (ball == null) return;
+            Vector3 p = ball.transform.position;
+
+            bool cannotLand = false;
+            if (_groundCollider != null)
+            {
+                // outside the scoring plane's footprint (or already below it) = nothing to land on
+                Bounds g = _groundCollider.bounds;
+                cannotLand = p.x < g.min.x || p.x > g.max.x
+                             || p.z < g.min.z || p.z > g.max.z
+                             || p.y < g.min.y - 1f;
+            }
+            else if (p.y < -5f)
+            {
+                cannotLand = true; // no plane found (dev scene): fall back to "fell out of the world"
+            }
+
+            // A live ball is touched every couple of seconds; nothing legitimate stays untouched
+            // this long, so a long silence means it is stuck (or resting on the scenery).
+            bool stalled = Time.time - _lastContactTime > Cfg.rallyStallSeconds;
+
+            if (!cannotLand && !stalled) return;
+
+            TeamSide scorer = ball.LastTouchTeam.Other();
+            if (scorer == TeamSide.None) scorer = ServingTeam.Other();
+            VBLog.Event($"RALLY DEAD ball={VBLog.V(p)} reason={(cannotLand ? "left the court area" : "stuck")} " +
+                        $"lastTouch={ball.LastTouchTeam}");
+            GameAudio.PlayLanding(false, p); // it was never going to be anything but out
+            EndRally(scorer, cannotLand ? "out of play" : "ball stuck");
         }
 
         void DoServe()
@@ -413,6 +467,7 @@ namespace Volleyball
             ServeInFlight = true;
             Banner = BannerMessage.None;
             _server?.Power.AddCharge(Cfg.powerChargePerTouch); // serves bypass RegisterTouch
+            _lastContactTime = Time.time;                     // ...and the stall watchdog's clock
 
             Vector3 target = VolleyPlayer.ApplyContactError(ServeTarget(),
                                                             _server != null ? _server.ServeError()
@@ -481,6 +536,7 @@ namespace Volleyball
             ServeInFlight = true;
             Banner = BannerMessage.None;
             _server?.Power.AddCharge(Cfg.powerChargePerTouch); // serves bypass RegisterTouch
+            _lastContactTime = Time.time;                     // ...and the stall watchdog's clock
 
             // Timing quality is measured off ONE thing: how close the server is to the peak
             // of their jump at the strike (vertical speed hits zero exactly at the apex).
