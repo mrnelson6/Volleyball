@@ -143,6 +143,12 @@ namespace Volleyball.EditorTools
         /// <c>Assets/Resources/Characters/</c> to force a re-bake after tweaking the roster.</summary>
         public static Sprite[] GetCharacterFrames(Color color, CharacterDef character)
         {
+            // Hand-drawn art wins and is never baked over — checked before EnsureCacheVersion so
+            // an art-version bump can't touch it (it lives outside this folder). See
+            // CustomCharacterSheet for the template/import round trip.
+            Sprite[] custom = CharacterSprites.LoadCustomFrames(color, character.id);
+            if (custom != null) return custom;
+
             EnsureCacheVersion();
             Directory.CreateDirectory(AbsPath(Dir));
 

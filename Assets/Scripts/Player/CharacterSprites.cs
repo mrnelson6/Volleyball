@@ -25,6 +25,14 @@ namespace Volleyball
         /// <summary>Folder under Resources/ the frames are baked into.</summary>
         public const string ResourceFolder = "Characters";
 
+        /// <summary>
+        /// Folder under Resources/ for hand-drawn art imported from a template sheet (see
+        /// <c>CustomCharacterSheet</c>). Deliberately separate from <see cref="ResourceFolder"/>:
+        /// that one is a bake cache the editor wipes wholesale on an art-version bump, which
+        /// would eat an artist's work. Custom frames win over the procedural bake for an id.
+        /// </summary>
+        public const string CustomResourceFolder = "CustomCharacters";
+
         public const int BaseCanvasWidth = 48;
         public const int BaseCanvasHeight = 64;      // scaled by the character's height stat
         public const float PixelsPerUnit = 34f;      // ~1.8 world units tall at height 1
@@ -45,10 +53,31 @@ namespace Volleyball
             return new Vector3(0f, worldHeight * 0.5f - 0.04f, 0f);
         }
 
-        /// <summary>Load the full frame set for one jersey colour + character, or null if the
-        /// sprites were never baked (run a scene builder to bake them).</summary>
+        /// <summary>
+        /// Hand-drawn frames for this character, or null if none were imported. A complete set
+        /// or nothing: a half-imported character falls back to the procedural bake rather than
+        /// mixing the two looks.
+        /// </summary>
+        public static Sprite[] LoadCustomFrames(Color jersey, string characterId)
+        {
+            var frames = new Sprite[FrameNames.Length];
+            for (int i = 0; i < FrameNames.Length; i++)
+            {
+                frames[i] = Resources.Load<Sprite>(
+                    $"{CustomResourceFolder}/{FrameName(jersey, characterId, FrameNames[i])}");
+                if (frames[i] == null) return null;
+            }
+            return frames;
+        }
+
+        /// <summary>Load the full frame set for one jersey colour + character: hand-drawn art if
+        /// it was imported, else the procedural bake — or null if neither exists (run a scene
+        /// builder to bake them).</summary>
         public static Sprite[] LoadFrames(Color jersey, CharacterDef ch)
         {
+            Sprite[] custom = LoadCustomFrames(jersey, ch.id);
+            if (custom != null) return custom;
+
             var frames = new Sprite[FrameNames.Length];
             for (int i = 0; i < FrameNames.Length; i++)
             {
