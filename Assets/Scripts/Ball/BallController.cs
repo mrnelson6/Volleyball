@@ -27,6 +27,13 @@ namespace Volleyball
         /// <summary>Raised when the ball touches the ground: (point, impactVelocity).</summary>
         public System.Action<Vector3, Vector3> OnGroundHit;
 
+        /// <summary>Raised after every launch (spin/touch state freshly set) — the network
+        /// layer replicates the launch so clients mirror spin, trail and contact audio.</summary>
+        public System.Action OnLaunched;
+
+        /// <summary>Raised when the ball BECOMES held (not on every reposition while held).</summary>
+        public System.Action OnHeldTransition;
+
         public Rigidbody Body => _rb;
         public bool CanBeHit => Time.time >= _hitLockUntil;
 
@@ -70,6 +77,7 @@ namespace Volleyball
                 _rb.linearVelocity = Vector3.zero;
                 _rb.angularVelocity = Vector3.zero;
                 _rb.isKinematic = true;
+                OnHeldTransition?.Invoke();
             }
             transform.position = pos;
             LastTouchTeam = TeamSide.None;
@@ -156,6 +164,29 @@ namespace Volleyball
             _hitLockUntil = Time.time + 0.12f;
             // The single consolidated contact log is emitted by the caller (which also knows
             // the resulting touch count), so we don't log here.
+            OnLaunched?.Invoke();
+        }
+
+        /// <summary>Client-side mirror of a server launch: the visual/bookkeeping state a
+        /// launch sets, without simulating one — position keeps streaming in snapshots.</summary>
+        internal void MirrorLaunch(float spin, float spinWobble, TeamSide team,
+                                   VolleyPlayer player, HitType type)
+        {
+            Spin = spin;
+            SpinWobble = spinWobble;
+            LastTouchTeam = team;
+            LastTouchPlayer = player;
+            LastHitType = type;
+        }
+
+        /// <summary>Client-side mirror of the ball becoming held for a serve.</summary>
+        internal void MirrorHold()
+        {
+            Spin = 0f;
+            SpinWobble = 0f;
+            LastTouchTeam = TeamSide.None;
+            LastTouchPlayer = null;
+            LastHitType = HitType.Serve;
         }
 
         void OnDrawGizmos()

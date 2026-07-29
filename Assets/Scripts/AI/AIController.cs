@@ -9,6 +9,12 @@ namespace Volleyball
     /// attack over the net (a jump spike when it can, otherwise a driven bump). Players
     /// pursue only when they are the closest teammate to where the ball will come down,
     /// so the two players don't fight over the same ball.
+    ///
+    /// The AI is just another command source: <see cref="GetCommand"/> runs the decision
+    /// pass and emits the same <see cref="InputCommand"/> a human would — so the shared
+    /// simulation treats them identically, and online the AI simply runs on the server.
+    /// Its decisions may use randomness and wall-clock time (they're authority-side, never
+    /// predicted); only the simulation consuming the command must stay deterministic.
     /// </summary>
     public class AIController : VolleyPlayer
     {
@@ -18,17 +24,21 @@ namespace Volleyball
         // AI contacts run through the same skill/error model as the human, scaled by aiErrorMult.
         // A campaign match overrides the global value per-opponent-team (the difficulty ramp).
         protected override float ContactSkill
-            => MatchSetup.aiErrorMult > 0f ? MatchSetup.aiErrorMult
-                                           : GameConfig.Instance.aiErrorMult;
+            => MatchSetup.Current != null && MatchSetup.Current.aiErrorMult > 0f
+                ? MatchSetup.Current.aiErrorMult
+                : GameConfig.Instance.aiErrorMult;
 
         // Campaign difficulty also scales how fast the AI reacts to an incoming ball.
-        static float ReactionScale => MatchSetup.aiReactionScale > 0f ? MatchSetup.aiReactionScale : 1f;
+        static float ReactionScale
+            => MatchSetup.Current != null && MatchSetup.Current.aiReactionScale > 0f
+                ? MatchSetup.Current.aiReactionScale : 1f;
 
         Vector3 _home;
         Vector2 _desiredMove;
         bool _wantJump;
         bool _wantDive;
         bool _wantHit;
+        bool _wantPower;
         bool _attacking;
         HitType _hitType;
         Vector3 _hitTarget;
@@ -48,10 +58,23 @@ namespace Volleyball
                 CourtGeometry.SideSign(team) * CourtGeometry.HalfDepth * 0.5f);
         }
 
-        protected override void Update()
+        public override InputCommand GetCommand(int tick)
         {
             Decide();
-            base.Update();
+            return new InputCommand
+            {
+                tick = tick,
+                moveWorld = _desiredMove, // AI steering is planned in world space already
+                jump = _wantJump,
+                dive = _wantDive,
+                power = _wantPower,
+                hitPressed = _wantHit,
+                // a planned attack becomes a real spike once airborne, otherwise a driven bump
+                hitType = (_attacking && !IsGrounded) ? HitType.Spike : _hitType,
+                aimMode = AimMode.Explicit, // the AI aims at its planned point, not by steer
+                hitAim = _hitTarget,
+                serve = ServeIntent.None,   // AI serves fire from MatchManager's timer
+            };
         }
 
         void Decide()
@@ -60,6 +83,7 @@ namespace Volleyball
             _wantJump = false;
             _wantDive = false;
             _wantHit = false;
+            _wantPower = false;
             if (ball == null) return;
 
             // A dead ball can't be played: between rallies (the point pause, the ball held in
@@ -132,7 +156,7 @@ namespace Volleyball
             // The time-to-apex and apex height both come from jumpSpeed, so the timing tracks
             // that value: predict where the ball will be after tApex and jump only if it'll be
             // reachable at the height of our jump.
-            _jumpCooldown -= Time.deltaTime;
+            _jumpCooldown -= Time.fixedDeltaTime; // Decide runs once per simulation tick
             float g = -Physics.gravity.y;
             float tApex = jumpSpeed / g;                          // time for us to reach our apex
             float apexHeight = jumpSpeed * jumpSpeed / (2f * g);  // how high our jump reaches
@@ -192,7 +216,7 @@ namespace Volleyball
                     default: // Anytime
                         fire = rallyLive; break;
                 }
-                if (fire) TryActivatePower();
+                _wantPower = fire; // the command carries it; the simulation gates and fires
             }
         }
 
@@ -202,7 +226,7 @@ namespace Volleyball
             if (nextTouch >= 3)              // attack: send it over the net
             {
                 _attacking = true;
-                _hitType = HitType.Bump;     // becomes a Spike in TryGetDesiredHit while airborne
+                _hitType = HitType.Bump;     // becomes a Spike in GetCommand while airborne
                 _hitTarget = OpponentTarget();
             }
             else if (nextTouch == 2)         // set: feed a teammate near the net
@@ -218,19 +242,6 @@ namespace Volleyball
                 _hitTarget = ReceiveTarget();
             }
         }
-
-        protected override Vector2 ReadMove() => _desiredMove;
-        protected override bool ReadJumpPressed() => _wantJump;
-        protected override bool ReadDivePressed() => _wantDive;
-
-        protected override bool TryGetDesiredHit(out HitType type)
-        {
-            // a planned attack becomes a real spike once airborne, otherwise a driven bump
-            type = (_attacking && !IsGrounded) ? HitType.Spike : _hitType;
-            return _wantHit;
-        }
-
-        protected override Vector3 ChooseHitTarget(HitType type) => _hitTarget;
 
         // ---- targets -------------------------------------------------------
 
@@ -249,7 +260,7 @@ namespace Volleyball
         Vector3 SetTarget()
         {
             VolleyPlayer spiker = BestSpikerMate();
-            float x = spiker != null ? spiker.transform.position.x : 0f;
+            float x = spiker != null ? spiker.SimPosition.x : 0f;
             x = Mathf.Clamp(x, -CourtGeometry.HalfWidth + 0.5f, CourtGeometry.HalfWidth - 0.5f);
             // own side, just in front of the net so the spiker can jump on it
             return new Vector3(x, 0.6f, CourtGeometry.SideSign(team) * CourtGeometry.HalfDepth * 0.16f);
@@ -280,7 +291,7 @@ namespace Volleyball
             {
                 if (p == null || p == this || p.team != team) continue;
                 if (ball != null && (Object)ball.LastTouchPlayer == p) continue; // ineligible too
-                float d = Vector2.Distance(new Vector2(p.transform.position.x, p.transform.position.z), q);
+                float d = Vector2.Distance(new Vector2(p.SimPosition.x, p.SimPosition.z), q);
                 if (d < mine) return false;
                 if (Mathf.Approximately(d, mine) && p.GetInstanceID() < GetInstanceID()) return false;
             }
@@ -296,7 +307,7 @@ namespace Volleyball
             foreach (var p in match.players)
             {
                 if (p == null || p == this || p.team != team) continue;
-                float distToNet = Mathf.Abs(p.transform.position.z);
+                float distToNet = Mathf.Abs(p.SimPosition.z);
                 if (distToNet < bestZ) { bestZ = distToNet; best = p; }
             }
             return best;

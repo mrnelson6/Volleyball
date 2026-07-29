@@ -77,6 +77,7 @@ namespace Volleyball.EditorTools
             EnsureGameInput();
 
             MatchManager match = EnsureMatchManager(root, ball, players);
+            EnsureNetworking(ball, players, match);
 
             if (opt.buildUI)
             {
@@ -85,6 +86,37 @@ namespace Volleyball.EditorTools
             }
 
             return match;
+        }
+
+        /// <summary>
+        /// Attach the multiplayer adapters to the playable keys: NetworkObject + NetworkPlayer
+        /// on each player, NetworkObject + NetworkBall on the ball, and NetworkObject +
+        /// NetworkMatchState + SnapshotSync + SimClock beside the MatchManager. Runs on
+        /// already-built scenes too (separate from the create-if-missing steps above), so a
+        /// world-tour rebuild upgrades every existing arena. All are in-scene placed objects —
+        /// their GlobalObjectIdHash bakes into the saved scene, which is why any change here
+        /// requires "Build World Tour (Everything)" + committing the regenerated scenes.
+        /// Offline these components are dormant: no NetworkManager ever spawns them.
+        /// </summary>
+        static void EnsureNetworking(BallController ball, List<VolleyPlayer> players, MatchManager match)
+        {
+            foreach (var p in players)
+                if (p != null) EnsureNetComponents(p.gameObject, typeof(NetworkPlayer));
+            if (ball != null) EnsureNetComponents(ball.gameObject, typeof(NetworkBall));
+            if (match != null)
+            {
+                EnsureNetComponents(match.gameObject, typeof(NetworkMatchState), typeof(SnapshotSync));
+                if (match.GetComponent<SimClock>() == null)
+                    match.gameObject.AddComponent<SimClock>();
+            }
+        }
+
+        static void EnsureNetComponents(GameObject go, params System.Type[] behaviours)
+        {
+            if (go.GetComponent<Unity.Netcode.NetworkObject>() == null)
+                go.AddComponent<Unity.Netcode.NetworkObject>();
+            foreach (var t in behaviours)
+                if (go.GetComponent(t) == null) go.AddComponent(t);
         }
 
         /// <summary>

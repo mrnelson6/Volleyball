@@ -17,6 +17,7 @@ namespace Volleyball
         [Header("Buttons")]
         public Button quickPlayButton;
         public Button campaignButton;
+        public Button onlineButton;
         public Button settingsButton;
         public Button quitButton;
 
@@ -24,6 +25,8 @@ namespace Volleyball
         public GameObject settingsPanel;
         public GameObject campaignPanel;
         public GameObject characterSelectPanel;
+        public GameObject onlinePanel;
+        public GameObject onlineLobbyPanel;
 
         [Header("Home screen (title + top-level buttons), hidden while any panel is open")]
         public GameObject homeRoot;
@@ -39,13 +42,18 @@ namespace Volleyball
                     else SceneFlow.LoadQuickPlay();
                 });
             if (campaignButton != null) campaignButton.onClick.AddListener(() => Show(campaignPanel));
+            if (onlineButton != null) onlineButton.onClick.AddListener(() => Show(onlinePanel));
             if (settingsButton != null) settingsButton.onClick.AddListener(() => Show(settingsPanel));
             if (quitButton != null) quitButton.onClick.AddListener(Quit);
 
-            // panels start closed — unless a campaign match sent us home to the tour board
+            // panels start closed — unless a campaign match sent us home to the tour board,
+            // or we're returning to the menu still inside a live online session (lobby stays up)
             if (settingsPanel != null) settingsPanel.SetActive(false);
             if (campaignPanel != null) campaignPanel.SetActive(openCampaignOnLoad);
             if (characterSelectPanel != null) characterSelectPanel.SetActive(false);
+            if (onlinePanel != null) onlinePanel.SetActive(false);
+            if (onlineLobbyPanel != null)
+                onlineLobbyPanel.SetActive(NetworkSession.IsOnline && OnlineLobbyState.Instance != null);
             openCampaignOnLoad = false;
         }
 
@@ -54,6 +62,8 @@ namespace Volleyball
             if (settingsPanel != null) settingsPanel.SetActive(panel == settingsPanel);
             if (campaignPanel != null) campaignPanel.SetActive(panel == campaignPanel);
             if (characterSelectPanel != null) characterSelectPanel.SetActive(panel == characterSelectPanel);
+            if (onlinePanel != null) onlinePanel.SetActive(panel == onlinePanel);
+            if (onlineLobbyPanel != null) onlineLobbyPanel.SetActive(panel == onlineLobbyPanel);
         }
 
         // Panels close themselves via their own Back buttons (plain SetActive(false)), so the
@@ -64,7 +74,9 @@ namespace Volleyball
             if (homeRoot == null) return;
             bool anyPanelOpen = (settingsPanel != null && settingsPanel.activeSelf)
                                 || (campaignPanel != null && campaignPanel.activeSelf)
-                                || (characterSelectPanel != null && characterSelectPanel.activeSelf);
+                                || (characterSelectPanel != null && characterSelectPanel.activeSelf)
+                                || (onlinePanel != null && onlinePanel.activeSelf)
+                                || (onlineLobbyPanel != null && onlineLobbyPanel.activeSelf);
             if (homeRoot.activeSelf == anyPanelOpen) homeRoot.SetActive(!anyPanelOpen);
         }
 

@@ -219,7 +219,7 @@ namespace Volleyball
             foreach (var p in _players)
             {
                 if (p == null) continue;
-                Vector3 cur = p.GroundPosition;
+                Vector3 cur = p.ViewGroundPosition; // rendered position: smooth per-frame deltas
                 if (_lastPos.TryGetValue(p, out Vector3 prev))
                     maxSpeed = Mathf.Max(maxSpeed, (cur - prev).magnitude / dt);
                 _lastPos[p] = cur;

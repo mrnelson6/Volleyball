@@ -60,29 +60,40 @@ namespace Volleyball.EditorTools
 
             // Top-level buttons (lower-centre stack)
             Button quickPlay = MakeButton(homeRoot.transform, font, "QuickPlayButton", "Quick Play",
-                new Vector2(0.5f, 0.5f), new Vector2(0f, 60f), MenuBtnSize, MenuBlue);
+                new Vector2(0.5f, 0.5f), new Vector2(0f, 120f), MenuBtnSize, MenuBlue);
             Button campaign = MakeButton(homeRoot.transform, font, "CampaignButton", "Campaign",
-                new Vector2(0.5f, 0.5f), new Vector2(0f, -60f), MenuBtnSize, MenuBlue);
+                new Vector2(0.5f, 0.5f), new Vector2(0f, 10f), MenuBtnSize, MenuBlue);
+            Button online = MakeButton(homeRoot.transform, font, "OnlineButton", "Online",
+                new Vector2(0.5f, 0.5f), new Vector2(0f, -100f), MenuBtnSize, MenuBlue);
             Button settings = MakeButton(homeRoot.transform, font, "SettingsButton", "Settings",
-                new Vector2(0.5f, 0.5f), new Vector2(0f, -180f), MenuBtnSize, MenuBlue);
+                new Vector2(0.5f, 0.5f), new Vector2(0f, -210f), MenuBtnSize, MenuBlue);
             Button quit = MakeButton(homeRoot.transform, font, "QuitButton", "Quit",
-                new Vector2(0.5f, 0.5f), new Vector2(0f, -300f), MenuBtnSize, MenuRed);
+                new Vector2(0.5f, 0.5f), new Vector2(0f, -320f), MenuBtnSize, MenuRed);
 
             GameObject settingsPanel = BuildSettingsPanel(canvasGO.transform, font);
             GameObject campaignPanel = BuildCampaignPanel(canvasGO.transform, font);
             GameObject characterSelectPanel = BuildCharacterSelectPanel(canvasGO.transform, font);
+            GameObject lobbyPanel = BuildOnlineLobbyPanel(canvasGO.transform, font);
+            GameObject onlinePanel = BuildOnlinePanel(canvasGO.transform, font, lobbyPanel);
 
             var ctrl = canvasGO.AddComponent<MainMenuController>();
             ctrl.quickPlayButton = quickPlay;
             ctrl.campaignButton = campaign;
+            ctrl.onlineButton = online;
             ctrl.settingsButton = settings;
             ctrl.quitButton = quit;
             ctrl.settingsPanel = settingsPanel;
             ctrl.campaignPanel = campaignPanel;
             ctrl.characterSelectPanel = characterSelectPanel;
+            ctrl.onlinePanel = onlinePanel;
+            ctrl.onlineLobbyPanel = lobbyPanel;
             ctrl.homeRoot = homeRoot;
 
             BuildEventSystem();
+
+            // Dev-only online entry point (host/join + net stats); disables itself in
+            // release builds and hands off to the real Online menu in Phase 2.
+            new GameObject("NetworkDebugHUD", typeof(NetworkDebugHUD));
 
             Directory.CreateDirectory(Path.GetDirectoryName(AbsPath(ScenePath)));
             EditorSceneManager.SaveScene(scene, ScenePath);
@@ -487,6 +498,207 @@ namespace Volleyball.EditorTools
             Stretch(panel.GetComponent<RectTransform>());
             panel.GetComponent<Image>().color = PanelDim; // also blocks clicks to the menu behind
             return panel;
+        }
+
+        // ----------------------------------------------------------------- online panels
+
+        static GameObject BuildOnlinePanel(Transform parent, Font font, GameObject lobbyPanel)
+        {
+            GameObject panel = MakeDimPanel(parent, "OnlinePanel");
+
+            Text title = MakeText(panel.transform, "Title", font,
+                new Vector2(0.5f, 1f), new Vector2(0f, -110f), new Vector2(900f, 90f), 72,
+                TextAnchor.MiddleCenter);
+            title.text = "ONLINE";
+
+            Button host = MakeButton(panel.transform, font, "HostButton", "Host a Match",
+                new Vector2(0.5f, 0.5f), new Vector2(0f, 130f), new Vector2(520f, 110f), MenuBlue);
+
+            Text or = MakeText(panel.transform, "Or", font,
+                new Vector2(0.5f, 0.5f), new Vector2(0f, 40f), new Vector2(400f, 50f), 30,
+                TextAnchor.MiddleCenter);
+            or.text = "— or join a friend —";
+            or.color = new Color(1f, 1f, 1f, 0.7f);
+
+            InputField codeInput = MakeInputField(panel.transform, font, "CodeInput",
+                "enter join code", new Vector2(0.5f, 0.5f), new Vector2(-110f, -50f),
+                new Vector2(360f, 90f));
+            Button join = MakeButton(panel.transform, font, "JoinButton", "Join",
+                new Vector2(0.5f, 0.5f), new Vector2(190f, -50f), new Vector2(220f, 90f), MenuBlue);
+
+            Text status = MakeText(panel.transform, "Status", font,
+                new Vector2(0.5f, 0.5f), new Vector2(0f, -160f), new Vector2(1000f, 50f), 28,
+                TextAnchor.MiddleCenter);
+            status.color = new Color(1f, 0.9f, 0.6f);
+
+            Button back = MakeButton(panel.transform, font, "BackButton", "Back",
+                new Vector2(0.5f, 0f), new Vector2(0f, 60f), new Vector2(300f, 80f), MenuRed);
+
+            var op = panel.AddComponent<OnlinePanel>();
+            op.hostButton = host;
+            op.joinButton = join;
+            op.backButton = back;
+            op.codeInput = codeInput;
+            op.statusText = status;
+            op.lobbyPanel = lobbyPanel;
+
+            panel.SetActive(false);
+            return panel;
+        }
+
+        static GameObject BuildOnlineLobbyPanel(Transform parent, Font font)
+        {
+            GameObject panel = MakeDimPanel(parent, "OnlineLobbyPanel");
+            var lobby = panel.AddComponent<OnlineLobbyPanel>();
+
+            Text code = MakeText(panel.transform, "CodeText", font,
+                new Vector2(0.5f, 1f), new Vector2(0f, -70f), new Vector2(1200f, 70f), 54,
+                TextAnchor.MiddleCenter);
+            code.color = new Color(1f, 0.85f, 0.3f);
+            lobby.codeText = code;
+
+            // four slot cards: Team A column left, Team B column right
+            string[] titles = { "TEAM A — LEFT", "TEAM A — RIGHT", "TEAM B — LEFT", "TEAM B — RIGHT" };
+            lobby.cards = new OnlineLobbyPanel.SlotCard[4];
+            for (int i = 0; i < 4; i++)
+            {
+                float x = i < 2 ? -420f : 420f;
+                float y = i % 2 == 0 ? 150f : -140f;
+                lobby.cards[i] = BuildSlotCard(panel.transform, font, i, titles[i], new Vector2(x, y));
+            }
+
+            // bottom bar: ready (guests) / arena + start (host) / leave
+            Button ready = MakeButton(panel.transform, font, "ReadyButton", "READY",
+                new Vector2(0.5f, 0f), new Vector2(-360f, 60f), new Vector2(280f, 90f),
+                new Color(0.30f, 0.80f, 0.40f, 0.92f));
+            lobby.readyButton = ready;
+            lobby.readyButtonLabel = ready.GetComponentInChildren<Text>();
+
+            Button arenaPrev = MakeButton(panel.transform, font, "ArenaPrev", "◀",
+                new Vector2(0.5f, 0f), new Vector2(-160f, 60f), new Vector2(80f, 90f), MenuBlue);
+            Text arenaName = MakeText(panel.transform, "ArenaName", font,
+                new Vector2(0.5f, 0f), new Vector2(60f, 82f), new Vector2(340f, 50f), 30,
+                TextAnchor.MiddleCenter);
+            Button arenaNext = MakeButton(panel.transform, font, "ArenaNext", "▶",
+                new Vector2(0.5f, 0f), new Vector2(280f, 60f), new Vector2(80f, 90f), MenuBlue);
+            lobby.arenaPrevButton = arenaPrev;
+            lobby.arenaText = arenaName;
+            lobby.arenaNextButton = arenaNext;
+
+            Button start = MakeButton(panel.transform, font, "StartButton", "START",
+                new Vector2(0.5f, 0f), new Vector2(500f, 60f), new Vector2(280f, 90f),
+                new Color(0.30f, 0.80f, 0.40f, 0.92f));
+            lobby.startButton = start;
+
+            Button leave = MakeButton(panel.transform, font, "LeaveButton", "Leave",
+                new Vector2(0f, 0f), new Vector2(140f, 60f), new Vector2(220f, 80f), MenuRed);
+            lobby.leaveButton = leave;
+
+            Text status = MakeText(panel.transform, "Status", font,
+                new Vector2(0.5f, 1f), new Vector2(0f, -130f), new Vector2(1200f, 44f), 26,
+                TextAnchor.MiddleCenter);
+            status.color = new Color(1f, 1f, 1f, 0.8f);
+            lobby.statusText = status;
+
+            panel.SetActive(false);
+            return panel;
+        }
+
+        static OnlineLobbyPanel.SlotCard BuildSlotCard(Transform parent, Font font, int index,
+                                                       string title, Vector2 pos)
+        {
+            var card = new OnlineLobbyPanel.SlotCard();
+
+            var go = new GameObject($"SlotCard{index}", typeof(RectTransform), typeof(Image), typeof(Button));
+            go.transform.SetParent(parent, false);
+            var rt = go.GetComponent<RectTransform>();
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.sizeDelta = new Vector2(680f, 250f);
+            rt.anchoredPosition = pos;
+            var img = go.GetComponent<Image>();
+            img.sprite = UIBackground();
+            img.type = Image.Type.Sliced;
+            img.color = new Color(0.10f, 0.14f, 0.20f, 0.92f);
+            go.GetComponent<Button>().targetGraphic = img;
+            card.claimButton = go.GetComponent<Button>();
+
+            Text t = MakeText(go.transform, "Title", font,
+                new Vector2(0.5f, 1f), new Vector2(0f, -28f), new Vector2(640f, 40f), 26,
+                TextAnchor.MiddleCenter);
+            t.text = title;
+            t.color = new Color(1f, 1f, 1f, 0.7f);
+            t.raycastTarget = false;
+            card.title = t;
+
+            var portraitGO = new GameObject("Portrait", typeof(RectTransform), typeof(Image));
+            portraitGO.transform.SetParent(go.transform, false);
+            var prt = portraitGO.GetComponent<RectTransform>();
+            prt.anchorMin = prt.anchorMax = new Vector2(0f, 0.5f);
+            prt.pivot = new Vector2(0f, 0.5f);
+            prt.sizeDelta = new Vector2(150f, 150f);
+            prt.anchoredPosition = new Vector2(30f, -16f);
+            portraitGO.GetComponent<Image>().raycastTarget = false;
+            card.portrait = portraitGO.GetComponent<Image>();
+
+            Text occupant = MakeText(go.transform, "Occupant", font,
+                new Vector2(0.5f, 0.5f), new Vector2(80f, 20f), new Vector2(400f, 44f), 32,
+                TextAnchor.MiddleCenter);
+            occupant.raycastTarget = false;
+            card.occupantText = occupant;
+
+            Text character = MakeText(go.transform, "Character", font,
+                new Vector2(0.5f, 0.5f), new Vector2(80f, -40f), new Vector2(400f, 40f), 28,
+                TextAnchor.MiddleCenter);
+            character.color = new Color(1f, 0.85f, 0.3f);
+            character.raycastTarget = false;
+            card.characterText = character;
+
+            card.prevCharButton = MakeButton(go.transform, font, "PrevChar", "◀",
+                new Vector2(1f, 0f), new Vector2(-160f, 46f), new Vector2(70f, 70f),
+                new Color(0.25f, 0.45f, 0.75f, 0.9f));
+            card.nextCharButton = MakeButton(go.transform, font, "NextChar", "▶",
+                new Vector2(1f, 0f), new Vector2(-70f, 46f), new Vector2(70f, 70f),
+                new Color(0.25f, 0.45f, 0.75f, 0.9f));
+
+            return card;
+        }
+
+        static InputField MakeInputField(Transform parent, Font font, string name, string placeholder,
+                                         Vector2 anchor, Vector2 pos, Vector2 size)
+        {
+            var go = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(InputField));
+            go.transform.SetParent(parent, false);
+            var rt = go.GetComponent<RectTransform>();
+            rt.anchorMin = rt.anchorMax = anchor;
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.sizeDelta = size;
+            rt.anchoredPosition = pos;
+            var img = go.GetComponent<Image>();
+            img.sprite = UIBackground();
+            img.type = Image.Type.Sliced;
+            img.color = new Color(0.10f, 0.12f, 0.16f, 0.95f);
+
+            Text ph = MakeText(go.transform, "Placeholder", font,
+                new Vector2(0.5f, 0.5f), Vector2.zero, size - new Vector2(30f, 10f), 30,
+                TextAnchor.MiddleCenter);
+            ph.text = placeholder;
+            ph.fontStyle = FontStyle.Italic;
+            ph.color = new Color(1f, 1f, 1f, 0.4f);
+            ph.raycastTarget = false;
+
+            Text text = MakeText(go.transform, "Text", font,
+                new Vector2(0.5f, 0.5f), Vector2.zero, size - new Vector2(30f, 10f), 34,
+                TextAnchor.MiddleCenter);
+            text.supportRichText = false;
+            text.raycastTarget = false;
+
+            var input = go.GetComponent<InputField>();
+            input.targetGraphic = img;
+            input.textComponent = text;
+            input.placeholder = ph;
+            input.characterLimit = 12;
+            return input;
         }
 
         // ----------------------------------------------------------------- UI primitives

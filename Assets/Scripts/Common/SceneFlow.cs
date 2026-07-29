@@ -53,24 +53,44 @@ namespace Volleyball
             SceneManager.LoadScene(Arenas[i]);
         }
 
-        /// <summary>Return to the main menu. Resets time scale in case we left a paused match.</summary>
+        /// <summary>Return to the main menu. Resets time scale in case we left a paused match,
+        /// and tears down any live online session first — leaving a match means leaving the
+        /// session (the server sees the disconnect; no lingering ghost connection).</summary>
         public static void LoadMenu()
         {
             Time.timeScale = 1f;
+            if (NetworkSession.IsOnline) NetworkSessionController.LeaveEverything();
             SceneManager.LoadScene(MainMenu);
         }
 
         /// <summary>Quick Play — drop into a match at any venue from <see cref="Arenas"/>
         /// (default: the beach). With a character id the human plays as that character and the
-        /// two opposing AIs draw random roster characters (the teammate stays the scene's —
-        /// your usual partner); with null the scene's built-in characters are kept. Regional
-        /// venues keep their environment quirks (wind, thin air…) in Quick Play too.</summary>
+        /// two opposing AIs draw random roster characters (the teammate stays your usual
+        /// partner); with null the scene's built-in characters are kept. Regional venues keep
+        /// their environment quirks (wind, thin air…) in Quick Play too. The random draws
+        /// happen HERE, so the config carries only concrete ids — online, the host draws once
+        /// and every client dresses the same match.</summary>
         public static void LoadQuickPlay(string characterId = null, int arenaIndex = 0)
         {
             MatchSetup.Clear();
-            MatchSetup.humanCharacterId = characterId;
-            MatchSetup.randomizeOpponents = characterId != null;
+            if (characterId != null)
+            {
+                var pool = new System.Collections.Generic.List<CharacterDef>(CharacterRoster.All);
+                pool.Remove(CharacterRoster.Get(characterId));
+                string opp1 = DrawFrom(pool);
+                string opp2 = DrawFrom(pool);
+                MatchSetup.Current = MatchConfig.Solo(
+                    characterId, CharacterRoster.TeammateId, opp1, opp2);
+            }
             LoadArena(arenaIndex);
+        }
+
+        static string DrawFrom(System.Collections.Generic.List<CharacterDef> pool)
+        {
+            if (pool.Count == 0) pool.AddRange(CharacterRoster.All);
+            CharacterDef draw = pool[Random.Range(0, pool.Count)];
+            pool.Remove(draw);
+            return draw.id;
         }
 
         /// <summary>
@@ -86,14 +106,14 @@ namespace Volleyball
             int mi = Mathf.Clamp(save.matchIndex, 0, region.matches.Length - 1);
             MatchDef match = region.matches[mi];
 
-            MatchSetup.Clear();
-            MatchSetup.isCampaign = true;
-            MatchSetup.teamAIds = new[] { CharacterRoster.ProtagonistId, CharacterRoster.TeammateId };
-            MatchSetup.teamBIds = new[] { match.opp1Id, match.opp2Id };
-            MatchSetup.aiErrorMult = match.aiErrorMult;
-            MatchSetup.aiReactionScale = match.aiReactionScale;
-            MatchSetup.matchLabel =
+            MatchConfig cfg = MatchConfig.Solo(
+                CharacterRoster.ProtagonistId, CharacterRoster.TeammateId, match.opp1Id, match.opp2Id);
+            cfg.isCampaign = true;
+            cfg.aiErrorMult = match.aiErrorMult;
+            cfg.aiReactionScale = match.aiReactionScale;
+            cfg.matchLabel =
                 $"{region.displayName} — Match {mi + 1}/{region.matches.Length} vs {match.teamName}";
+            MatchSetup.Current = cfg;
 
             Time.timeScale = 1f;
             string scene = Application.CanStreamedLevelBeLoaded(region.sceneName)

@@ -16,10 +16,13 @@ namespace Volleyball.EditorTools
         public static void Build()
         {
             CharacterArt.BakeRoster();
+            NetworkKit.BuildBootstrapPrefab();          // NetworkManager prefab (online flow only)
             VolleyballLevelBuilder.BuildArenaScene();   // BeachArena (also Quick Play default)
             ThemedLevelBuilder.BuildAll();              // 6 fantasy + 8 regional courts
             MainMenuSceneBuilder.Build();               // menu last, so it stays scene 0
-            Debug.Log("[Volleyball] World tour build complete: sprites, 15 arenas, main menu.");
+            // must run after every scene is SAVED — builders bake hash 0 into unsaved scenes
+            NetworkKit.RefreshAllSceneNetworkHashes();
+            Debug.Log("[Volleyball] World tour build complete: sprites, bootstrap, 15 arenas, main menu.");
         }
     }
 }

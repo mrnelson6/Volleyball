@@ -2,74 +2,59 @@ using UnityEngine;
 
 namespace Volleyball
 {
-    /// <summary>The human-controlled player. Reads unified input from <see cref="GameInput"/>.</summary>
+    /// <summary>
+    /// The human-controlled player: samples an <see cref="IInputSource"/> into one
+    /// <see cref="InputCommand"/> per tick. The camera-relative conversion happens here —
+    /// on the machine that has the camera — so the command (and the simulation consuming
+    /// it) is already world-space.
+    /// </summary>
     public class PlayerController : VolleyPlayer
     {
-        protected override Vector2 ReadMove()
+        public override bool IsHuman => true;
+
+        IInputSource _input;
+
+        /// <summary>Device input for this player. Defaults to the local devices; the network
+        /// layer never sets one on remote proxies (their commands arrive over the wire).</summary>
+        public IInputSource Input
         {
-            Vector3 w = CamRelativeDir(GameInput.Instance != null ? GameInput.Instance.Move : Vector2.zero);
-            return new Vector2(w.x, w.z);
+            get { return _input ?? (_input = new LocalInputSource()); }
+            set { _input = value; }
         }
 
-        protected override bool ReadJumpPressed()
-            => GameInput.Instance != null && GameInput.Instance.JumpPressed;
-
-        protected override bool ReadDivePressed()
-            => GameInput.Instance != null && GameInput.Instance.DivePressed;
-
-        protected override bool ReadPowerPressed()
-            => GameInput.Instance != null && GameInput.Instance.PowerPressed;
-
-        protected override bool TryGetDesiredHit(out HitType type)
+        protected override void Update()
         {
-            var gi = GameInput.Instance;
-            if (gi != null)
-            {
-                if (gi.SpikePressed) { type = HitType.Spike; return true; }
-                if (gi.SetPressed) { type = HitType.Set; return true; }
-                if (gi.BumpPressed) { type = HitType.Bump; return true; }
-            }
-            type = HitType.Bump;
-            return false;
+            // latch this render frame's presses so the fixed tick never drops one
+            if (IsLocallyControlled) Input.PollFrame();
+            base.Update();
         }
 
-        protected override Vector3 ChooseHitTarget(HitType type)
+        public override InputCommand GetCommand(int tick)
         {
-            Vector3 steer = CamRelativeDir(GameInput.Instance != null ? GameInput.Instance.Move : Vector2.zero);
+            Input.ConsumeTick(out bool jump, out bool dive, out bool power,
+                              out bool hitPressed, out HitType hitType);
+            Vector3 w = CamRelativeDir(Input.Move);
 
-            if (type == HitType.Set)
+            // While holding the serve, the three hit keys mean serve actions instead:
+            // Bump = underhand serve, Set = toss, Spike = strike the tossed ball.
+            ServeIntent serve = ServeIntent.None;
+            if (hitPressed && match != null && match.IsServePhaseFor(this))
+                serve = hitType == HitType.Spike ? ServeIntent.JumpStrike
+                      : hitType == HitType.Set   ? ServeIntent.Toss
+                                                 : ServeIntent.Underhand;
+
+            return new InputCommand
             {
-                // keep it on our own side, up near the net, to set up a spike
-                float sx = Mathf.Clamp(transform.position.x + steer.x * 3f,
-                                       -CourtGeometry.HalfWidth + 0.3f, CourtGeometry.HalfWidth - 0.3f);
-                float sz = CourtGeometry.SideSign(team) * CourtGeometry.HalfDepth * 0.2f;
-                return new Vector3(sx, 0.6f, sz);
-            }
-
-            // A bump only goes over the net if you aim toward the opponents' side; otherwise
-            // it's a controlled pass that stays on your own court (up toward the net).
-            if (type == HitType.Bump)
-            {
-                float towardOpponent = steer.z * CourtGeometry.SideSign(team.Other());
-                if (towardOpponent <= 0.3f)
-                {
-                    float px = Mathf.Clamp(transform.position.x + steer.x * 3f,
-                                           -CourtGeometry.HalfWidth + 0.3f, CourtGeometry.HalfWidth - 0.3f);
-                    float pz = CourtGeometry.SideSign(team) * CourtGeometry.HalfDepth * 0.25f;
-                    return new Vector3(px, 0.6f, pz);
-                }
-            }
-
-            // Spike (or a bump aimed over): send it to the opponents' court
-            TeamSide opp = team.Other();
-            float osign = CourtGeometry.SideSign(opp);
-            float depthFrac = type == HitType.Spike ? 0.7f : 0.6f;
-
-            float x = Mathf.Clamp(steer.x * CourtGeometry.HalfWidth * 0.9f,
-                                  -CourtGeometry.HalfWidth + 0.3f, CourtGeometry.HalfWidth - 0.3f);
-            float z = osign * Mathf.Clamp(
-                CourtGeometry.HalfDepth * depthFrac + steer.z * 3f, 1f, CourtGeometry.HalfDepth);
-            return new Vector3(x, 0.6f, z);
+                tick = tick,
+                moveWorld = new Vector2(w.x, w.z),
+                jump = jump,
+                dive = dive,
+                power = power,
+                hitPressed = hitPressed,
+                hitType = hitType,
+                aimMode = AimMode.Steer, // humans aim by steering — see VolleyPlayer.SteerAim
+                serve = serve,
+            };
         }
 
         /// <summary>Convert screen-relative input into a world XZ direction using the camera.</summary>

@@ -6,8 +6,8 @@ namespace Volleyball
     /// <summary>
     /// One player's power-up meter and any effects currently on them. Owned by
     /// <see cref="VolleyPlayer"/> (a plain class, not a component, so the baked arena scenes
-    /// need no rewiring) and ticked from its Update with scaled time, so effects freeze
-    /// under the pause menu. The meter fills from any participation — every touch plus a
+    /// need no rewiring) and ticked from its fixed-tick simulation, so effects freeze
+    /// under the pause menu (timeScale 0 stops the fixed tick). The meter fills from any participation — every touch plus a
     /// chunk at each rally end — and empties on activation.
     ///
     /// A status on the list is either the player's own cast (its self-buff fields apply) or
@@ -99,9 +99,14 @@ namespace Volleyball
             if (IsFull)
             {
                 VBLog.Event($"POWERUP READY {Def.type} for '{_owner.name}' team={_owner.team}");
-                if (_owner is PlayerController) GameAudio.PlayPowerReady();
+                // the ready-jingle is for the player at THIS screen, not for every human
+                if (_owner.IsHuman && _owner.IsLocallyControlled) GameAudio.PlayPowerReady();
             }
         }
+
+        /// <summary>Raised when this player's own cast fires — the hook the network layer
+        /// uses to replicate activations to every client.</summary>
+        public event System.Action<PowerUpDef> Activated;
 
         /// <summary>Fire the power-up: empty the meter, start the own-cast status, put any
         /// debuffs on both opponents, and flip any global wind/gravity effect on. The caller
@@ -110,7 +115,20 @@ namespace Volleyball
         {
             if (_owner == null || !GameConfig.Instance.powerUpsEnabled) return false;
             if (!IsFull || OwnActiveDef != null) return false;
+            DoActivate();
+            return true;
+        }
 
+        /// <summary>A client mirroring the server's activation: same effects, no meter gate —
+        /// the server already validated it.</summary>
+        internal void MirrorActivate()
+        {
+            if (_owner == null || OwnActiveDef != null) return;
+            DoActivate();
+        }
+
+        void DoActivate()
+        {
             PowerUpDef def = Def;
             Charge = 0f;
             _statuses.Add(new ActiveStatus { def = def, inflicted = false, remaining = def.duration });
@@ -123,8 +141,22 @@ namespace Volleyball
             if (def.gravityMult != 1f) PowerUpDirector.SetGravityMult(def.gravityMult);
             if (def.extraWind != Vector3.zero) PowerUpDirector.SetExtraWind(def.extraWind);
             if (def.spriteScale != 1f) ApplyGiantVisuals(def.spriteScale);
-            return true;
+            Activated?.Invoke(def);
         }
+
+        /// <summary>Adopt the server's authoritative meter value (rides in every snapshot).
+        /// Plays the ready jingle on the fill edge, same as charging locally would.</summary>
+        internal void MirrorCharge(float value)
+        {
+            bool wasFull = IsFull;
+            Charge = Mathf.Clamp01(value);
+            if (!wasFull && IsFull && _owner != null && _owner.IsHuman && _owner.IsLocallyControlled)
+                GameAudio.PlayPowerReady();
+        }
+
+        /// <summary>Client mirror of the rally-end clean slate (charge itself comes from
+        /// snapshots, so only the statuses expire here).</summary>
+        internal void MirrorRallyEnd() => ExpireAll();
 
         /// <summary>An opponent's cast lands its debuff on this player for its duration.</summary>
         public void Inflict(PowerUpDef def)

@@ -45,7 +45,7 @@ namespace Volleyball
             _baseLocalY = transform.localPosition.y;
             if (_player != null)
             {
-                _lastPos = _player.GroundPosition;
+                _lastPos = _player.ViewGroundPosition;
                 _player.Swung += OnSwing;
             }
         }
@@ -59,6 +59,18 @@ namespace Volleyball
         /// child (e.g. a runtime character swap to a taller/shorter figure), or the dive
         /// lay-down offset keeps easing toward the old character's height.</summary>
         public void CaptureBaseLocalY() => _baseLocalY = transform.localPosition.y;
+
+        /// <summary>Point this animator at a replacement player component (the online slot
+        /// binder swaps PlayerController/AIController on the same GameObject at runtime).
+        /// The old component died with its event, so only the new hookup matters.</summary>
+        public void Rebind(VolleyPlayer p)
+        {
+            if (_player != null) _player.Swung -= OnSwing;
+            _player = p;
+            if (_player == null) return;
+            _lastPos = _player.ViewGroundPosition;
+            _player.Swung += OnSwing;
+        }
 
         void OnSwing(HitType type) { _swingTimer = swingHold; _swingType = type; }
 
@@ -107,13 +119,15 @@ namespace Volleyball
                    && (away ? diveUpPose : diveDownPose) != null;
         }
 
-        // LateUpdate so we read the position the player settled on this frame (it moves in Update).
+        // LateUpdate so we read the position the player rendered this frame (the transform is
+        // interpolated in Update). Must be the VIEW position: the simulated one steps at 50Hz,
+        // and differentiating it per frame strobes the run/idle threshold — twitchy legs.
         void LateUpdate()
         {
             if (_player == null || _sr == null) return;
 
             float dt = Time.deltaTime;
-            Vector3 pos = _player.GroundPosition;
+            Vector3 pos = _player.ViewGroundPosition;
             Vector3 delta = pos - _lastPos;
             _lastPos = pos;
             float speed = dt > 0f ? new Vector2(delta.x, delta.z).magnitude / dt : 0f;

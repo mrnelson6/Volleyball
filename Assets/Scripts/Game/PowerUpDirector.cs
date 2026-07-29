@@ -16,10 +16,17 @@ namespace Volleyball
 
         public static void SetExtraWind(Vector3 wind) => ExtraWind = wind;
 
+        /// <summary>Raised whenever the gravity multiplier changes (Moon Ball on/off) — the
+        /// network layer replicates it so every client's jump physics agrees with the server.</summary>
+        public static event System.Action<float> GravityMultChanged;
+
         /// <summary>Scale gravity relative to the scene's regional profile (1 = back to normal).</summary>
         public static void SetGravityMult(float mult)
-            => Physics.gravity = new Vector3(
+        {
+            Physics.gravity = new Vector3(
                 0f, -CourtEnvironment.BaseGravity * CourtEnvironment.Active.gravityScale * mult, 0f);
+            GravityMultChanged?.Invoke(mult);
+        }
 
         public static void RevertAll()
         {

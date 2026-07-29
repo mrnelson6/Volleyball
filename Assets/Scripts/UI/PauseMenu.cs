@@ -44,7 +44,11 @@ namespace Volleyball
             if (panel != null) panel.SetActive(paused);
             // The open affordance hides while the menu is up to avoid overlap.
             if (openButton != null) openButton.gameObject.SetActive(!paused);
-            Time.timeScale = paused ? 0f : 1f;
+            // Online, the match belongs to everyone: Esc is a local overlay while play
+            // continues — freezing timeScale would stall this machine's sim (and, on the
+            // host, the whole server).
+            if (!NetworkSession.IsOnline)
+                Time.timeScale = paused ? 0f : 1f;
         }
 
         void OnDestroy()

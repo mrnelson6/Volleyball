@@ -9,7 +9,11 @@ namespace Volleyball
     /// <summary>
     /// The match "brain": owns score, serve flow, rally state, the 3-touch rule and
     /// in/out scoring. Other components query it (CanTeamTouch) and report to it
-    /// (RegisterTouch); it listens to the ball's ground-contact event to end rallies.
+    /// (RegisterTouch, OnServeIntent); it listens to the ball's ground-contact event to end
+    /// rallies. This class is the single authority over match state — it reads NO input
+    /// directly (player intents arrive as per-tick commands routed through the players), and
+    /// announces through <see cref="BannerMessage"/> rather than viewer-perspective strings,
+    /// so the whole thing can run server-side with clients merely mirroring it.
     /// </summary>
     public class MatchManager : MonoBehaviour
     {
@@ -27,7 +31,7 @@ namespace Volleyball
         public int ScoreA { get; private set; }
         public int ScoreB { get; private set; }
         public MatchState State { get; private set; }
-        public string Banner { get; private set; } = "";
+        public BannerMessage Banner { get; private set; } = BannerMessage.None;
         public TeamSide ServingTeam { get; private set; } = TeamSide.A;
         public int Touches { get; private set; }
         public TeamSide Possession { get; private set; }
@@ -48,6 +52,19 @@ namespace Volleyball
         /// block a serve, so blocks check this.</summary>
         public bool ServeInFlight { get; private set; }
 
+        /// <summary>The player currently holding the serve (mirrored to clients online).</summary>
+        public VolleyPlayer CurrentServer => _server;
+
+        /// <summary>Raised whenever a rally reset teleported everyone into formation — the
+        /// network layer relays the new spots so clients snap instead of interpolating.</summary>
+        public event System.Action PositionsReset;
+
+        /// <summary>Raised when a rally ends: (scorer, reason). Network layer relays the
+        /// moment (audio, power-up expiry) to clients.</summary>
+        public event System.Action<TeamSide, string> RallyEnded;
+
+        static bool IsCampaign => MatchSetup.Current != null && MatchSetup.Current.isCampaign;
+
         void Start()
         {
             if (ball == null) ball = FindAnyObjectByType<BallController>();
@@ -62,54 +79,42 @@ namespace Volleyball
             ApplyMatchSetup();
             foreach (var p in players)
                 p?.Power.ResetForMatch();
+
+            // Online, the match starts when NetworkMatchState says so: the server waits for
+            // every human slot to be claimed (BeginMatchServer), and clients never run the
+            // state machine at all — they mirror it.
+            if (NetworkSession.IsOnline) return;
             BeginServe(TeamSide.A);
         }
 
+        /// <summary>Server-side kick-off once every human slot is filled.</summary>
+        internal void BeginMatchServer() => BeginServe(TeamSide.A);
+
+        /// <summary>Re-dress the court after the network config (with its slot casting)
+        /// arrives on a client.</summary>
+        internal void ReapplyMatchSetup() => ApplyMatchSetup();
+
+        /// <summary>Let the network layer put a service banner up (e.g. "Waiting for players").</summary>
+        internal void SetBannerServer(BannerMessage b) => Banner = b;
+
         /// <summary>
-        /// Dress the court from the menu's pre-match choices. A campaign match casts all four
-        /// slots explicitly (protagonist duo vs the region's opponent duo). Quick Play dresses
-        /// the human as their pick and randomizes whichever sides were asked for — opponents
-        /// only by default, so the teammate stays your usual partner. No-op when the menu
+        /// Dress the court from the menu's pre-match config: every scene player is matched to
+        /// its <see cref="MatchConfig.Slot"/> by team + court half and takes that slot's
+        /// character. All ids in the config are already concrete (randoms were drawn when it
+        /// was built), so this is a pure application — no rolls here. No-op when the menu
         /// didn't set anything (playing a scene directly from the editor).
         /// </summary>
         void ApplyMatchSetup()
         {
-            if (MatchSetup.teamAIds != null && MatchSetup.teamBIds != null)
-            {
-                foreach (var p in players)
-                {
-                    bool isHumanSlot = p is PlayerController;
-                    string id = p.team == TeamSide.A
-                        ? MatchSetup.teamAIds[isHumanSlot ? 0 : 1]
-                        : MatchSetup.teamBIds[p.halfSign < 0f ? 0 : 1];
-                    CharacterSprites.Apply(p, CharacterRoster.Get(id));
-                }
-                return;
-            }
-
-            var pool = new List<CharacterDef>(CharacterRoster.All);
-
-            if (MatchSetup.humanCharacterId != null)
-            {
-                CharacterDef chosen = CharacterRoster.Get(MatchSetup.humanCharacterId);
-                foreach (var p in players)
-                    if (p is PlayerController)
-                    {
-                        CharacterSprites.Apply(p, chosen);
-                        pool.Remove(chosen);
-                    }
-            }
+            MatchConfig cfg = MatchSetup.Current;
+            if (cfg?.slots == null) return;
 
             foreach (var p in players)
             {
-                if (!(p is AIController)) continue;
-                bool randomize = p.team == TeamSide.A ? MatchSetup.randomizeTeammate
-                                                      : MatchSetup.randomizeOpponents;
-                if (!randomize) continue;
-                if (pool.Count == 0) pool.AddRange(CharacterRoster.All);
-                CharacterDef draw = pool[Random.Range(0, pool.Count)];
-                pool.Remove(draw);
-                CharacterSprites.Apply(p, draw);
+                if (p == null) continue;
+                if (cfg.TryGetSlot(p.team, p.halfSign, out MatchConfig.Slot slot)
+                    && !string.IsNullOrEmpty(slot.characterId))
+                    CharacterSprites.Apply(p, CharacterRoster.Get(slot.characterId));
             }
         }
 
@@ -152,7 +157,7 @@ namespace Volleyball
             if (t != ServingTeam)
             {
                 ServeInFlight = false; // serve received — blocking is legal again
-                if (Banner == PerfectBanner) Banner = "";
+                if (Banner.kind == BannerKind.Perfect) Banner = BannerMessage.None;
             }
 
             if (Touches > maxTouches)
@@ -161,6 +166,7 @@ namespace Volleyball
 
         void HandleGroundHit(Vector3 point, Vector3 impactVel)
         {
+            if (NetworkSession.IsRemoteClient) return; // scoring is the server's call alone
             if (State != MatchState.Rallying) return;
 
             bool inBounds = CourtGeometry.InBounds(point);
@@ -189,17 +195,17 @@ namespace Volleyball
             VBLog.Event($"RALLY END scorer={scorer} reason='{reason}' -> score A={ScoreA} B={ScoreB}");
 
             ServingTeam = scorer;
-            Banner = scorer == TeamSide.A ? "Point — You!" : "Point — Opponents";
-            if (!string.IsNullOrEmpty(reason)) Banner += $" ({reason})";
+            Banner = BannerMessage.Of(BannerKind.Point, scorer, reason);
+            RallyEnded?.Invoke(scorer, reason);
 
             if (ScoreA >= pointsToWin || ScoreB >= pointsToWin)
             {
                 State = MatchState.MatchOver;
-                if (MatchSetup.isCampaign)
+                if (IsCampaign)
                     ResolveCampaignResult(ScoreA > ScoreB);
                 else
-                    Banner = (ScoreA > ScoreB ? "You win the match!" : "Opponents win the match!")
-                             + "  —  press Hit to play again";
+                    Banner = BannerMessage.Of(BannerKind.MatchWon,
+                                              ScoreA > ScoreB ? TeamSide.A : TeamSide.B);
                 GameAudio.PlayMatchWin();
             }
             else
@@ -217,22 +223,23 @@ namespace Volleyball
             Touches = 0;
             _lastToucher = null;
             State = MatchState.Serving;
-            Banner = "";
+            Banner = BannerMessage.None;
             _serveTossed = false;
             ServeInFlight = false;
 
             ResetPositions();
             _server = NextServerOf(t);
 
-            // the human isn't always the server now — say who's up when the partner serves
-            if (_server is AIController && t == TeamSide.A)
-                Banner = $"{_server.Character.displayName}'s serve";
+            // the local human isn't always the server — announce whose serve it is when an
+            // AI steps up (each HUD decides whether its viewer cares)
+            if (_server != null && !_server.IsHuman)
+                Banner = BannerMessage.Of(BannerKind.AiServing, t, _server.Character.displayName);
 
             // server stands behind their own back line to serve
             if (_server != null)
             {
-                _server.transform.position = new Vector3(
-                    0f, 0f, CourtGeometry.SideSign(t) * (CourtGeometry.HalfDepth + 0.8f));
+                _server.TeleportTo(new Vector3(
+                    0f, 0f, CourtGeometry.SideSign(t) * (CourtGeometry.HalfDepth + 0.8f)));
                 _server.ResetState();
             }
 
@@ -241,31 +248,96 @@ namespace Volleyball
 
             GameAudio.PlayWhistle(); // referee authorises the serve
             VBLog.Event($"BEGIN SERVE team={t} server='{(_server != null ? _server.name : "?")}' score A={ScoreA} B={ScoreB}");
+            PositionsReset?.Invoke();
         }
-
-        const string ServeHint = "Your serve —  J: underhand    K: toss, then Space + L: jump serve";
-        const string TossHint = "Run in — Jump (Space) and Spike (L) at the peak!";
-        const string PerfectBanner = "PERFECT SERVE!";
 
         string _powerBanner;      // the activation shout currently on the banner, if any
         float _powerBannerUntil;
 
         /// <summary>Flash a power-up activation on the banner for a moment. The timed clear
-        /// only fires while the banner still shows this exact text, so serve hints and point
+        /// only fires while the banner still shows this exact shout, so serve hints and point
         /// banners are never stomped.</summary>
         public void ShowPowerBanner(string text)
         {
-            Banner = text;
+            Banner = BannerMessage.Of(BannerKind.PowerShout, TeamSide.None, text);
             _powerBanner = text;
             _powerBannerUntil = Time.time + 2.5f;
         }
 
+        /// <summary>
+        /// A serve action from the server's tick command: the underhand serve, the jump-serve
+        /// toss, or the strike on the tossed ball. Ignored from anyone but the current human
+        /// server. The strike is judged on the server's CURRENT tick state (their vertical
+        /// speed at the press) — the timing skill stays with the player who timed it.
+        /// </summary>
+        public void OnServeIntent(VolleyPlayer p, ServeIntent intent)
+        {
+            if (State != MatchState.Serving || p == null || p != _server) return;
+
+            if (!_serveTossed)
+            {
+                if (intent == ServeIntent.Underhand) DoServe();
+                else if (intent == ServeIntent.Toss) DoToss();
+            }
+            else if (intent == ServeIntent.JumpStrike)
+            {
+                // ball is in the air: jump and strike it near the peak
+                Vector3 bp = ball.transform.position;
+                if (!p.IsGrounded && bp.y > 1.5f) DoJumpServe();
+            }
+        }
+
+        /// <summary>A human's hit press once the match is over: rematch, or advance/retry the
+        /// campaign. (Routed from the player tick — the match itself reads no input.)</summary>
+        public void OnContinuePressed()
+        {
+            if (State != MatchState.MatchOver) return;
+
+            if (!IsCampaign) { RestartMatch(); return; }
+            switch (_campaignOutcome)
+            {
+                case CampaignOutcome.RegionComplete:
+                case CampaignOutcome.TourComplete:
+                    // back to the tour board so the player sees the ladder advance
+                    MainMenuController.openCampaignOnLoad = true;
+                    SceneFlow.LoadMenu();
+                    break;
+                default: // next match or a retry — both just relaunch from the save
+                    SceneFlow.LoadCampaignMatch();
+                    break;
+            }
+        }
+
+        /// <summary>Adopt authoritative state mirrored from the network (clients only — the
+        /// local state machine is bypassed entirely while mirroring).</summary>
+        internal void MirrorNetworkState(int scoreA, int scoreB, MatchState state,
+                                         TeamSide servingTeam, TeamSide possession, int touches,
+                                         bool serveInFlight, bool serveTossed, BannerMessage banner,
+                                         VolleyPlayer server)
+        {
+            ScoreA = scoreA;
+            ScoreB = scoreB;
+            State = state;
+            ServingTeam = servingTeam;
+            Possession = possession;
+            Touches = touches;
+            ServeInFlight = serveInFlight;
+            _serveTossed = serveTossed;
+            Banner = banner;
+            _server = server;
+        }
+
         void Update()
         {
+            // a mirroring client runs no match logic — every field below is written by
+            // MirrorNetworkState, and even the debug keys must not touch mirrored state
+            if (NetworkSession.IsRemoteClient) return;
+
             if (_powerBanner != null)
             {
-                if (Banner != _powerBanner) _powerBanner = null; // something else took over
-                else if (Time.time >= _powerBannerUntil) { Banner = ""; _powerBanner = null; }
+                bool stillShowing = Banner.kind == BannerKind.PowerShout && Banner.text == _powerBanner;
+                if (!stillShowing) _powerBanner = null; // something else took over
+                else if (Time.time >= _powerBannerUntil) { Banner = BannerMessage.None; _powerBanner = null; }
             }
 
             // debug shortcut: instantly win the current match (campaign advances normally)
@@ -282,7 +354,11 @@ namespace Volleyball
             switch (State)
             {
                 case MatchState.Serving:
-                    if (_server is AIController)
+                    // No server assigned means the match hasn't actually begun (online: still
+                    // waiting for players — BeginServe hasn't run). Without this guard the
+                    // zero-initialised state machine "serves" by itself on the first frame.
+                    if (_server == null) break;
+                    if (!_server.IsHuman)
                     {
                         if (!_serveTossed) ball.Hold(ServePosition());
                         _timer -= Time.deltaTime;
@@ -290,26 +366,20 @@ namespace Volleyball
                     }
                     else
                     {
-                        var gi = GameInput.Instance;
+                        // a human serves on their own tick commands (OnServeIntent) — this
+                        // just holds the ball at their hand and keeps the hint fresh
                         if (!_serveTossed)
                         {
                             ball.Hold(ServePosition());
-                            Banner = ServeHint;
-                            if (gi != null)
-                            {
-                                if (gi.BumpPressed) DoServe();        // underhand serve (J)
-                                else if (gi.SetPressed) DoToss();      // toss up for a jump serve (K)
-                            }
+                            Banner = BannerMessage.Of(BannerKind.ServeHint, ServingTeam,
+                                                      _server.Character.displayName);
                         }
                         else
                         {
-                            // ball is in the air: jump and Spike (L) to jump-serve it
-                            Banner = TossHint;
+                            Banner = BannerMessage.Of(BannerKind.TossHint, ServingTeam,
+                                                      _server.Character.displayName);
                             Vector3 bp = ball.transform.position;
-                            if (gi != null && gi.SpikePressed && _server != null
-                                && !_server.IsGrounded && bp.y > 1.5f)
-                                DoJumpServe();
-                            else if (bp.y < 0.6f && ball.Body.linearVelocity.y <= 0f)
+                            if (bp.y < 0.6f && ball.Body.linearVelocity.y <= 0f)
                                 _serveTossed = false; // missed the toss — settle back to a held ball
                         }
                     }
@@ -320,24 +390,7 @@ namespace Volleyball
                     if (_timer <= 0f) BeginServe(ServingTeam);
                     break;
 
-                case MatchState.MatchOver:
-                    if (GameInput.Instance != null && GameInput.Instance.AnyHitPressed)
-                    {
-                        if (!MatchSetup.isCampaign) { RestartMatch(); break; }
-                        switch (_campaignOutcome)
-                        {
-                            case CampaignOutcome.RegionComplete:
-                            case CampaignOutcome.TourComplete:
-                                // back to the tour board so the player sees the ladder advance
-                                MainMenuController.openCampaignOnLoad = true;
-                                SceneFlow.LoadMenu();
-                                break;
-                            default: // next match or a retry — both just relaunch from the save
-                                SceneFlow.LoadCampaignMatch();
-                                break;
-                        }
-                    }
-                    break;
+                // MatchOver: waits on OnContinuePressed from a human's command
             }
         }
 
@@ -349,7 +402,7 @@ namespace Volleyball
             _lastToucher = _server;
             _serveTossed = false;
             ServeInFlight = true;
-            Banner = "";
+            Banner = BannerMessage.None;
             _server?.Power.AddCharge(Cfg.powerChargePerTouch); // serves bypass RegisterTouch
 
             Vector3 target = VolleyPlayer.ApplyContactError(ServeTarget(),
@@ -357,7 +410,7 @@ namespace Volleyball
                                                                             : GameConfig.Instance.serveBaseError);
             ball.LaunchTo(target, 4f, ServingTeam, _server, HitType.Serve); // high apex to clear the net from behind the baseline
             ball.LockHits(0.45f);
-            _server?.TriggerSwing(HitType.Serve); // animate the serve (DoServe bypasses TryHit)
+            _server?.TriggerSwing(HitType.Serve); // animate the serve (DoServe bypasses the hit path)
             GameAudio.PlayHit(HitType.Serve, ball.transform.position); // the serve contact (DoServe bypasses LogContact)
 
             Vector3 sv = ball.Body.linearVelocity;
@@ -417,7 +470,7 @@ namespace Volleyball
             _lastToucher = _server;
             _serveTossed = false;
             ServeInFlight = true;
-            Banner = "";
+            Banner = BannerMessage.None;
             _server?.Power.AddCharge(Cfg.powerChargePerTouch); // serves bypass RegisterTouch
 
             // Timing quality is measured off ONE thing: how close the server is to the peak
@@ -449,7 +502,7 @@ namespace Volleyball
             GameAudio.PlayHit(HitType.Spike, ball.transform.position);
             if (perfect)
             {
-                Banner = PerfectBanner;      // cleared when the receivers touch it
+                Banner = BannerMessage.Of(BannerKind.Perfect); // cleared when the receivers touch it
                 GameAudio.PlayCrowd(0.4f);   // the crowd knows a perfect strike when it sees one
             }
 
@@ -504,11 +557,17 @@ namespace Volleyball
         /// Write a campaign match result to the save and set the end-of-match banner. A win
         /// advances the tournament ladder (and the region / the whole tour on rollover); a
         /// loss counts an attempt. Saved immediately so quitting at the banner loses nothing.
+        /// (Campaign banners stay pre-rendered text: the campaign is the local player's story,
+        /// and its lines never need another viewer's perspective.)
         /// </summary>
         void ResolveCampaignResult(bool won)
         {
             CampaignSave save = SaveSystem.Load();
-            if (save == null) { Banner = "You win!  —  press Hit to play again"; return; }
+            if (save == null)
+            {
+                Banner = BannerMessage.Raw("You win!  —  press Hit to play again");
+                return;
+            }
 
             RegionDef region = RegionRoster.Get(save.regionIndex);
 
@@ -517,7 +576,7 @@ namespace Volleyball
                 save.matchesLost++;
                 save.attemptsThisMatch++;
                 _campaignOutcome = CampaignOutcome.Retry;
-                Banner = "Match lost  —  press Hit to retry";
+                Banner = BannerMessage.Raw("Match lost  —  press Hit to retry");
             }
             else
             {
@@ -528,15 +587,15 @@ namespace Volleyball
                 if (save.matchIndex < region.matches.Length)
                 {
                     _campaignOutcome = CampaignOutcome.NextMatch;
-                    Banner = $"Match won!  —  press Hit for match " +
-                             $"{save.matchIndex + 1}/{region.matches.Length}";
+                    Banner = BannerMessage.Raw($"Match won!  —  press Hit for match " +
+                                               $"{save.matchIndex + 1}/{region.matches.Length}");
                 }
                 else if (save.regionIndex + 1 < RegionRoster.All.Length)
                 {
                     save.regionIndex++;
                     save.matchIndex = 0;
                     _campaignOutcome = CampaignOutcome.RegionComplete;
-                    Banner = $"{region.displayName} conquered!  —  press Hit to travel on";
+                    Banner = BannerMessage.Raw($"{region.displayName} conquered!  —  press Hit to travel on");
                 }
                 else
                 {
@@ -544,7 +603,7 @@ namespace Volleyball
                     save.matchIndex = region.matches.Length - 1;
                     save.tourComplete = true;
                     _campaignOutcome = CampaignOutcome.TourComplete;
-                    Banner = "WORLD TOUR CHAMPIONS!  —  press Hit to take the trophy home";
+                    Banner = BannerMessage.Raw("WORLD TOUR CHAMPIONS!  —  press Hit to take the trophy home");
                 }
             }
 
@@ -556,7 +615,7 @@ namespace Volleyball
         Vector3 ServePosition()
         {
             if (_server == null) return new Vector3(0f, 1.5f, CourtGeometry.SideSign(ServingTeam) * CourtGeometry.HalfDepth * 0.9f);
-            Vector3 p = _server.transform.position;
+            Vector3 p = _server.SimPosition;
             return new Vector3(p.x, 1.5f, p.z + CourtGeometry.SideSign(ServingTeam) * 0.3f);
         }
 
@@ -583,7 +642,7 @@ namespace Volleyball
                 if (p == null) continue;
                 float x = p.halfSign * CourtGeometry.HalfWidth * 0.45f;
                 float z = CourtGeometry.SideSign(p.team) * CourtGeometry.HalfDepth * 0.55f;
-                p.transform.position = new Vector3(x, 0f, z);
+                p.TeleportTo(new Vector3(x, 0f, z));
                 p.ResetState();
             }
         }
