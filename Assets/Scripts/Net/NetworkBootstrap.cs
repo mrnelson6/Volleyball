@@ -31,6 +31,17 @@ namespace Volleyball
                 nm = NetworkManager.Singleton;
             }
 
+            // Version handshake: clients present Application.version at connect; the server
+            // rejects mismatches with a readable reason instead of letting a stale build hit
+            // baked-scene mismatches as inexplicable desyncs. Matters most once the server
+            // auto-deploys — a friend on last week's zip gets "update your game", not chaos.
+            // Wired at runtime (every online entry point passes through here, before any
+            // Start*) so the prefab needs no rebuild and both sides agree on the config.
+            nm.NetworkConfig.ConnectionApproval = true;
+            nm.NetworkConfig.ConnectionData =
+                System.Text.Encoding.UTF8.GetBytes(Application.version);
+            nm.ConnectionApprovalCallback = ApproveConnection;
+
 #if UNITY_WEBGL && !UNITY_EDITOR
             // Browsers cannot speak UDP: Relay traffic must ride secure WebSockets. Native
             // platforms keep DTLS — Relay bridges both connection types in one session, so
@@ -47,6 +58,23 @@ namespace Volleyball
             // is a guaranteed "duplicate GlobalObjectIdHash" error. That asset must stay
             // committed alongside the prefabs it registers.
             return nm;
+        }
+
+        static void ApproveConnection(NetworkManager.ConnectionApprovalRequest request,
+                                      NetworkManager.ConnectionApprovalResponse response)
+        {
+            string theirs = request.Payload != null && request.Payload.Length > 0
+                ? System.Text.Encoding.UTF8.GetString(request.Payload) : "?";
+            bool ok = theirs == Application.version;
+            response.Approved = ok;
+            response.CreatePlayerObject = false; // players are in-scene objects, never spawned per-connection
+            if (!ok)
+            {
+                response.Reason = $"Version mismatch — this match runs {Application.version}, " +
+                                  $"you have {theirs}. Please update your game.";
+                Debug.LogWarning($"[Volleyball] rejected client {request.ClientNetworkId}: " +
+                                 $"version '{theirs}' vs '{Application.version}'");
+            }
         }
 
         /// <summary>Spawn the lobby state object (server only, once per session).</summary>

@@ -1,0 +1,7 @@
+{
+  "host": "your-box.example.com",
+  "user": "nelly",
+  "serverPath": "~/volleyball/server",
+  "spawnScriptPath": "~/volleyball/vb-spawn.py",
+  "webglPath": "/var/www/html/volleyball"
+}

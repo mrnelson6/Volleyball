@@ -21,6 +21,19 @@ namespace Volleyball
         /// <summary>Raised on every machine when the lobby replicates in or changes.</summary>
         public static event Action Changed;
 
+        /// <summary>Set true (before the session spawns this) by a headless <c>-vbhost</c>
+        /// server: the machine fields no player, so slot 0 stays open like the rest, no
+        /// client sees Start/arena controls, and the match auto-starts on a short countdown
+        /// once at least one slot is claimed and every claimed player is ready.</summary>
+        public static bool DedicatedMode;
+
+        /// <summary>Dedicated auto-start countdown in whole seconds; -1 = not counting.
+        /// Replicated so every lobby screen can show "Starting in N…".</summary>
+        public readonly NetworkVariable<int> AutoStartSeconds = new NetworkVariable<int>(-1);
+
+        float _autoStartAt = -1f; // server wall-clock deadline
+        bool _matchLaunched;
+
         public struct LobbySlot : INetworkSerializable, IEquatable<LobbySlot>
         {
             public ulong clientId; // MatchConfig.UnassignedClient = open (AI plays it)
@@ -70,8 +83,10 @@ namespace Volleyball
                 for (int i = 0; i < 4; i++)
                     _slots.Add(new LobbySlot
                     {
-                        // host takes A-left; everything else starts open (AI plays it)
-                        clientId = i == 0 ? NetworkManager.ServerClientId : MatchConfig.UnassignedClient,
+                        // the hosting player takes A-left; on a dedicated box there is no
+                        // hosting player, so every slot starts open (AI plays the leftovers)
+                        clientId = i == 0 && !DedicatedMode ? NetworkManager.ServerClientId
+                                                            : MatchConfig.UnassignedClient,
                         characterId = DefaultCharacters[i],
                         ready = false,
                     });
@@ -79,6 +94,7 @@ namespace Volleyball
             }
             _slots.OnListChanged += _ => Changed?.Invoke();
             ArenaIndex.OnValueChanged += (_, _2) => Changed?.Invoke();
+            AutoStartSeconds.OnValueChanged += (_, _2) => Changed?.Invoke();
             Changed?.Invoke();
         }
 
@@ -98,6 +114,34 @@ namespace Volleyball
                     s.ready = false;
                     _slots[i] = s;
                 }
+        }
+
+        /// <summary>
+        /// Dedicated auto-start: once at least one slot is claimed and every claimed player
+        /// is ready, a short replicated countdown runs — the grace window lets a second
+        /// friend claim a slot, which (like any lobby change) resets the clock. Zero → the
+        /// match launches exactly as if a hosting player pressed Start.
+        /// </summary>
+        void Update()
+        {
+            if (!IsSpawned || !IsServer || !DedicatedMode || _matchLaunched) return;
+
+            int claimed = 0;
+            for (int i = 0; i < _slots.Count; i++)
+                if (!_slots[i].IsOpen) claimed++;
+            bool conditions = claimed > 0 && AllHumansReady();
+
+            if (!conditions)
+            {
+                _autoStartAt = -1f;
+                if (AutoStartSeconds.Value != -1) AutoStartSeconds.Value = -1;
+                return;
+            }
+
+            if (_autoStartAt < 0f) _autoStartAt = Time.time + 10f;
+            int remain = Mathf.Max(0, Mathf.CeilToInt(_autoStartAt - Time.time));
+            if (AutoStartSeconds.Value != remain) AutoStartSeconds.Value = remain;
+            if (remain == 0) StartMatchHost();
         }
 
         // ------------------------------------------------------------------ queries (any machine)
@@ -192,7 +236,9 @@ namespace Volleyball
         /// </summary>
         public void StartMatchHost()
         {
-            if (!IsServer || !AllHumansReady()) return;
+            if (!IsServer || _matchLaunched || !AllHumansReady()) return;
+            _matchLaunched = true;
+            AutoStartSeconds.Value = -1;
 
             var cfg = new MatchConfig { matchLabel = $"ONLINE — {SceneFlow.ArenaNames[ArenaIndex.Value]}" };
             for (int i = 0; i < 4; i++)

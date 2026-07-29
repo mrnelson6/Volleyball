@@ -61,3 +61,6 @@ crashlytics-build.properties
 # OS / editor cruft
 .DS_Store
 Thumbs.db
+
+# per-machine deploy settings
+Tools/deploy.config.json

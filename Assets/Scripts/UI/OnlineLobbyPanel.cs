@@ -166,9 +166,15 @@ namespace Volleyball
             }
 
             if (statusText != null)
-                statusText.text = IsHost
-                    ? (lobby.AllHumansReady() ? "All set — press Start!" : "Waiting for players to ready up…")
-                    : (mySlot >= 0 ? "Ready up — the host starts the match." : "Tap a slot to claim it.");
+            {
+                int countdown = lobby.AutoStartSeconds.Value;
+                statusText.text =
+                    countdown >= 0 ? $"Match starting in {countdown}…"
+                    : IsHost ? (lobby.AllHumansReady() ? "All set — press Start!"
+                                                       : "Waiting for players to ready up…")
+                    : mySlot >= 0 ? "Ready up — the match starts when everyone is."
+                                  : "Tap a slot to claim it.";
+            }
         }
     }
 }

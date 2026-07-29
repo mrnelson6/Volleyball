@@ -62,7 +62,10 @@ namespace Volleyball
         void OnClientDisconnect(ulong clientId)
         {
             if (_nm == null || _nm.IsServer || clientId != _nm.LocalClientId) return;
-            DisconnectNotice = "Disconnected — the host left or the connection dropped.";
+            // the server may have sent a reason (e.g. the version-mismatch rejection)
+            DisconnectNotice = !string.IsNullOrEmpty(_nm.DisconnectReason)
+                ? _nm.DisconnectReason
+                : "Disconnected — the host left or the connection dropped.";
             _session = null; // the session died with the host; nothing to politely leave
             _ = LeaveAsync();
             SceneFlow.LoadMenu();

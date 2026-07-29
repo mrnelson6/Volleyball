@@ -21,8 +21,26 @@ namespace Volleyball.EditorTools
         public static void BuildWebGL()
             => Build(BuildTarget.WebGL, "Builds/WebGL");
 
-        static void Build(BuildTarget target, string output)
+        /// <summary>Headless Linux dedicated-server build — run with <c>-vbhost</c> on the
+        /// server box to host a join-code session, or <c>-vbserver</c> for the smoke test.</summary>
+        [MenuItem("Volleyball/Build Linux Server", priority = 42)]
+        public static void BuildLinuxServer()
+            => Build(BuildTarget.StandaloneLinux64, "Builds/LinuxServer/Volleyball.x86_64",
+                     StandaloneBuildSubtarget.Server);
+
+        static void Build(BuildTarget target, string output,
+                          StandaloneBuildSubtarget subtarget = StandaloneBuildSubtarget.Player)
         {
+            // The deploy script stamps every build of a release with one version string
+            // (e.g. "0.1.0+a1b2c3d") via this env var; the online version handshake then
+            // guarantees only same-release builds can play together.
+            string stamp = System.Environment.GetEnvironmentVariable("VB_VERSION");
+            if (!string.IsNullOrEmpty(stamp) && PlayerSettings.bundleVersion != stamp)
+            {
+                PlayerSettings.bundleVersion = stamp;
+                Debug.Log($"[Volleyball] build version stamped: {stamp}");
+            }
+
             if (!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Unknown, target))
             {
                 Debug.LogError($"[Volleyball] BUILD FAIL — {target} build support is not " +
@@ -37,6 +55,7 @@ namespace Volleyball.EditorTools
                 scenes = scenes,
                 locationPathName = output,
                 target = target,
+                subtarget = (int)subtarget,
                 options = BuildOptions.None,
             });
 
