@@ -31,6 +31,11 @@ namespace Volleyball
 
         public override InputCommand GetCommand(int tick)
         {
+            // Only the machine that actually controls this player may sample devices — a
+            // server-side copy of a remote (or dropped) human must never read the host's
+            // keyboard.
+            if (!IsLocallyControlled) return InputCommand.Empty(tick);
+
             Input.ConsumeTick(out bool jump, out bool dive, out bool power,
                               out bool hitPressed, out HitType hitType);
             Vector3 w = CamRelativeDir(Input.Move);

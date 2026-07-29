@@ -32,13 +32,41 @@ namespace Volleyball
         /// <summary>Human-readable outcome of the last failed operation, for the status line.</summary>
         public string LastError { get; private set; }
 
+        /// <summary>One-shot notice for the menu after an involuntary disconnect ("host left").
+        /// Set here, displayed and cleared by the Online panel.</summary>
+        public static string DisconnectNotice;
+
+        NetworkManager _nm;
+
         void Awake()
         {
             if (Instance != null && Instance != this) { Destroy(this); return; }
             Instance = this;
+            _nm = GetComponent<NetworkManager>();
         }
 
-        void OnDestroy() { if (Instance == this) Instance = null; }
+        void Start()
+        {
+            if (_nm != null) _nm.OnClientDisconnectCallback += OnClientDisconnect;
+        }
+
+        void OnDestroy()
+        {
+            if (_nm != null) _nm.OnClientDisconnectCallback -= OnClientDisconnect;
+            if (Instance == this) Instance = null;
+        }
+
+        /// <summary>The connection died under us (host quit, network drop): tear down and go
+        /// home. Fires only for OUR own disconnect on a client — on the server this callback
+        /// reports other clients leaving, which NetworkMatchState handles.</summary>
+        void OnClientDisconnect(ulong clientId)
+        {
+            if (_nm == null || _nm.IsServer || clientId != _nm.LocalClientId) return;
+            DisconnectNotice = "Disconnected — the host left or the connection dropped.";
+            _session = null; // the session died with the host; nothing to politely leave
+            _ = LeaveAsync();
+            SceneFlow.LoadMenu();
+        }
 
         static async Task EnsureServicesAsync()
         {

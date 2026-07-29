@@ -77,6 +77,7 @@ namespace Volleyball
         {
             if (!IsServer || NetworkManager == null) return;
             NetworkManager.OnClientConnectedCallback -= OnClientConnected;
+            NetworkManager.OnClientDisconnectCallback -= OnClientDisconnectedServer;
             if (NetworkManager.SceneManager != null)
             {
                 NetworkManager.SceneManager.OnLoadEventCompleted -= OnLoadEventCompleted;
@@ -105,11 +106,60 @@ namespace Volleyball
             }
 
             NetworkManager.OnClientConnectedCallback += OnClientConnected;
+            NetworkManager.OnClientDisconnectCallback += OnClientDisconnectedServer;
             NetworkManager.SceneManager.OnLoadEventCompleted += OnLoadEventCompleted;
             NetworkManager.SceneManager.OnSynchronizeComplete += OnClientSynchronized;
             _match.PositionsReset += OnPositionsResetServer;
             _match.RallyEnded += OnRallyEndedServer;
             TryStart();
+        }
+
+        bool _pendingAiTakeover;
+
+        /// <summary>
+        /// A client dropped mid-session: their slot becomes an AI's. The player freezes on
+        /// the spot immediately (command stream silenced) and the actual controller swap
+        /// happens at the next serve boundary — never mid-rally — unless no rally is running,
+        /// in which case it's safe right away. Ownership has already reverted to the server
+        /// (players are DontDestroyWithOwner).
+        /// </summary>
+        void OnClientDisconnectedServer(ulong clientId)
+        {
+            _syncedClients.Remove(clientId);
+            MatchConfig cfg = MatchSetup.Current;
+            if (cfg?.slots == null) return;
+
+            for (int i = 0; i < cfg.slots.Length; i++)
+            {
+                if (cfg.slots[i].occupant != SlotOccupant.RemoteHuman
+                    || cfg.slots[i].clientId != clientId) continue;
+
+                cfg.slots[i].occupant = SlotOccupant.AI;
+                cfg.slots[i].clientId = 0;
+                PublishConfig(cfg);
+
+                foreach (var p in FindObjectsByType<VolleyPlayer>(FindObjectsSortMode.None))
+                    if (p.team == cfg.slots[i].team
+                        && (p.halfSign < 0f) == (cfg.slots[i].halfSign < 0f))
+                    {
+                        p.GetComponent<NetworkPlayer>()?.OnOwnerDropped();
+                        string who = CharacterRoster.Get(cfg.slots[i].characterId).displayName;
+                        _match.ShowPowerBanner($"{who} dropped — AI takes over");
+                        VBLog.Event($"NET client {clientId} dropped; slot {i} -> AI");
+                        break;
+                    }
+
+                _pendingAiTakeover = true;
+                if (_started && _match.State != MatchState.Rallying) ApplyPendingTakeovers();
+                break;
+            }
+        }
+
+        void ApplyPendingTakeovers()
+        {
+            if (!_pendingAiTakeover) return;
+            _pendingAiTakeover = false;
+            NetSlotBinder.BindAll(_match, MatchSetup.Current); // swaps only mismatched slots
         }
 
         void OnLoadEventCompleted(string sceneName, UnityEngine.SceneManagement.LoadSceneMode mode,
@@ -257,6 +307,8 @@ namespace Volleyball
 
         void OnPositionsResetServer()
         {
+            // serve boundary: the safe moment to hand a dropped human's slot to the AI
+            ApplyPendingTakeovers();
             var players = FindObjectsByType<VolleyPlayer>(FindObjectsSortMode.None);
             var refs = new NetworkObjectReference[players.Length];
             var positions = new Vector3[players.Length];

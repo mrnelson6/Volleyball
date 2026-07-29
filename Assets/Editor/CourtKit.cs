@@ -113,8 +113,11 @@ namespace Volleyball.EditorTools
 
         static void EnsureNetComponents(GameObject go, params System.Type[] behaviours)
         {
-            if (go.GetComponent<Unity.Netcode.NetworkObject>() == null)
-                go.AddComponent<Unity.Netcode.NetworkObject>();
+            var no = go.GetComponent<Unity.Netcode.NetworkObject>();
+            if (no == null) no = go.AddComponent<Unity.Netcode.NetworkObject>();
+            // A disconnecting client must never take its player object with it — the object
+            // stays, ownership reverts to the server, and the AI takes the slot over.
+            no.DontDestroyWithOwner = true;
             foreach (var t in behaviours)
                 if (go.GetComponent(t) == null) go.AddComponent(t);
         }

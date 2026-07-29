@@ -30,6 +30,16 @@ namespace Volleyball
                 Object.Instantiate(prefab);
                 nm = NetworkManager.Singleton;
             }
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+            // Browsers cannot speak UDP: Relay traffic must ride secure WebSockets. Native
+            // platforms keep DTLS — Relay bridges both connection types in one session, so
+            // browser and desktop players share a match.
+            var webTransport = nm.NetworkConfig.NetworkTransport
+                as Unity.Netcode.Transports.UTP.UnityTransport;
+            if (webTransport != null) webTransport.UseWebSockets = true;
+#endif
+
             // Dynamically-spawned prefabs (LobbyState) are NOT registered here: NGO's
             // auto-generated DefaultNetworkPrefabs list (Assets/DefaultNetworkPrefabs.asset,
             // referenced by the bootstrap's NetworkManager) already contains every

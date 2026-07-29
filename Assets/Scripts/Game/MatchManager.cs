@@ -97,6 +97,15 @@ namespace Volleyball
         /// <summary>Let the network layer put a service banner up (e.g. "Waiting for players").</summary>
         internal void SetBannerServer(BannerMessage b) => Banner = b;
 
+        /// <summary>The slot binder swapped a player's controller component (AI takeover of a
+        /// dropped human, lobby casting) — repoint any internal references at the replacement,
+        /// or a swapped-out server would park the serve state machine forever.</summary>
+        internal void OnPlayerReplaced(VolleyPlayer old, VolleyPlayer fresh)
+        {
+            if (ReferenceEquals(_server, old)) _server = fresh;
+            if (ReferenceEquals(_lastToucher, old)) _lastToucher = fresh;
+        }
+
         /// <summary>
         /// Dress the court from the menu's pre-match config: every scene player is matched to
         /// its <see cref="MatchConfig.Slot"/> by team + court half and takes that slot's

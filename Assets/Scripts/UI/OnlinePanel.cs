@@ -28,7 +28,13 @@ namespace Volleyball
 
         void OnEnable()
         {
-            SetStatus("");
+            // surface an involuntary disconnect ("host left") from the previous session once
+            SetStatus(NetworkSessionController.DisconnectNotice ?? "");
+            NetworkSessionController.DisconnectNotice = null;
+#if UNITY_WEBGL && !UNITY_EDITOR
+            if (statusText != null && statusText.text == "")
+                SetStatus("Tip: browser tabs pause in the background — a desktop player makes the steadiest host.");
+#endif
             OnlineLobbyState.Changed += OnLobbyChanged;
         }
 

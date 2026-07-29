@@ -59,6 +59,7 @@ namespace Volleyball
             fresh.jerseyColor = jersey;
 
             if (rosterIndex >= 0) match.players[rosterIndex] = fresh;
+            match?.OnPlayerReplaced(old, fresh);
             go.GetComponentInChildren<CharacterAnimator>()?.Rebind(fresh);
             go.GetComponent<NetworkPlayer>()?.Reconfigure();
 

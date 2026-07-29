@@ -54,6 +54,16 @@ namespace Volleyball
         bool IsOwnedHuman => Player != null && Player.IsHuman && IsOwner;
         bool IsProxy => !IsServer && !IsOwnedHuman;
 
+        void Awake()
+        {
+            // tick 0 is a real tick — unfilled ring slots must never match it
+            for (int i = 0; i < BufferSize; i++)
+            {
+                _serverCmdTick[i] = int.MinValue;
+                _historyTick[i] = int.MinValue;
+            }
+        }
+
         public override void OnNetworkSpawn() => Reconfigure();
         protected override void OnOwnershipChanged(ulong previous, ulong current) => Reconfigure();
 
@@ -72,9 +82,12 @@ namespace Volleyball
 
             if (IsServer)
             {
-                // server renders its own sim; hosts also sample their own input locally
+                // server renders its own sim; the host also samples its own input locally.
+                // Local-control is decided by the CONFIG's occupant, not by ownership: a
+                // disconnected client's player reverts to server ownership, and ownership
+                // alone would hand it to the host's keyboard.
                 _player.enabled = true;
-                _player.IsLocallyControlled = _player.IsHuman && OwnerClientId == NetworkManager.ServerClientId;
+                _player.IsLocallyControlled = IsConfiguredLocalHuman();
             }
             else if (IsOwnedHuman)
             {
@@ -102,6 +115,24 @@ namespace Volleyball
         }
 
         // ------------------------------------------------------------------ server
+
+        bool IsConfiguredLocalHuman()
+        {
+            if (_player == null || !_player.IsHuman) return false;
+            MatchConfig cfg = MatchSetup.Current;
+            if (cfg != null && cfg.TryGetSlot(_player.team, _player.halfSign, out MatchConfig.Slot slot))
+                return slot.occupant == SlotOccupant.LocalHuman;
+            return OwnerClientId == NetworkManager.ServerClientId; // no config (dev flows)
+        }
+
+        /// <summary>The owning client is gone: silence its input so the player stands still
+        /// (never runs off on the last held command) until the AI takes the slot over.</summary>
+        public void OnOwnerDropped()
+        {
+            _heldCmd = default;
+            for (int i = 0; i < BufferSize; i++) _serverCmdTick[i] = int.MinValue;
+            if (Player != null) Player.IsLocallyControlled = false;
+        }
 
         void ServerSteps(SimClock clock)
         {
