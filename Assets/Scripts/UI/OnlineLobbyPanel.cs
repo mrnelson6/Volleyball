@@ -108,10 +108,13 @@ namespace Volleyball
             ulong myId = NetworkManager.Singleton != null ? NetworkManager.Singleton.LocalClientId : 0;
             int mySlot = lobby.MySlot;
 
+            // every member knows the session code (joiners typed it; a Server Match click
+            // received it) — show it to everyone so anyone in the lobby can recruit friends
             if (codeText != null)
-                codeText.text = IsHost
-                    ? $"JOIN CODE:  {NetworkSessionController.Instance?.JoinCode ?? "…"}"
-                    : "";
+            {
+                string code = NetworkSessionController.Instance?.JoinCode;
+                codeText.text = string.IsNullOrEmpty(code) ? "" : $"JOIN CODE:  {code}";
+            }
 
             for (int i = 0; i < cards.Length && i < lobby.SlotCount; i++)
             {

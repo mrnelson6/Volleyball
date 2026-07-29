@@ -511,23 +511,29 @@ namespace Volleyball.EditorTools
                 TextAnchor.MiddleCenter);
             title.text = "ONLINE";
 
+            // Server Match first — the one-click path onto the dedicated box; hosting on
+            // this machine is the fallback when the box is unreachable.
+            Button serverMatch = MakeButton(panel.transform, font, "ServerMatchButton", "Server Match",
+                new Vector2(0.5f, 0.5f), new Vector2(0f, 190f), new Vector2(520f, 110f),
+                new Color(0.30f, 0.80f, 0.40f, 0.92f));
+
             Button host = MakeButton(panel.transform, font, "HostButton", "Host a Match",
-                new Vector2(0.5f, 0.5f), new Vector2(0f, 130f), new Vector2(520f, 110f), MenuBlue);
+                new Vector2(0.5f, 0.5f), new Vector2(0f, 70f), new Vector2(520f, 110f), MenuBlue);
 
             Text or = MakeText(panel.transform, "Or", font,
-                new Vector2(0.5f, 0.5f), new Vector2(0f, 40f), new Vector2(400f, 50f), 30,
+                new Vector2(0.5f, 0.5f), new Vector2(0f, -15f), new Vector2(400f, 50f), 30,
                 TextAnchor.MiddleCenter);
             or.text = "— or join a friend —";
             or.color = new Color(1f, 1f, 1f, 0.7f);
 
             InputField codeInput = MakeInputField(panel.transform, font, "CodeInput",
-                "enter join code", new Vector2(0.5f, 0.5f), new Vector2(-110f, -50f),
+                "enter join code", new Vector2(0.5f, 0.5f), new Vector2(-110f, -100f),
                 new Vector2(360f, 90f));
             Button join = MakeButton(panel.transform, font, "JoinButton", "Join",
-                new Vector2(0.5f, 0.5f), new Vector2(190f, -50f), new Vector2(220f, 90f), MenuBlue);
+                new Vector2(0.5f, 0.5f), new Vector2(190f, -100f), new Vector2(220f, 90f), MenuBlue);
 
             Text status = MakeText(panel.transform, "Status", font,
-                new Vector2(0.5f, 0.5f), new Vector2(0f, -160f), new Vector2(1000f, 50f), 28,
+                new Vector2(0.5f, 0.5f), new Vector2(0f, -200f), new Vector2(1200f, 50f), 28,
                 TextAnchor.MiddleCenter);
             status.color = new Color(1f, 0.9f, 0.6f);
 
@@ -535,6 +541,7 @@ namespace Volleyball.EditorTools
                 new Vector2(0.5f, 0f), new Vector2(0f, 60f), new Vector2(300f, 80f), MenuRed);
 
             var op = panel.AddComponent<OnlinePanel>();
+            op.serverMatchButton = serverMatch;
             op.hostButton = host;
             op.joinButton = join;
             op.backButton = back;
