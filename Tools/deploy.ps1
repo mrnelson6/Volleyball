@@ -62,10 +62,13 @@ if ($SkipDeploy) { Write-Host "(-SkipDeploy: not pushing to the box)"; exit 0 }
 $dest = "$($cfg.user)@$($cfg.host)"
 
 # game server -> box (delete-then-copy gives fresh inodes; matches already
-# running keep executing their old, now-unlinked binary untouched)
+# running keep executing their old, now-unlinked binary untouched).
+# NB: globs must be expanded HERE — PowerShell does not expand * for native
+# commands, and scp then fails stat-ing the literal path.
 Write-Host "pushing server to $dest`:$($cfg.serverPath)..." -ForegroundColor Yellow
 ssh $dest "mkdir -p $($cfg.serverPath) && rm -rf $($cfg.serverPath)/*"
-scp -r "$proj\Builds\LinuxServer\*" "$dest`:$($cfg.serverPath)/"
+$serverItems = Get-ChildItem "$proj\Builds\LinuxServer" | ForEach-Object { $_.FullName }
+scp -r @serverItems "$dest`:$($cfg.serverPath)/"
 ssh $dest "chmod +x $($cfg.serverPath)/Volleyball.x86_64"
 
 # spawn service script (idempotent copy; restart picks up any changes)
@@ -76,7 +79,8 @@ ssh $dest "systemctl --user restart volleyball-spawn 2>/dev/null || echo '(spawn
 if (-not $SkipWebGL -and $cfg.webglPath) {
     Write-Host "pushing WebGL to $dest`:$($cfg.webglPath)..." -ForegroundColor Yellow
     ssh $dest "mkdir -p $($cfg.webglPath)"
-    scp -r "$proj\Builds\WebGL\*" "$dest`:$($cfg.webglPath)/"
+    $webglItems = Get-ChildItem "$proj\Builds\WebGL" | ForEach-Object { $_.FullName }
+    scp -r @webglItems "$dest`:$($cfg.webglPath)/"
 }
 
 Write-Host "=== Deploy complete: $env:VB_VERSION ===" -ForegroundColor Cyan

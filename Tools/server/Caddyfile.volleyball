@@ -1,0 +1,28 @@
+# Game box (marvin, 192.168.0.240) — internal HTTP server for the Volleyball
+# WebGL build + spawn endpoint. The Raspberry Pi front door terminates TLS for
+# volleyball.ttnelson.com and reverse-proxies here; this listens LAN-only on
+# plain HTTP. See pi-frontdoor.md for the Pi side.
+#
+# Install on marvin:
+#   sudo mkdir -p /var/www/volleyball && sudo chown marvin: /var/www/volleyball
+#   merge this into /etc/caddy/Caddyfile
+#   sudo systemctl enable --now caddy
+#
+# Note the port (8090) — the AppImage app already on this box owns 8080.
+
+:8090 {
+    root * /var/www/volleyball
+    file_server
+
+    # Unity ships the game as Brotli-precompressed files and its loader fetches
+    # them by exact .br name — the file server must declare encoding + real type.
+    # (The browser still requires HTTPS for Brotli, which the Pi provides.)
+    header /Build/*.br Content-Encoding br
+    header /Build/*.wasm.br Content-Type application/wasm
+    header /Build/*.js.br Content-Type application/javascript
+    header /Build/*.data.br Content-Type application/octet-stream
+
+    # on-demand match servers: POST /spawn -> {"code": "ABC123"}
+    reverse_proxy /spawn 127.0.0.1:8765
+    reverse_proxy /status 127.0.0.1:8765
+}
