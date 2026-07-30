@@ -302,7 +302,7 @@ namespace Volleyball
             {
                 // ball is in the air: jump and strike it near the peak
                 Vector3 bp = ball.transform.position;
-                if (!p.IsGrounded && bp.y > 1.5f) DoJumpServe();
+                if (!p.IsGrounded && bp.y > p.GroundHeight + JumpServeStrikeMinY) DoJumpServe();
             }
         }
 
@@ -489,8 +489,18 @@ namespace Volleyball
             => new Vector3(0f, 0f, CourtGeometry.SideSign(ServingTeam.Other()) * CourtGeometry.HalfDepth * depthFrac);
 
         /// <summary>Where the jump-serve toss wants to be struck — the sweet spot the toss
-        /// descends through above the baseline, and the top of the contact-quality ramp.</summary>
+        /// descends through above the baseline, and the top of the contact-quality ramp.
+        /// Measured above the SERVER'S FEET, so a toss from up on the bleachers is thrown to
+        /// the same height relative to the server as one off the sand.</summary>
         const float JumpServeIdealContactY = 3.2f;
+
+        /// <summary>How high above their feet the toss must be before the server can strike it.
+        /// Stops a jump serve being triggered off a ball still at chest height.</summary>
+        const float JumpServeStrikeMinY = 1.5f;
+
+        /// <summary>The surface the server is standing on — sand normally, a prop's top if they
+        /// climbed one. The reference every serve height is measured from.</summary>
+        float ServerFeetY => _server != null ? _server.GroundHeight : 0f;
 
         /// <summary>
         /// Toss the ball up for a jump serve: high, and thrown forward so it comes down over
@@ -508,7 +518,7 @@ namespace Volleyball
             // it forward exactly hard enough to be above our baseline at that moment.
             float g = -Physics.gravity.y;
             Vector3 bp = ball.transform.position;
-            float drop = JumpServeIdealContactY - bp.y;
+            float drop = (ServerFeetY + JumpServeIdealContactY) - bp.y;
             float tFlight = (upSpeed + Mathf.Sqrt(Mathf.Max(upSpeed * upSpeed - 2f * g * drop, 0.01f))) / g;
 
             float baselineZ = CourtGeometry.SideSign(ServingTeam) * CourtGeometry.HalfDepth;
@@ -677,11 +687,23 @@ namespace Volleyball
                         $"match={save.matchIndex} outcome={_campaignOutcome}");
         }
 
+        /// <summary>Where the held ball sits before the serve: in the server's hands. The height
+        /// rides on the server's own position, so it follows them up through a jump and up onto
+        /// anything they are standing on, instead of hanging at a fixed height above the floor.</summary>
         Vector3 ServePosition()
         {
-            if (_server == null) return new Vector3(0f, 1.5f, CourtGeometry.SideSign(ServingTeam) * CourtGeometry.HalfDepth * 0.9f);
-            Vector3 p = _server.SimPosition;
-            return new Vector3(p.x, 1.5f, p.z + CourtGeometry.SideSign(ServingTeam) * 0.3f);
+            float side = CourtGeometry.SideSign(ServingTeam);
+            if (_server == null)
+                return new Vector3(0f, Cfg.serveHoldHeight, side * CourtGeometry.HalfDepth * 0.9f);
+
+            // The RENDERED position, not the simulated one: a held ball is pure view until it
+            // launches, and the sim only steps at 50Hz — parking it on those steps while the
+            // server's sprite interpolates every frame is the same judder the run cycle has to
+            // avoid, and it shows as the ball lagging out of the hands whenever they move.
+            Vector3 p = _server.transform.position;
+            return new Vector3(p.x,
+                               p.y + Cfg.serveHoldHeight * _server.Character.height,
+                               p.z + side * 0.3f);
         }
 
         /// <summary>The player whose turn it is to serve for <paramref name="t"/>: rotation

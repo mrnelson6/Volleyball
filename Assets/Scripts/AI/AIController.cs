@@ -38,6 +38,7 @@ namespace Volleyball
         bool _wantJump;
         bool _wantDive;
         bool _wantHit;
+        bool _wantBlock;
         bool _wantPower;
         bool _attacking;
         HitType _hitType;
@@ -69,8 +70,11 @@ namespace Volleyball
                 dive = _wantDive,
                 power = _wantPower,
                 hitPressed = _wantHit,
-                // a planned attack becomes a real spike once airborne, otherwise a driven bump
-                hitType = (_attacking && !IsGrounded) ? HitType.Spike : _hitType,
+                // A block asks for Bump explicitly: at the net that's what the sim reads as
+                // "block", and a Spike there would cancel the attempt. Otherwise a planned
+                // attack becomes a real spike once airborne, else a driven bump.
+                hitType = _wantBlock ? HitType.Bump
+                        : (_attacking && !IsGrounded) ? HitType.Spike : _hitType,
                 aimMode = AimMode.Explicit, // the AI aims at its planned point, not by steer
                 hitAim = _hitTarget,
                 serve = ServeIntent.None,   // AI serves fire from MatchManager's timer
@@ -84,6 +88,7 @@ namespace Volleyball
             _wantJump = false;
             _wantDive = false;
             _wantHit = false;
+            _wantBlock = false;
             _wantPower = false;
             if (ball == null) return;
 
@@ -207,6 +212,14 @@ namespace Volleyball
             if (rallyLive && !reacting && touchesRemain && ballComingToUs && BallInReach()
                 && !yielding && (invited || ClosestEligibleTo(bp)))
                 _wantHit = true;
+
+            // Blocking is a press now, so we have to go for it deliberately: take it the moment
+            // the window opens. We don't model hesitation here — BlockTiming applies
+            // aiBlockTiming as a flat handicap instead, so this stays a simple "yes, block" and
+            // the difficulty lives in one config value. We still never JUMP to block: as before,
+            // a block comes off a jump we were already making, so this changes when we press,
+            // not how often we're up there to press at all.
+            if (rallyLive && !reacting && BlockWindowOpen()) { _wantHit = true; _wantBlock = true; }
 
             // A full power-up fires at its cue moment, so the effect lands where it matters:
             // offensive buffs as we move in to attack, defensive ones as the opponents build

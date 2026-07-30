@@ -24,6 +24,8 @@ namespace Volleyball
                     "Bump — BUMP",
                     "Set — SET",
                     "Spike — SPIKE",
+                    "Block — BUMP as the attack",
+                    "    reaches your hands, mid-jump",
                     "Dive — DIVE",
                     "Power-up — POWER",
                 };
@@ -35,6 +37,8 @@ namespace Volleyball
                 "Bump — J  or  Left-click",
                 "Set — K",
                 "Spike — L  or  Right-click",
+                "Block — J at the net, mid-jump,",
+                "    as the attack reaches your hands",
                 "Dive — ;  or  Left Shift",
                 "Power-up — E",
             };

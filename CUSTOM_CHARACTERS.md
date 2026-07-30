@@ -65,9 +65,11 @@ Two things worth knowing:
 - **`DIVE` is drawn upright but used sideways.** Draw it as if they're standing and reaching
   straight up; the game rotates the whole sprite 90° during the slide, so "up" becomes the
   direction they dive. Head and arms at the top of the cell.
-- **`DIVEUP`/`DIVEDOWN` are foreshortened** — a body lying on the sand pointing away from or
-  toward the viewer, squashed. These are the two hardest cells; follow the example closely. If
-  you leave them blank the character still works, they'll just look wrong on depth-wise dives.
+- **`DIVEUP`/`DIVEDOWN` are optional.** They're foreshortened — a body lying on the sand
+  pointing away from or toward the viewer, squashed — and they're the two hardest cells by far.
+  Leave them blank if you like: the game falls back to rotating your sideways `DIVE` flat, which
+  looks fine. Any *other* pose you skip gets filled in with a copy of the closest one you drew,
+  which is playable but repetitive, so those are worth doing.
 
 ### File format
 
@@ -122,5 +124,41 @@ it's derived from the cell height, and a mismatch makes the character's feet sin
 - Reusing an **existing** roster id (e.g. `fox`) overrides that animal's look — the scenes have
   the old sprites serialised in, so re-run `Volleyball → Build World Tour (Everything)` and
   commit the scenes.
-- A partial import falls back to the procedural look rather than mixing the two: it's all 11
-  frames or nothing.
+- Every **required** frame must resolve or the character falls back to the procedural look
+  rather than mixing the two. `diveUp`/`diveDown` are the exception — they're allowed to be
+  absent, and the animator rolls the sideways dive flat instead.
+- A new roster entry only shows up in character select after the **menu scene is regenerated**
+  (`MainMenuSceneBuilder` bakes the roster into the scene). Run
+  `Volleyball → Build World Tour (Everything)` and commit the scenes.
+
+---
+
+## Part 3 — Importing loose files (art that didn't use the template)
+
+If the artist sends one PNG per pose instead of a filled-in template — which is what happens
+when they start from a drawing they already had — use section **3** of the same window.
+
+- **Matching is by filename.** `Rhino_Run0.png` → `run0`, `Rhino_DiveUp.png` → `diveUp`. The
+  name just has to *end* with the pose name (punctuation and case are ignored); longer names win,
+  so `diveup` is never mistaken for `dive`. Files that match nothing are listed and skipped.
+- **Every pose must be the same pixel size**, and `idle` must be among them — it's the root
+  every fallback ultimately resolves to.
+- **Missing poses are filled in automatically** from the closest one that exists:
+
+  | Missing | Filled from |
+  |---|---|
+  | `run0` / `run1` | the other run frame, else `idle` |
+  | `jump` / `swing` | each other, else `idle` |
+  | `bump` | `idle` (both stand with arms low) |
+  | `set`, `block` | `swing` (hands up) |
+  | `dive` | `jump` (arms lead, and the game rolls it flat) |
+  | `diveUp`, `diveDown` | nothing — left unset on purpose |
+
+  The report lists every frame as `drawn`, `copied from <pose>`, or `omitted`, so you know
+  exactly what's still owed. Re-importing later replaces the stand-ins.
+- **Height and size.** By default the height stat is derived from the image aspect
+  (`0.75 × height ÷ width`), which keeps the art pixel-exact against the 48×64 rig — a 192×256
+  image gives height 1.0 at 136 px/unit. Setting a different height is allowed: pixels-per-unit
+  is recomputed so the feet stay planted, but the art is then scaled by a non-whole factor.
+  Making a character bigger this way changes gameplay too (height drives block reach and
+  tightens spike/block contacts).

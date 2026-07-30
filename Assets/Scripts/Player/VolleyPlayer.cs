@@ -61,6 +61,8 @@ namespace Volleyball
         public float hitReachHeight => Cfg.hitReachHeight * Character.height * Power.ReachHeightMult;
         public float hitBufferTime => Cfg.hitBufferTime;
         public float diveSpeed => Cfg.diveSpeed * Character.speed * Power.MoveMult;
+        public float bodyRadius => Cfg.bodyRadius;
+        public float bodyHeight => Cfg.bodyHeight * Character.height;
         public float blockNetDistance => Cfg.blockNetDistance;
         public float blockMinHeight => Cfg.blockMinHeight;
         public float blockReach => Cfg.blockReach * Character.height * Power.BlockReachMult;
@@ -81,7 +83,14 @@ namespace Volleyball
         protected MatchManager match;
         protected BallController ball;
 
-        public bool IsGrounded => _sim.position.y <= 0.001f;
+        /// <summary>Standing on something — the sand, or a prop we've landed on top of. The
+        /// vertical-speed half matters now that ground is not always y=0: rising past the lip
+        /// of a bleacher tread puts a standable surface above our feet, and that must not read
+        /// as "grounded" and hand back a second jump.</summary>
+        public bool IsGrounded => _sim.vertVel <= 0f && _sim.position.y <= _sim.groundY + 0.001f;
+
+        /// <summary>Height of the surface underfoot: 0 on the sand, higher on a prop.</summary>
+        public float GroundHeight => _sim.groundY;
 
         /// <summary>Current vertical speed of the jump integration (+up, −falling).
         /// Zero exactly at the peak of the jump — the jump serve reads it to score timing.</summary>
@@ -141,6 +150,7 @@ namespace Volleyball
 
             // adopt the scene-baked placement as the initial simulated position
             _sim.position = new Vector3(transform.position.x, 0f, transform.position.z);
+            SettleOnGround();
             _prevViewPos = _currViewPos = _sim.position;
             _lastGroundPos = GroundPosition;
             Power.Bind(this, match);
@@ -189,12 +199,23 @@ namespace Volleyball
             }
         }
 
+        /// <summary>Drop the body onto whatever is under it right now and clear the jump. Ground
+        /// is no longer assumed to be y=0, so every place that used to zero the height has to
+        /// ask the world instead.</summary>
+        void SettleOnGround()
+        {
+            float y = WorldCollision.GroundHeightAt(_sim.position, bodyRadius);
+            _sim.position.y = y;
+            _sim.groundY = y;
+            _sim.vertVel = 0f;
+        }
+
         public void ResetState()
         {
-            _sim.position.y = 0f;
-            _sim.vertVel = 0f;
+            SettleOnGround();
             _sim.hitCooldown = 0f;
             _sim.bufferTime = 0f;
+            _sim.blockArm = 0f;
             _sim.diveTimer = 0f;
             _sim.diveRecover = 0f;
             _prevViewPos = _currViewPos = _sim.position;
@@ -211,6 +232,7 @@ namespace Volleyball
         public void TeleportTo(Vector3 groundPos)
         {
             _sim.position = new Vector3(groundPos.x, 0f, groundPos.z);
+            SettleOnGround(); // court spots are on the sand, but never assume it
             _prevViewPos = _currViewPos = _sim.position;
             transform.position = _sim.position;
             _lastGroundPos = GroundPosition;
@@ -257,7 +279,7 @@ namespace Volleyball
             }
             else if (_sim.diveRecover > 0f) _sim.diveRecover -= dt;
 
-            // --- horizontal movement (clamped to own side of the net) ---
+            // --- horizontal movement (clamped to the court, blocked by the net itself) ---
             Vector2 mv = cmd.moveWorld;
             if (mv.sqrMagnitude > 0.01f) _sim.lastMoveDir = mv;
             Vector3 pos = _sim.position;
@@ -274,16 +296,25 @@ namespace Volleyball
             }
             // (while recovering: face down in the sand — no movement)
 
-            // The deep zone behind the baseline is walkable ALL match — same space whether
-            // serving or rallying, so ending a serve never snaps anyone forward. (Standing
-            // deep is its own punishment: deep balls are already out.)
-            const float backMargin = 4f;
+            // One roam box for everyone: both halves and the deep zones behind both baselines
+            // are walkable ALL match, by either team. Nobody is fenced into their own court —
+            // the world's colliders decide where you can actually go. Reach still stops at the
+            // tape (BallInReach/TryDiveHit test the BALL's side, not the player's), so crossing
+            // over gains no touches; the serve rule below is the only other rule-based gate.
             bool servePhase = match != null && match.IsServePhaseFor(this);
-            pos.x = Mathf.Clamp(pos.x, -(CourtGeometry.HalfWidth + 1f), CourtGeometry.HalfWidth + 1f);
-            if (team == TeamSide.A)
-                pos.z = Mathf.Clamp(pos.z, -(CourtGeometry.HalfDepth + backMargin), -CourtGeometry.NetBuffer);
-            else
-                pos.z = Mathf.Clamp(pos.z, CourtGeometry.NetBuffer, CourtGeometry.HalfDepth + backMargin);
+            pos.x = Mathf.Clamp(pos.x, -CourtGeometry.RoamHalfWidth, CourtGeometry.RoamHalfWidth);
+            pos.z = Mathf.Clamp(pos.z, -CourtGeometry.RoamHalfDepth, CourtGeometry.RoamHalfDepth);
+
+            // Solid world: sweep the body to where it asked to go, sliding along whatever it
+            // meets. The step lift is grounded-only — a runner should ride over a bleacher
+            // tread, but someone mid-jump has to actually clear the ledge they're flying at.
+            pos = WorldCollision.SlideHorizontal(_sim.position, pos, bodyRadius, bodyHeight,
+                                                 IsGrounded ? Cfg.stepHeight : 0f);
+
+            // The net's collider is 0.1 thick — thinner than one tick of a dive — so a fast
+            // enough lunge could sweep clean past it between queries. This test is analytic and
+            // cannot be tunnelled, so it stays as the net's guarantee.
+            pos = CourtGeometry.BlockNetCrossing(_sim.position, pos);
 
             // The server must stay behind their own back line while holding the ball — but
             // once the jump-serve toss is up they may run in after it, like a real run-up.
@@ -302,7 +333,14 @@ namespace Volleyball
                 _sim.vertVel = jumpSpeed;
             _sim.vertVel += Physics.gravity.y * dt;
             pos.y = _sim.position.y + _sim.vertVel * dt;
-            if (pos.y <= 0f) { pos.y = 0f; _sim.vertVel = 0f; }
+
+            // Land on whatever is under the NEW footprint — sand, a bleacher tread, a crate —
+            // rather than an assumed floor at zero. Only settle while falling: on the way up,
+            // a ledge we're passing over must not swallow the jump. The same snap carries a
+            // walker up onto a step, since SlideHorizontal already let them over its lip.
+            float support = WorldCollision.GroundHeightAt(pos, bodyRadius);
+            if (_sim.vertVel <= 0f && pos.y <= support) { pos.y = support; _sim.vertVel = 0f; }
+            _sim.groundY = support;
 
             _prevViewPos = _currViewPos;
             _sim.position = pos;
@@ -320,34 +358,77 @@ namespace Volleyball
                 if (authority && _sim.diveTimer > 0f && _sim.hitCooldown <= 0f) TryDiveHit();
                 _sim.bufferTime = 0f;
             }
-            // --- blocking: jumping at the net into an opponent's attack auto-blocks it ---
-            else if (authority && _sim.hitCooldown <= 0f && TryBlock())
-            {
-                _sim.bufferTime = 0f;
-            }
             else
             {
-                // --- hitting (buffered: an early or slightly-off press is remembered briefly
-                //     and fires the moment the ball comes into reach) ---
                 bool wantsHit = cmd.hitPressed;
-
-                // Swing on the press edge — the character visibly swings the instant you commit
-                // to a hit, even if no ball is in reach (a whiff), not only when contact lands.
-                if (live && wantsHit && !_sim.swingWantedPrev) TriggerSwing(cmd.hitType);
+                // The press EDGE, not the press: the AI holds its intent across ticks, and a
+                // block has to answer "did you hit the key at this moment", asked once.
+                bool pressEdge = wantsHit && !_sim.swingWantedPrev;
                 _sim.swingWantedPrev = wantsHit;
 
-                if (wantsHit)
+                // --- blocking: the press puts the hands up and starts the clock. The block
+                //     lands on the first tick the window opens while the arm is running, and
+                //     what's left of the arm by then is the timing score. Anything else and the
+                //     press would have to hit the ~4 ticks the ball spends crossing the net.
+                // Up at the net the hit key means BLOCK. Spike and Set still do their own thing
+                // from up there — a jump spike is struck from inside blockNetDistance — so the
+                // contact you asked for is what tells them apart: Bump (J) is the block.
+                bool atNet = !IsGrounded && Mathf.Abs(_sim.position.z) <= blockNetDistance;
+                bool spikeOverride = pressEdge && cmd.hitType != HitType.Bump;
+                if (spikeOverride) _sim.blockArm = 0f; // changed your mind — abandon the block
+
+                // A press at the net arms one, and so does a press still BUFFERED from a hair
+                // before takeoff: pressing on the way up is going for a block too, and that one
+                // used to come out as a bump in mid-air.
+                bool armBlock = atNet && !spikeOverride && _sim.blockArm <= 0f
+                                && ((pressEdge && cmd.hitType == HitType.Bump)
+                                    || (_sim.bufferTime > 0f && _sim.bufferedHit == HitType.Bump));
+                if (armBlock)
                 {
-                    _sim.bufferedHit = cmd.hitType;
-                    _sim.bufferTime = hitBufferTime;
+                    _sim.blockArm = Cfg.blockPressWindow;
+                    _sim.bufferTime = 0f;   // the press belongs to the block now
+                }
+                else if (!atNet) _sim.blockArm = 0f; // landed or drifted off — attempt's over
+                // Mashing can't re-arm: you commit to your first press, or one press would
+                // always land on the ball and the timing would score itself.
+                else _sim.blockArm = Mathf.Max(0f, _sim.blockArm - dt);
+
+                // Swing on the press edge — the character visibly commits the instant you press,
+                // even if nothing is in reach (a whiff), not only when contact lands.
+                if (live)
+                {
+                    if (armBlock) TriggerSwing(HitType.Block);
+                    else if (pressEdge) TriggerSwing(cmd.hitType);
+                }
+
+                // An armed block COMMITS: no ordinary hit may fire under it. Without this the
+                // same press both armed the block and buffered a bump, and since `reach` (2.6)
+                // is far bigger than `blockReach` (1.6) the bump usually won — which is exactly
+                // what a bump animation coming out of a block attempt was telling you.
+                bool committed = _sim.blockArm > 0f;
+
+                if (authority && committed && _sim.hitCooldown <= 0f && TryBlock())
+                {
+                    _sim.blockArm = 0f;
+                    _sim.bufferTime = 0f;
                 }
                 else
                 {
-                    _sim.bufferTime -= dt;
+                    // --- hitting (buffered: an early or slightly-off press is remembered
+                    //     briefly and fires the moment the ball comes into reach) ---
+                    if (wantsHit && !committed)
+                    {
+                        _sim.bufferedHit = cmd.hitType;
+                        _sim.bufferTime = hitBufferTime;
+                    }
+                    else
+                    {
+                        _sim.bufferTime -= dt;
+                    }
+                    if (authority && !committed && _sim.hitCooldown <= 0f && _sim.bufferTime > 0f
+                        && RequestHit(_sim.bufferedHit, in cmd))
+                        _sim.bufferTime = 0f;
                 }
-                if (authority && _sim.hitCooldown <= 0f && _sim.bufferTime > 0f
-                    && RequestHit(_sim.bufferedHit, in cmd))
-                    _sim.bufferTime = 0f;
             }
 
             // match over: any hit press from a human is the "continue" input
@@ -378,7 +459,11 @@ namespace Volleyball
             if (moved < 1e-5f || moved > 1f) return; // idle, or teleported by a rally reset
             Vector3 dir = delta / moved;
 
-            if (_sim.diveTimer > 0f)
+            // Marks are painted flat on the court, so only the sand takes them — someone up on
+            // the bleachers must not stamp footprints into the sand underneath them.
+            bool onSand = _sim.groundY <= 0.05f;
+
+            if (_sim.diveTimer > 0f && onSand)
             {
                 _diveMarkAccum += moved;
                 if (_diveMarkAccum >= 0.3f)
@@ -387,7 +472,7 @@ namespace Volleyball
                     SandMarks.DiveStreak(flat, dir);
                 }
             }
-            else if (IsGrounded)
+            else if (IsGrounded && onSand)
             {
                 _strideAccum += moved;
                 if (_strideAccum >= 0.75f)
@@ -404,11 +489,12 @@ namespace Volleyball
         }
 
         /// <summary>
-        /// A block: while airborne and near the net, an opponent's attack within reach is
-        /// stuffed straight back down onto the attackers' side. Returns true if it happened.
-        /// The gate is pure state — no input — so it runs every tick while airborne.
+        /// True when a block is there to be TAKEN this instant: airborne at the net with an
+        /// opponent's attack inside the hands' window. This is only the window being open —
+        /// the block itself needs a press, which is the whole skill (see <see cref="TryBlock"/>).
+        /// Pure state, no input, so the AI and the swing pose can ask the same question.
         /// </summary>
-        protected bool TryBlock()
+        public bool BlockWindowOpen()
         {
             if (ball == null || IsGrounded || !ball.CanBeHit) return false;
             if (match != null && !match.CanTeamTouch(team)) return false;
@@ -422,17 +508,54 @@ namespace Volleyball
 
             // Must be close to the ball. The near-net band above keeps blocks at the net, so we
             // never reach deep into the opponents' court to pick off their passes.
-            if (Vector2.Distance(new Vector2(_sim.position.x, _sim.position.z),
-                                 new Vector2(bp.x, bp.z)) > blockReach)
-                return false;
-
-            return ExecuteBlockAuthoritative();
+            return Vector2.Distance(new Vector2(_sim.position.x, _sim.position.z),
+                                    new Vector2(bp.x, bp.z)) <= blockReach;
         }
 
-        /// <summary>The authority-side half of a block: contact-error roll and ball launch.
-        /// (Offline the request IS the execution; the network layer reroutes it.)</summary>
-        public bool ExecuteBlockAuthoritative()
+        /// <summary>
+        /// How well-timed the block press was, from how long the hands waited before the attack
+        /// actually arrived. Anything up to <see cref="GameConfig.blockPerfectLead"/> early is
+        /// perfect, falling to 0 at the far end of the press window.
+        ///
+        /// Note the grace band — it is not slack, it is the point. "Hit it as the ball reaches
+        /// your hands" is a cue to press BEFORE contact, and people do so by a fairly consistent
+        /// 0.1–0.25s. Scoring a simultaneous press as the ideal marks every honest attempt late.
+        /// Measured on press-to-contact rather than on how near the ball is, too: the net holds
+        /// a blocker ~0.4m off the tape while the ball may still be 0.9m the other side, so a
+        /// textbook block never gets "close" and distance scored good ones as mistimed.
+        /// </summary>
+        public float BlockTiming()
         {
+            float window = Mathf.Max(Cfg.blockPressWindow, 0.01f);
+            float lead = window - _sim.blockArm; // how long ago the press was
+            float perfect = Mathf.Clamp(Cfg.blockPerfectLead, 0f, window - 0.01f);
+            float t = lead <= perfect ? 1f
+                                      : 1f - Mathf.Clamp01((lead - perfect) / (window - perfect));
+
+            // The AI presses the instant the window opens, with none of a human's hesitation,
+            // so it would stuff every single attack. Its skill is a stated handicap instead.
+            return IsHuman ? t : t * Mathf.Clamp01(Cfg.aiBlockTiming);
+        }
+
+        /// <summary>
+        /// A block attempt while the press is still armed. Blocking is never automatic — no
+        /// press, no block — but the press does NOT have to land on the exact tick the ball
+        /// arrives: the ball crosses the net band in under a tenth of a second, so demanding
+        /// that would be a coin flip rather than a skill. The press puts the hands up, and how
+        /// long they wait there is what separates a stuff from a deflection.
+        /// </summary>
+        protected bool TryBlock()
+        {
+            if (!BlockWindowOpen()) return false;
+            return ExecuteBlockAuthoritative(BlockTiming());
+        }
+
+        /// <summary>The authority-side half of a block: contact-error roll and ball launch,
+        /// shaped by how well the press was timed (see <see cref="BlockTiming"/>).
+        /// (Offline the request IS the execution; the network layer reroutes it.)</summary>
+        public bool ExecuteBlockAuthoritative(float timing)
+        {
+            timing = Mathf.Clamp01(timing);
             Vector3 bp = ball.transform.position;
             TeamSide opp = team.Other();
             float fwd = CourtGeometry.SideSign(opp); // +Z for team A: toward the net / opponents
@@ -444,15 +567,27 @@ namespace Volleyball
             contact.z = bp.z + forwardShift * fwd;
             ball.transform.position = contact;
 
-            // stuff it straight down onto the attackers' near court
+            // A well-timed block STUFFS: flat and straight down at the attackers' feet. A
+            // mistimed one is a deflection off the hands — it pops up and drifts deep, handing
+            // them a free ball instead of ending the rally. The error roll widens the same way,
+            // so a bad enough touch sprays back onto our own side, or out.
             float ox = Mathf.Clamp(contact.x + Random.Range(-0.8f, 0.8f),
                                    -CourtGeometry.HalfWidth + 0.3f, CourtGeometry.HalfWidth - 0.3f);
-            float oz = fwd * CourtGeometry.HalfDepth * 0.22f;
-            float blockError = ComputeContactError(HitType.Block, ball.Body.linearVelocity.magnitude);
+            float oz = fwd * CourtGeometry.HalfDepth * Mathf.Lerp(0.75f, 0.22f, timing);
+            float blockError = ComputeContactError(HitType.Block, ball.Body.linearVelocity.magnitude)
+                               + (1f - timing) * Cfg.blockMistimePenalty;
             Vector3 blockTarget = ApplyContactError(new Vector3(ox, 0.2f, oz), blockError);
-            ball.LaunchTo(blockTarget, 0.5f, team, this, HitType.Block);
+
+            // Time it well and it's a STUFF — driven straight down at them, no arc to read.
+            // Below that you only got a piece of it, and the ball loops up off your hands.
+            bool stuff = timing >= Cfg.blockStuffTiming;
+            ball.LaunchTo(blockTarget, Mathf.Lerp(2.4f, 0.5f, timing), team, this, HitType.Block,
+                          0f, stuff);
             match?.RegisterTouch(team, this);
-            LogContact(HitType.Block, blockTarget);
+            // Timing rides in the log line: "am I mistiming it or is it broken" is otherwise
+            // unanswerable from the outside — the outcome alone can't tell you which.
+            LogContact(HitType.Block, blockTarget,
+                       $" timing={timing:F2} {(stuff ? "STUFF" : "deflection")}");
             _sim.hitCooldown = 0.25f;
             return true;
         }
@@ -585,13 +720,13 @@ namespace Volleyball
         }
 
         /// <summary>One consolidated log line per contact: the hit data and the touch count.</summary>
-        void LogContact(HitType type, Vector3 target)
+        void LogContact(HitType type, Vector3 target, string extra = "")
         {
             if (ball == null) return;
             Vector3 v = ball.Body.linearVelocity;
             int touch = match != null ? match.Touches : 0;
             VBLog.Event($"{type} by '{name}' team={team} touch#{touch} from={VBLog.V(ball.transform.position)} " +
-                        $"target={VBLog.V(target)} vel={VBLog.V(v)} speed={v.magnitude:F1} spin={ball.Spin:F0}");
+                        $"target={VBLog.V(target)} vel={VBLog.V(v)} speed={v.magnitude:F1} spin={ball.Spin:F0}{extra}");
             GameAudio.PlayHit(type, ball.transform.position);
             Swung?.Invoke(type);
         }

@@ -159,6 +159,21 @@ namespace Volleyball
                 furAccent = new Color(0.93f, 0.85f, 0.68f),
                 art = new SpeciesArt { head = HeadShape.Muzzle, ears = EarStyle.Round, tail = 1.1f },
             },
+            new CharacterDef
+            {
+                id = "rhino", displayName = "Rocco the Rhino", region = "savanna",
+                powerUp = PowerUpType.GiantGrowth,
+                blurb = "Two tonnes of forward momentum — hits like a truck, turns like one too.",
+                // height must stay 1.00: it's fixed by the hand-drawn art's 192x256 canvas.
+                // Everything else is free to tune.
+                height = 1.00f, speed = 0.85f, power = 1.35f, control = 0.80f, jump = 0.80f,
+                // Hand-drawn character (see CUSTOM_CHARACTERS.md) — the fields below only feed
+                // the procedural baker, which is skipped entirely while custom art exists.
+                fur = new Color(0.55f, 0.55f, 0.60f),
+                furAccent = new Color(0.72f, 0.72f, 0.76f),
+                art = new SpeciesArt { head = HeadShape.LongMuzzle, ears = EarStyle.Round,
+                                       horns = HornStyle.Horns, tail = 0.6f },
+            },
 
             // ---------------------------------------------------------------- amazon rainforest
             new CharacterDef

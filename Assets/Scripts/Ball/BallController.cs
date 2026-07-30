@@ -95,18 +95,27 @@ namespace Volleyball
         /// and faster (the perfect jump serve). The caller guarantees net clearance.
         /// </summary>
         public void LaunchTo(Vector3 target, float apexHeight, TeamSide team, VolleyPlayer player,
-                             HitType type, float flightTime = 0f)
+                             HitType type, float flightTime = 0f, bool driveDown = false)
         {
             _rb.isKinematic = false;
 
             Vector3 start = transform.position;
             float g = -Physics.gravity.y;
 
+            // A spike is struck from BEHIND the net, so it only earns the downward drive from
+            // comfortably above the tape — a low contact driven down clips the net.
+            bool spikeFromHigh = type == HitType.Spike && start.y > CourtGeometry.NetHeight + 0.6f;
+
+            // A block is different, and used to be held to the spike's rule for no reason: its
+            // contact has already been nudged PAST the net plane (see ExecuteBlockAuthoritative),
+            // so driving down clears the tape by construction as long as the ball is heading
+            // away from it. Whether it earns the drive at all is the caller's call — that's the
+            // difference between a stuff and a deflection.
+            bool outward = CourtGeometry.SideSign(team.Other()) * (target.z - start.z) > 0f;
+            bool blockStuff = driveDown && start.y > CourtGeometry.NetHeight && outward;
+
             Vector3 velocity;
-            // Only drive straight down when the ball is hit comfortably ABOVE the net. A
-            // contact barely above the tape can't clear when driven downward — it clips the
-            // net — so those arc over instead (handled by the else branch).
-            if ((type == HitType.Spike || type == HitType.Block) && start.y > CourtGeometry.NetHeight + 0.6f)
+            if (spikeFromHigh || blockStuff)
             {
                 // jump spike / over-the-net block: drive it straight down at the target with
                 // real pace that scales with how high it was hit, instead of lobbing it.

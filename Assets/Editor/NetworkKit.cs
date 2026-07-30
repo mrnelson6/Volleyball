@@ -21,6 +21,10 @@ namespace Volleyball.EditorTools
         public const string PrefabPath = "Assets/Resources/NetworkBootstrap.prefab";
         public const string LobbyPrefabPath = "Assets/Resources/LobbyState.prefab";
 
+        /// <summary>The auto-generated, committed prefab registry the bootstrap must reference —
+        /// see the "never AddNetworkPrefab at runtime" invariant in CLAUDE.md.</summary>
+        public const string DefaultPrefabsPath = "Assets/DefaultNetworkPrefabs.asset";
+
         [MenuItem("Volleyball/Build Network Bootstrap", priority = 21)]
         public static void BuildBootstrapPrefab()
         {
@@ -32,6 +36,25 @@ namespace Volleyball.EditorTools
             {
                 var transport = go.AddComponent<UnityTransport>();
                 var nm = go.AddComponent<NetworkManager>();
+
+                // NGO declares NetworkConfig with no initializer and populates it from the
+                // editor's Reset() hook (NetworkManagerHelper), which only fires on the
+                // Inspector's add-component path — never from a scripted AddComponent. Its own
+                // OnValidate guards for the null ("May occur when the component is added"), so
+                // build the config ourselves rather than depending on an editor side effect
+                // that batchmode may not run.
+                if (nm.NetworkConfig == null) nm.NetworkConfig = new NetworkConfig();
+
+                // That same hook is what normally attaches DefaultNetworkPrefabs.asset. Without
+                // it the bootstrap builds fine and then registers zero network prefabs, so every
+                // spawn fails at runtime — a much quieter failure than the one above.
+                var defaults = AssetDatabase.LoadAssetAtPath<NetworkPrefabsList>(DefaultPrefabsPath);
+                if (defaults == null)
+                    Debug.LogError($"[Volleyball] {DefaultPrefabsPath} is missing — the bootstrap " +
+                                   "would register no network prefabs. Restore it before building.");
+                else if (!nm.NetworkConfig.Prefabs.NetworkPrefabsLists.Contains(defaults))
+                    nm.NetworkConfig.Prefabs.NetworkPrefabsLists.Add(defaults);
+
                 nm.NetworkConfig.NetworkTransport = transport;
                 nm.NetworkConfig.TickRate = 50; // matches the 0.02s FixedUpdate sim step
                 nm.NetworkConfig.EnableSceneManagement = true;

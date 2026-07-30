@@ -274,19 +274,7 @@ namespace Volleyball.EditorTools
                 return false;
             }
 
-            characterId = (characterId ?? "").Trim().ToLowerInvariant();
-            if (characterId.Length == 0)
-            {
-                report = "Give the character an id (lowercase letters/digits, e.g. \"otter\").";
-                return false;
-            }
-            foreach (char ch in characterId)
-                if (!(ch >= 'a' && ch <= 'z') && !(ch >= '0' && ch <= '9'))
-                {
-                    report = $"Id '{characterId}' must be lowercase letters and digits only — it " +
-                             "becomes part of the sprite filenames.";
-                    return false;
-                }
+            if (!ValidateId(ref characterId, out report)) return false;
 
             var sheet = new Texture2D(2, 2, TextureFormat.RGBA32, false);
             if (!ImageConversion.LoadImage(sheet, File.ReadAllBytes(sheetPath), false))
@@ -314,41 +302,151 @@ namespace Volleyball.EditorTools
             int outW = W * detail, outH = cellH * detail;
             float ppu = CharacterSprites.PixelsPerUnit * detail;
 
-            Directory.CreateDirectory(AbsPath(CustomDir));
+            string[] names = CharacterSprites.FrameNames;
+            var frames = new Color32[FrameCount][];
+            var source = new string[FrameCount];
+
+            for (int i = 0; i < FrameCount; i++)
+            {
+                Color32[] cell = ExtractCell(px, sw, sh, Cell(i, cellH, drawTop), detail,
+                                             out int kept, out int lowest, out int highest);
+                if (kept == 0) continue;    // left blank — filled in below
+
+                frames[i] = cell;
+                source[i] = "drawn";
+                if (lowest > 6 * detail)
+                    log.AppendLine($"'{names[i]}': lowest pixel is {lowest}px above the cell base — " +
+                                   "the character will look like it's floating.");
+                if (highest >= outH - 1)
+                    log.AppendLine($"'{names[i]}': art touches the top edge — it may be clipped.");
+            }
+
+            if (frames[0] == null)
+            {
+                report = "The 'idle' cell is empty. That's the one frame everything else falls " +
+                         "back to, so there's nothing to import.";
+                return false;
+            }
+
+            return WriteFrameSet(frames, source, characterId, outW, outH, ppu, heightStat,
+                                 $"{detail}x detail", log, out report);
+        }
+
+        /// <summary>
+        /// Import a folder of one-PNG-per-pose art (what an artist sends when they didn't use the
+        /// template). Files are matched to frames by name — <c>Rhino_Run0.png</c> to
+        /// <c>run0</c> — and any pose they didn't draw is filled in from the closest one they
+        /// did, so a partial set still produces a playable character.
+        /// </summary>
+        /// <param name="heightStat">Height stat to give the character, or 0 to derive it from the
+        /// image aspect (the pixel-exact choice). Pixels-per-unit is scaled to match, so the feet
+        /// stay planted whatever you pick.</param>
+        public static bool ImportLooseFolder(string folder, string characterId, float heightStat,
+                                             out string report)
+        {
+            var log = new StringBuilder();
+
+            if (!ValidateId(ref characterId, out report)) return false;
+            if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
+            {
+                report = $"No folder at '{folder}'.";
+                return false;
+            }
 
             string[] names = CharacterSprites.FrameNames;
+            var frames = new Color32[FrameCount][];
+            var source = new string[FrameCount];
+            int imgW = 0, imgH = 0;
+            var unmatched = new List<string>();
+
+            foreach (string file in Directory.GetFiles(folder, "*.png"))
+            {
+                int frame = MatchFrame(Path.GetFileNameWithoutExtension(file));
+                if (frame < 0) { unmatched.Add(Path.GetFileName(file)); continue; }
+
+                var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                if (!ImageConversion.LoadImage(tex, File.ReadAllBytes(file), false))
+                {
+                    Object.DestroyImmediate(tex);
+                    log.AppendLine($"'{Path.GetFileName(file)}' isn't a readable PNG — skipped.");
+                    continue;
+                }
+
+                if (imgW == 0) { imgW = tex.width; imgH = tex.height; }
+                else if (tex.width != imgW || tex.height != imgH)
+                {
+                    string bad = $"'{Path.GetFileName(file)}' is {tex.width}x{tex.height} but the " +
+                                 $"others are {imgW}x{imgH}. Every pose must be the same size.";
+                    Object.DestroyImmediate(tex);
+                    report = bad;
+                    return false;
+                }
+
+                frames[frame] = tex.GetPixels32();
+                source[frame] = "drawn";
+                Object.DestroyImmediate(tex);
+            }
+
+            if (imgW == 0)
+            {
+                report = $"No PNGs in '{folder}' matched a pose name. Expected names containing " +
+                         $"{string.Join(", ", names)} — e.g. Rhino_Idle.png.";
+                return false;
+            }
+            if (frames[0] == null)
+            {
+                report = "No 'idle' pose found. That's the one frame everything else falls back " +
+                         "to, so there's nothing to import.";
+                return false;
+            }
+            foreach (string u in unmatched)
+                log.AppendLine($"'{u}' didn't match any pose name — ignored.");
+
+            // Default height keeps the art pixel-exact against the 48x64 rig; anything else
+            // rescales via pixels-per-unit, which is legal but no longer a whole-number zoom.
+            float derived = 0.75f * imgH / imgW;
+            if (heightStat <= 0f) heightStat = derived;
+            heightStat = Mathf.Clamp(heightStat, 0.6f, 1.6f);
+
+            float ppu = imgH * CharacterSprites.PixelsPerUnit / Mathf.RoundToInt(BaseH * heightStat);
+            if (Mathf.Abs(heightStat - derived) > 0.005f)
+                log.AppendLine($"Height {heightStat:0.##} isn't the art's natural {derived:0.##} — " +
+                               $"drawing it at {ppu:0.#} px/unit to keep the feet planted, so the " +
+                               "art is scaled by a non-whole factor.");
+
+            return WriteFrameSet(frames, source, characterId, imgW, imgH, ppu, heightStat,
+                                 "loose files", log, out report);
+        }
+
+        /// <summary>
+        /// Fill every missing frame from the closest pose the artist did draw, recolour the shirt
+        /// per jersey, and write the whole set out. Shared by both import paths.
+        /// </summary>
+        static bool WriteFrameSet(Color32[][] frames, string[] source, string characterId,
+                                  int outW, int outH, float ppu, float heightStat,
+                                  string flavour, StringBuilder log, out string report)
+        {
+            string[] names = CharacterSprites.FrameNames;
+            ResolveMissing(frames, source);
+
+            Directory.CreateDirectory(AbsPath(CustomDir));
+
             Color[] jerseys = { PlayerColors.Human, PlayerColors.Mate,
                                 PlayerColors.Opp1, PlayerColors.Opp2 };
             var written = new List<string>();
-            int emptyFrames = 0;
 
             try
             {
                 for (int i = 0; i < FrameCount; i++)
                 {
-                    EditorUtility.DisplayProgressBar("Importing character sheet",
+                    EditorUtility.DisplayProgressBar("Importing character",
                         $"{names[i]} ({i + 1}/{FrameCount})", i / (float)FrameCount);
-
-                    Color32[] cell = ExtractCell(px, sw, sh, Cell(i, cellH, drawTop), detail,
-                                                 out int kept, out int lowest, out int highest);
-                    if (kept == 0)
-                    {
-                        emptyFrames++;
-                        log.AppendLine($"'{names[i]}' is empty — that pose will be invisible in game.");
-                    }
-                    else
-                    {
-                        if (lowest > 6 * detail)
-                            log.AppendLine($"'{names[i]}': lowest pixel is {lowest}px above the cell " +
-                                           "base — the character will look like it's floating.");
-                        if (highest >= outH - 1)
-                            log.AppendLine($"'{names[i]}': art touches the top edge — it may be clipped.");
-                    }
 
                     foreach (Color jersey in jerseys)
                     {
                         string asset = $"{CustomDir}/{CharacterSprites.FrameName(jersey, characterId, names[i])}.png";
-                        WriteSprite(asset, Recolor(cell, jersey), outW, outH);
+                        if (frames[i] == null) { DeleteIfPresent(asset); continue; }
+                        WriteSprite(asset, Recolor(frames[i], jersey), outW, outH);
                         written.Add(asset);
                     }
                 }
@@ -362,23 +460,125 @@ namespace Volleyball.EditorTools
             foreach (string asset in written) ConfigureImporter(asset, ppu);
             AssetDatabase.SaveAssets();
 
-            bool known = System.Array.Exists(CharacterRoster.All, c => c.id == characterId);
             log.AppendLine();
-            log.AppendLine($"Imported {written.Count} sprites ({FrameCount} frames x {jerseys.Length} " +
-                           $"jersey colours) at {outW}x{outH} ({detail}x detail, {ppu:0} px/unit) " +
-                           $"into {CustomDir}.");
-            if (emptyFrames > 0)
-                log.AppendLine($"{emptyFrames} of {FrameCount} frames were blank.");
-            if (known)
-                log.AppendLine($"Id '{characterId}' is already on the roster — this art now overrides " +
-                               "its procedural look. Re-run \"Build World Tour (Everything)\" so the " +
-                               "scenes pick it up.");
+            log.AppendLine($"Imported '{characterId}' from {flavour}: {written.Count} sprites at " +
+                           $"{outW}x{outH}, {ppu:0.#} px/unit, height {heightStat:0.####}.");
+            log.AppendLine();
+            for (int i = 0; i < FrameCount; i++)
+                log.AppendLine($"  {names[i],-9} {source[i] ?? "omitted"}");
+            log.AppendLine();
+
+            int drawn = 0, copied = 0;
+            for (int i = 0; i < FrameCount; i++)
+            {
+                if (source[i] == "drawn") drawn++;
+                else if (source[i] != null) copied++;
+            }
+            if (copied > 0)
+                log.AppendLine($"{drawn} poses are real art; {copied} are stand-ins copied from " +
+                               "another pose. Re-import after those are drawn to replace them.");
+            if (frames[9] == null || frames[10] == null)
+                log.AppendLine("The depth-wise dive poses are unset, so dives toward and away from " +
+                               "the camera roll the sideways dive flat instead. That's the engine's " +
+                               "own fallback and looks fine.");
+
+            if (System.Array.Exists(CharacterRoster.All, c => c.id == characterId))
+                log.AppendLine($"\nId '{characterId}' is already on the roster — this art now " +
+                               "overrides its procedural look. Re-run \"Build World Tour " +
+                               "(Everything)\" so the scenes pick it up.");
             else
-                log.AppendLine("Add the character to CharacterRoster.All to make it playable:\n\n" +
+                log.AppendLine("\nAdd the character to CharacterRoster.All to make it playable:\n\n" +
                                RosterSnippet(characterId, heightStat));
 
             report = log.ToString();
             Debug.Log("[Volleyball] " + report);
+            return true;
+        }
+
+        /// <summary>
+        /// Where each frame looks for a stand-in, best first. Chains resolve (run1 to run0 to
+        /// idle), and the optional depth-dive frames deliberately have none — the animator's own
+        /// fallback beats a wrong pose.
+        /// </summary>
+        static readonly int[][] FrameFallbacks =
+        {
+            new int[0],           // idle     — required, the root everything falls back to
+            new[] { 0 },          // run0     <- idle
+            new[] { 1, 0 },       // run1     <- run0
+            new[] { 4, 0 },       // jump     <- swing
+            new[] { 3, 0 },       // swing    <- jump
+            new[] { 0 },          // bump     <- idle (both stand with arms low)
+            new[] { 4, 3, 0 },    // set      <- swing (hands up)
+            new[] { 4, 3, 0 },    // block    <- swing (arms overhead)
+            new[] { 3, 4, 0 },    // dive     <- jump (arms lead; the game rolls it flat)
+            new int[0],           // diveUp   — optional
+            new int[0],           // diveDown — optional
+        };
+
+        static void ResolveMissing(Color32[][] frames, string[] source)
+        {
+            string[] names = CharacterSprites.FrameNames;
+            for (int pass = 0; pass < FrameCount; pass++)
+            {
+                bool changed = false;
+                for (int i = 0; i < FrameCount; i++)
+                {
+                    if (frames[i] != null || CharacterSprites.FrameIsOptional(i)) continue;
+                    foreach (int src in FrameFallbacks[i])
+                        if (frames[src] != null)
+                        {
+                            frames[i] = frames[src];
+                            source[i] = $"copied from {names[src]}";
+                            changed = true;
+                            break;
+                        }
+                }
+                if (!changed) break;
+            }
+        }
+
+        /// <summary>Frame index for a filename like "Rhino_DiveUp", or -1. Longest names first so
+        /// "diveup" doesn't get claimed by "dive".</summary>
+        static int MatchFrame(string fileName)
+        {
+            var norm = new StringBuilder();
+            foreach (char c in fileName.ToLowerInvariant())
+                if (char.IsLetterOrDigit(c)) norm.Append(c);
+            string s = norm.ToString();
+
+            string[] names = CharacterSprites.FrameNames;
+            var order = new List<int>();
+            for (int i = 0; i < names.Length; i++) order.Add(i);
+            order.Sort((a, b) => names[b].Length.CompareTo(names[a].Length));
+
+            foreach (int i in order)
+                if (s.EndsWith(names[i].ToLowerInvariant())) return i;
+            foreach (int i in order)
+                if (s.Contains(names[i].ToLowerInvariant())) return i;
+            return -1;
+        }
+
+        static void DeleteIfPresent(string assetPath)
+        {
+            if (File.Exists(AbsPath(assetPath))) AssetDatabase.DeleteAsset(assetPath);
+        }
+
+        static bool ValidateId(ref string characterId, out string error)
+        {
+            characterId = (characterId ?? "").Trim().ToLowerInvariant();
+            if (characterId.Length == 0)
+            {
+                error = "Give the character an id (lowercase letters/digits, e.g. \"rhino\").";
+                return false;
+            }
+            foreach (char ch in characterId)
+                if (!(ch >= 'a' && ch <= 'z') && !(ch >= '0' && ch <= '9'))
+                {
+                    error = $"Id '{characterId}' must be lowercase letters and digits only — it " +
+                            "becomes part of the sprite filenames.";
+                    return false;
+                }
+            error = null;
             return true;
         }
 
@@ -625,6 +825,8 @@ $@"new CharacterDef
         float _height = 1f;
         int _detailIndex = 2;
         string _sheetPath = "";
+        string _folder = "";
+        float _looseHeight;
         string _id = "";
         string _result = "";
         bool _ok;
@@ -632,7 +834,7 @@ $@"new CharacterDef
 
         [MenuItem("Volleyball/Custom Characters/Import Sprite Sheet...", priority = 41)]
         static void Open() =>
-            GetWindow<CustomCharacterWindow>(true, "Custom Character", true).minSize = new Vector2(440, 430);
+            GetWindow<CustomCharacterWindow>(true, "Custom Character", true).minSize = new Vector2(440, 520);
 
         void OnGUI()
         {
@@ -658,8 +860,18 @@ $@"new CharacterDef
             }
 
             EditorGUILayout.Space(12);
-            EditorGUILayout.LabelField("2. Import the finished sheet", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("2. Import finished art", EditorStyles.boldLabel);
 
+            // Shared by BOTH import buttons below — it used to sit inside the sheet section,
+            // where it read as sheet-only and silently disabled the loose-file import.
+            _id = EditorGUILayout.TextField("Character id", _id);
+            bool noId = string.IsNullOrWhiteSpace(_id);
+            if (noId)
+                EditorGUILayout.HelpBox("Both imports need a character id — lowercase letters and " +
+                                        "digits, e.g. \"rhino\".", MessageType.Warning);
+
+            EditorGUILayout.Space(6);
+            EditorGUILayout.LabelField("From a filled-in template sheet", EditorStyles.miniBoldLabel);
             using (new EditorGUILayout.HorizontalScope())
             {
                 _sheetPath = EditorGUILayout.TextField("Sheet PNG", _sheetPath);
@@ -669,12 +881,32 @@ $@"new CharacterDef
                     if (!string.IsNullOrEmpty(picked)) _sheetPath = picked;
                 }
             }
-            _id = EditorGUILayout.TextField("Character id", _id);
-
-            using (new EditorGUI.DisabledScope(string.IsNullOrWhiteSpace(_sheetPath) ||
-                                               string.IsNullOrWhiteSpace(_id)))
-                if (GUILayout.Button("Import"))
+            using (new EditorGUI.DisabledScope(noId || string.IsNullOrWhiteSpace(_sheetPath)))
+                if (GUILayout.Button("Import Sheet"))
                     _ok = CustomCharacterSheet.Import(_sheetPath, _id, out _result);
+
+            EditorGUILayout.Space(10);
+            EditorGUILayout.LabelField("Or from loose files — one PNG per pose",
+                                       EditorStyles.miniBoldLabel);
+            EditorGUILayout.HelpBox(
+                "For art that didn't come from the template. Files are matched by name " +
+                "(Rhino_Run0.png -> run0); any pose that's missing is copied from the closest one " +
+                "that exists. Height 0 = derive from the image.", MessageType.None);
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                _folder = EditorGUILayout.TextField("Folder", _folder);
+                if (GUILayout.Button("...", GUILayout.Width(28)))
+                {
+                    string picked = EditorUtility.OpenFolderPanel("Folder of pose PNGs", "", "");
+                    if (!string.IsNullOrEmpty(picked)) _folder = picked;
+                }
+            }
+            _looseHeight = EditorGUILayout.FloatField("Height stat (0 = auto)", _looseHeight);
+
+            using (new EditorGUI.DisabledScope(noId || string.IsNullOrWhiteSpace(_folder)))
+                if (GUILayout.Button("Import Loose Files"))
+                    _ok = CustomCharacterSheet.ImportLooseFolder(_folder, _id, _looseHeight, out _result);
 
             if (string.IsNullOrEmpty(_result)) return;
 

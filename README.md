@@ -72,9 +72,14 @@ You choose each contact explicitly:
   slide; if a low ball comes into reach you dig it up — but chaotically: it pops high with a
   big random spray, an uncontrolled emergency touch rather than a pass. Then you're stuck on
   the ground until you stand back up, so a whiffed dive takes you out of the play.
-- **Block** is automatic: **jump right next to the net** as an opponent attacks, and if the
-  ball comes into your reach you'll stuff it straight back down onto their side. Timing your
-  jump is the skill — no button needed. **You may not block a serve.**
+- **Block** is a timed press. **Jump right next to the net** as an opponent attacks, then hit
+  **Bump (J)** as the ball reaches your hands. The press puts your hands up for a quarter of a
+  second, and the block lands the moment the attack arrives — so how *early* you pressed is
+  your timing score. Press right as it comes and you stuff it straight down at their feet;
+  press early and you only get a piece of it, a deflection that pops up and drifts deep, or
+  sprays back onto your own side entirely. Leave it too late and your hands are already down.
+  **Don't press at all and there's no block** — the ball goes straight past you.
+  **You may not block a serve.**
 
 **Serving** (when it's your serve, from behind the back line):
 - **Underhand serve** — press **Bump (J)** to send it straight over.

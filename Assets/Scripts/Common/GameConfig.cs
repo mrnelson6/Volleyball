@@ -15,10 +15,29 @@ namespace Volleyball
         public float moveSpeed = 6f;
         public float jumpSpeed = 6.5f;
 
+        [Header("Body / world collision")]
+        [Tooltip("Radius of the collision capsule the simulation sweeps against the world — how " +
+                 "close a player can press to the net, a wall, or a prop.")]
+        public float bodyRadius = 0.35f;
+        [Tooltip("Height of the collision capsule for a character of height 1; scales with the " +
+                 "character's height stat.")]
+        public float bodyHeight = 1.7f;
+        [Tooltip("Ledges up to this tall are walked straight over (bleacher treads, kerbs); " +
+                 "anything higher has to be jumped onto. Keep below WorldCollision's 0.5m ground " +
+                 "probe, or a step you can walk over won't be found underfoot afterwards.")]
+        public float stepHeight = 0.4f;
+
         [Header("Hitting")]
         public float reach = 2.6f;          // horizontal hit tolerance
         public float hitReachHeight = 2.4f; // vertical window (stacks on jump height)
         public float hitBufferTime = 0.35f; // how long a hit press is remembered
+
+        [Header("Serving")]
+        [Tooltip("Where the ball sits before a serve, as a height above the SERVER'S OWN " +
+                 "position — their hands. Measured from them, not from the floor, so the ball " +
+                 "rides up with a jump and with whatever they are standing on. Scales with the " +
+                 "character's height stat.")]
+        public float serveHoldHeight = 1.5f;
 
         [Header("Skill / Contact Error")]
         [Tooltip("Execution error (metres of spray) is built up from these factors, then sprayed " +
@@ -68,10 +87,29 @@ namespace Volleyball
         public float divePopApex = 3.4f;     // nominal pop height; each dig rolls 0.6–1.5x this
 
         [Header("Blocking")]
+        [Tooltip("A block is a TIMED PRESS, never automatic: jump at the net, then hit the hit " +
+                 "key as the attack reaches your hands. No press, no block.")]
         public float blockNetDistance = 1.6f; // how close to the net the player must be
         public float blockMinHeight = 1.6f;   // minimum ball height to block
         public float blockReach = 1.6f;       // radius around the player to engage a block
         public float blockBallBand = 0.9f;    // ball must be within this of the net plane
+
+        [Tooltip("How long a block press keeps your hands up waiting for the attack. Press " +
+                 "earlier than this before contact and there's no block at all. Too short and " +
+                 "the block is unhittable — the ball crosses the net band in under 0.1s.")]
+        public float blockPressWindow = 0.4f;
+        [Tooltip("Press this long before the ball arrives — or any later — and the timing is " +
+                 "perfect. You are MEANT to press slightly early, because that is what 'hit it " +
+                 "as the ball reaches your hands' actually feels like; quality then falls from " +
+                 "here to zero at the far end of blockPressWindow.")]
+        public float blockPerfectLead = 0.18f;
+        [Tooltip("Timing at or above which a block STUFFS — driven straight down at the " +
+                 "attackers' feet. Below it you only deflect: the ball arcs up and drifts deep.")]
+        public float blockStuffTiming = 0.6f;
+        [Tooltip("Extra contact error on the worst legal timing — a press right at the edge of " +
+                 "reach — falling to zero on a perfectly timed one. A badly mistimed block is a " +
+                 "deflection that can spray back onto your own side or out.")]
+        public float blockMistimePenalty = 2.2f;
 
         [Header("AI")]
         public float aiAimError = 1.2f;
@@ -84,6 +122,10 @@ namespace Volleyball
         [Tooltip("Multiplier on the AI's contact error (1 = same skill as the player; higher = " +
                  "the AI mishits more often).")]
         public float aiErrorMult = 1f;
+        [Tooltip("Quality of the AI's blocks, 0..1. It presses the instant the window opens, so " +
+                 "without this it would stuff every attack perfectly; this is the handicap that " +
+                 "stands in for a human's hesitation. 1 = unbeatable at the net.")]
+        public float aiBlockTiming = 0.55f;
 
         [Header("Chat / Callouts")]
         [Tooltip("How long a teammate's \"I got it\" / \"You got it\" steers the AI (seconds). " +

@@ -42,6 +42,14 @@ namespace Volleyball
             { "idle", "run0", "run1", "jump", "swing", "bump", "set", "block", "dive",
               "diveUp", "diveDown" };
 
+        /// <summary>
+        /// Frames a custom character may leave unset: diveUp/diveDown, the foreshortened
+        /// depth-wise dive poses. <see cref="CharacterAnimator"/> already handles them being
+        /// null by rolling the sideways dive flat instead, which reads better than a stand-in
+        /// pose — so hand-drawn sets aren't forced to include the two hardest frames.
+        /// </summary>
+        public static bool FrameIsOptional(int index) => index >= 9;
+
         /// <summary>Asset base name for one baked frame (no folder, no extension).</summary>
         public static string FrameName(Color jersey, string characterId, string frame)
             => $"char_{ColorUtility.ToHtmlStringRGB(jersey)}_{characterId}_{frame}";
@@ -54,9 +62,10 @@ namespace Volleyball
         }
 
         /// <summary>
-        /// Hand-drawn frames for this character, or null if none were imported. A complete set
-        /// or nothing: a half-imported character falls back to the procedural bake rather than
-        /// mixing the two looks.
+        /// Hand-drawn frames for this character, or null if none were imported. Every required
+        /// frame or nothing: a half-imported character falls back to the procedural bake rather
+        /// than mixing the two looks. The optional dive frames (see
+        /// <see cref="FrameIsOptional"/>) may come back null within an otherwise valid set.
         /// </summary>
         public static Sprite[] LoadCustomFrames(Color jersey, string characterId)
         {
@@ -65,7 +74,7 @@ namespace Volleyball
             {
                 frames[i] = Resources.Load<Sprite>(
                     $"{CustomResourceFolder}/{FrameName(jersey, characterId, FrameNames[i])}");
-                if (frames[i] == null) return null;
+                if (frames[i] == null && !FrameIsOptional(i)) return null;
             }
             return frames;
         }
