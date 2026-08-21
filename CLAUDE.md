@@ -66,6 +66,13 @@ SSH. `-SkipWebGL` for fast server-only iterations. Config in gitignored
 hash. Browser players just refresh; marvin needs nothing (each spawned match
 uses the binary on disk at spawn time).
 
+The WebGL `index.html` comes from `Assets/WebGLTemplates/VolleyballAnalytics/`
+(Unity's stock Default template + the Umami analytics tag; selected via
+`webGLTemplate: PROJECT:VolleyballAnalytics` in ProjectSettings). Page changes
+go there, never into `/var/www/volleyball/index.html` on the box — that's build
+output and the next deploy overwrites it. Analytics dashboard:
+https://analytics.ttnelson.com (self-hosted Umami on marvin, docker+postgres).
+
 ## Production stack (live at https://volleyball.ttnelson.com)
 
 ```
