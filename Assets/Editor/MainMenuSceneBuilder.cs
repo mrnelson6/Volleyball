@@ -256,46 +256,59 @@ namespace Volleyball.EditorTools
         }
 
         /// <summary>
-        /// The world-tour map: the baked <see cref="WorldMapArt"/> world with a pin per
-        /// <see cref="RegionRoster"/> region at its <see cref="RegionDef.mapSpot"/>, a dotted
-        /// travel path between consecutive stops, the protagonist fox as a travelling marker,
-        /// an info line, and Play / New Game / Back. All state tinting, the travel animation
-        /// and click handling live in <see cref="CampaignPanel"/>.
+        /// The World Tour screen. Left: the toon 3D world map (baked by WorldTourArtBaker from
+        /// Tools/blender/map_gen.py) with chunky numbered pins, a dotted travel path and the
+        /// protagonist's headshot hopping between stops. Right: a region card — arena postcard,
+        /// name, blurb, the duo you'll face with their 3D portraits, and the local quirk. Pin
+        /// positions come from the map bake (the map is a tilted perspective render), falling
+        /// back to <see cref="RegionDef.mapSpot"/>.
         /// </summary>
         static GameObject BuildCampaignPanel(Transform parent, Font font)
         {
             GameObject panel = MakeDimPanel(parent, "CampaignPanel");
             var cp = panel.AddComponent<CampaignPanel>();
 
-            Text title = MakeText(panel.transform, "Title", font,
-                new Vector2(0.5f, 1f), new Vector2(0f, -90f), new Vector2(800f, 90f), 64,
+            Text title = MakeText(panel.transform, "Title", UIStyle.Title,
+                new Vector2(0.5f, 0.5f), new Vector2(-330f, 445f), new Vector2(1000f, 90f), 76,
                 TextAnchor.MiddleCenter);
-            title.text = "World Tour";
+            title.text = "WORLD TOUR";
+            title.color = new Color(1.00f, 0.86f, 0.26f);
+            UIStyle.Pop(title, 5f, new Color(0.28f, 0.12f, 0.05f, 1f));
 
             cp.statusLabel = MakeText(panel.transform, "Status", font,
-                new Vector2(0.5f, 1f), new Vector2(0f, -160f), new Vector2(1200f, 44f), 30,
+                new Vector2(0.5f, 0.5f), new Vector2(-330f, 372f), new Vector2(1100f, 44f), 28,
                 TextAnchor.MiddleCenter);
             cp.statusLabel.text = "";
 
-            // ---- the map itself ----
-            Vector2 mapSize = new Vector2(1440f, 720f); // 2:1, same as the baked texture
-            var mapGO = new GameObject("WorldMap", typeof(RectTransform), typeof(Image));
+            // ---- the map, framed like a board-game card ----
+            Vector2 mapSize = new Vector2(1180f, 590f); // 2:1, like the baked render
+            Vector2 mapPos = new Vector2(-330f, 30f);
+            MakeCard(panel.transform, "MapFrame", mapPos, mapSize + new Vector2(28f, 28f), new Color(0.10f, 0.16f, 0.30f, 1f));
+
+            var mapGO = new GameObject("WorldMap", typeof(RectTransform), typeof(Image), typeof(RectMask2D));
             mapGO.transform.SetParent(panel.transform, false);
             var mapRt = mapGO.GetComponent<RectTransform>();
             mapRt.anchorMin = mapRt.anchorMax = mapRt.pivot = new Vector2(0.5f, 0.5f);
             mapRt.sizeDelta = mapSize;
-            mapRt.anchoredPosition = new Vector2(0f, 10f);
+            mapRt.anchoredPosition = mapPos;
             var mapImg = mapGO.GetComponent<Image>();
-            mapImg.sprite = WorldMapArt.GetSprite();
+            mapImg.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(WorldTourArtBaker.MapPath) ?? WorldMapArt.GetSprite();
             mapImg.raycastTarget = false;
+
+            var baked = WorldTourArtBaker.ReadPins();
+            Vector2 PinPos(RegionDef r)
+            {
+                Vector2 uv = baked != null && baked.TryGetValue(r.id, out var p) ? p : r.mapSpot;
+                return new Vector2((uv.x - 0.5f) * mapSize.x, (uv.y - 0.5f) * mapSize.y) + new Vector2(0f, 30f);
+            }
 
             // ---- dotted travel path (under the pins) ----
             var legs = new List<CampaignPanel.PathLeg>();
             for (int i = 0; i < RegionRoster.All.Length - 1; i++)
             {
-                Vector2 a = SpotToMapPos(RegionRoster.All[i].mapSpot, mapSize);
-                Vector2 b = SpotToMapPos(RegionRoster.All[i + 1].mapSpot, mapSize);
-                int n = Mathf.Max(2, Mathf.RoundToInt(Vector2.Distance(a, b) / 34f) - 1);
+                Vector2 a = PinPos(RegionRoster.All[i]);
+                Vector2 b = PinPos(RegionRoster.All[i + 1]);
+                int n = Mathf.Max(2, Mathf.RoundToInt(Vector2.Distance(a, b) / 30f) - 1);
                 var dots = new List<Image>();
                 for (int j = 1; j <= n; j++)
                 {
@@ -303,8 +316,10 @@ namespace Volleyball.EditorTools
                     dot.transform.SetParent(mapGO.transform, false);
                     var drt = dot.GetComponent<RectTransform>();
                     drt.anchorMin = drt.anchorMax = drt.pivot = new Vector2(0.5f, 0.5f);
-                    drt.sizeDelta = new Vector2(10f, 10f);
-                    drt.anchoredPosition = Vector2.Lerp(a, b, j / (n + 1f));
+                    drt.sizeDelta = new Vector2(12f, 12f);
+                    // a gentle arc, like a flight path
+                    float t = j / (n + 1f);
+                    drt.anchoredPosition = Vector2.Lerp(a, b, t) + new Vector2(0f, Mathf.Sin(t * Mathf.PI) * 40f);
                     var dimg = dot.GetComponent<Image>();
                     dimg.sprite = UIKnob();
                     dimg.color = new Color(1f, 1f, 1f, 0.18f); // CampaignPanel re-tints by state
@@ -315,7 +330,7 @@ namespace Volleyball.EditorTools
             }
             cp.legs = legs.ToArray();
 
-            // ---- region pins ----
+            // ---- region pins: numbered tokens ----
             var pins = new List<CampaignPanel.MapPin>();
             for (int i = 0; i < RegionRoster.All.Length; i++)
             {
@@ -325,18 +340,21 @@ namespace Volleyball.EditorTools
                 pinGO.transform.SetParent(mapGO.transform, false);
                 var prt = pinGO.GetComponent<RectTransform>();
                 prt.anchorMin = prt.anchorMax = prt.pivot = new Vector2(0.5f, 0.5f);
-                prt.sizeDelta = new Vector2(42f, 42f);
-                prt.anchoredPosition = SpotToMapPos(region.mapSpot, mapSize);
+                prt.sizeDelta = new Vector2(54f, 54f);
+                prt.anchoredPosition = PinPos(region);
                 var pinImg = pinGO.GetComponent<Image>();
                 pinImg.sprite = UIKnob();
-                pinImg.color = new Color(0.70f, 0.70f, 0.70f, 0.45f); // panel re-tints by state
+                pinImg.color = new Color(0.55f, 0.58f, 0.66f, 1f); // panel re-tints by state
                 pinGO.GetComponent<Button>().targetGraphic = pinImg;
+                UIStyle.Pop(pinImg, 2.5f, new Color(0.10f, 0.08f, 0.14f, 0.9f));
+                pinGO.AddComponent<MenuButtonJuice>();
 
-                Text label = MakeText(pinGO.transform, "Label", font,
-                    new Vector2(0.5f, 0.5f), PinLabelOffset(region.id), new Vector2(320f, 32f), 22,
+                Text label = MakeText(pinGO.transform, "Number", font,
+                    new Vector2(0.5f, 0.5f), new Vector2(0f, 1f), new Vector2(54f, 54f), 30,
                     TextAnchor.MiddleCenter);
-                label.text = $"{i + 1}. {region.displayName}";
+                label.text = (i + 1).ToString();
                 label.raycastTarget = false;
+                UIStyle.Pop(label, 2f);
 
                 pins.Add(new CampaignPanel.MapPin
                 {
@@ -348,56 +366,134 @@ namespace Volleyball.EditorTools
             }
             cp.pins = pins.ToArray();
 
-            // ---- the travelling fox (last child of the map, so it draws over pins) ----
+            // ---- the travelling protagonist: a 3D headshot in a white token ----
             CharacterDef protagonist = CharacterRoster.Get(CharacterRoster.ProtagonistId);
             var markerGO = new GameObject("TourMarker", typeof(RectTransform), typeof(Image));
             markerGO.transform.SetParent(mapGO.transform, false);
             var mrt = markerGO.GetComponent<RectTransform>();
             mrt.anchorMin = mrt.anchorMax = mrt.pivot = new Vector2(0.5f, 0.5f);
-            mrt.sizeDelta = new Vector2(57f, 76f);
-            var markerImg = markerGO.GetComponent<Image>();
-            markerImg.sprite = CharacterArt.GetCharacterFrames(PlayerColors.Human, protagonist)[0];
-            markerImg.preserveAspect = true;
-            markerImg.raycastTarget = false;
+            mrt.sizeDelta = new Vector2(78f, 78f);
+            var backing = markerGO.GetComponent<Image>();
+            backing.sprite = UIKnob();
+            backing.color = new Color(1f, 1f, 1f, 0.95f);
+            backing.raycastTarget = false;
+            UIStyle.Pop(backing, 2.5f, new Color(0.10f, 0.08f, 0.14f, 0.9f));
+            var face = new GameObject("Face", typeof(RectTransform), typeof(Image));
+            face.transform.SetParent(markerGO.transform, false);
+            var frt = face.GetComponent<RectTransform>();
+            frt.anchorMin = frt.anchorMax = frt.pivot = new Vector2(0.5f, 0.5f);
+            frt.sizeDelta = new Vector2(86f, 86f);
+            frt.anchoredPosition = new Vector2(0f, 4f);
+            var faceImg = face.GetComponent<Image>();
+            faceImg.sprite = PortraitFor(protagonist);
+            faceImg.preserveAspect = true;
+            faceImg.raycastTarget = false;
             cp.marker = mrt;
 
-            // ---- info line + buttons ----
-            cp.infoLabel = MakeText(panel.transform, "Info", font,
-                new Vector2(0.5f, 0.5f), new Vector2(0f, -400f), new Vector2(1500f, 64f), 24,
-                TextAnchor.MiddleCenter);
-            cp.infoLabel.color = new Color(1f, 1f, 1f, 0.9f);
+            // ---- region card (right) ----
+            var card = MakeCard(panel.transform, "RegionCard", new Vector2(640f, 30f), new Vector2(540f, 830f),
+                                new Color(0.10f, 0.16f, 0.30f, 0.96f)).transform;
+            cp.regionName = MakeText(card, "RegionName", font,
+                new Vector2(0.5f, 0.5f), new Vector2(0f, 372f), new Vector2(520f, 56f), 40, TextAnchor.MiddleCenter);
+            UIStyle.Pop(cp.regionName, 2.5f);
 
+            var thumbGO = new GameObject("Postcard", typeof(RectTransform), typeof(Image));
+            thumbGO.transform.SetParent(card, false);
+            var trt = thumbGO.GetComponent<RectTransform>();
+            trt.anchorMin = trt.anchorMax = trt.pivot = new Vector2(0.5f, 0.5f);
+            trt.sizeDelta = new Vector2(496f, 279f);
+            trt.anchoredPosition = new Vector2(0f, 190f);
+            cp.regionThumb = thumbGO.GetComponent<Image>();
+            cp.regionThumb.raycastTarget = false;
+            UIStyle.Pop(cp.regionThumb, 3f, new Color(1f, 1f, 1f, 0.9f));
+
+            cp.regionBlurb = MakeText(card, "Blurb", font,
+                new Vector2(0.5f, 0.5f), new Vector2(0f, 8f), new Vector2(490f, 70f), 22, TextAnchor.MiddleCenter);
+            cp.regionBlurb.horizontalOverflow = HorizontalWrapMode.Wrap;
+            cp.regionBlurb.color = new Color(1f, 1f, 1f, 0.85f);
+
+            cp.stateLabel = MakeText(card, "State", font,
+                new Vector2(0.5f, 0.5f), new Vector2(0f, -58f), new Vector2(500f, 40f), 28, TextAnchor.MiddleCenter);
+            UIStyle.Pop(cp.stateLabel, 2f);
+            cp.teamName = MakeText(card, "Team", font,
+                new Vector2(0.5f, 0.5f), new Vector2(0f, -98f), new Vector2(500f, 44f), 34, TextAnchor.MiddleCenter);
+            UIStyle.Pop(cp.teamName, 2f);
+
+            cp.oppPortraits = new Image[2];
+            cp.oppNames = new Text[2];
+            for (int k = 0; k < 2; k++)
+            {
+                float x = k == 0 ? -120f : 120f;
+                var disc = new GameObject("OppDisc" + k, typeof(RectTransform), typeof(Image));
+                disc.transform.SetParent(card, false);
+                var drt = disc.GetComponent<RectTransform>();
+                drt.anchorMin = drt.anchorMax = drt.pivot = new Vector2(0.5f, 0.5f);
+                drt.sizeDelta = new Vector2(150f, 150f);
+                drt.anchoredPosition = new Vector2(x, -210f);
+                var dimg = disc.GetComponent<Image>();
+                dimg.sprite = UIKnob();
+                dimg.color = new Color(0.95f, 0.36f, 0.30f, 0.9f); // the opposition wears red
+                dimg.raycastTarget = false;
+
+                var opp = new GameObject("Opp" + k, typeof(RectTransform), typeof(Image));
+                opp.transform.SetParent(disc.transform, false);
+                var ort = opp.GetComponent<RectTransform>();
+                ort.anchorMin = ort.anchorMax = ort.pivot = new Vector2(0.5f, 0.5f);
+                ort.sizeDelta = new Vector2(160f, 160f);
+                ort.anchoredPosition = new Vector2(0f, 6f);
+                cp.oppPortraits[k] = opp.GetComponent<Image>();
+                cp.oppPortraits[k].preserveAspect = true;
+                cp.oppPortraits[k].raycastTarget = false;
+
+                cp.oppNames[k] = MakeText(card, "OppName" + k, font,
+                    new Vector2(0.5f, 0.5f), new Vector2(x, -305f), new Vector2(240f, 32f), 20, TextAnchor.MiddleCenter);
+            }
+
+            cp.quirkLabel = MakeText(card, "Quirk", font,
+                new Vector2(0.5f, 0.5f), new Vector2(0f, -365f), new Vector2(500f, 60f), 22, TextAnchor.MiddleCenter);
+            cp.quirkLabel.horizontalOverflow = HorizontalWrapMode.Wrap;
+            cp.quirkLabel.color = new Color(1f, 0.85f, 0.4f);
+
+            // ---- buttons ----
             cp.playButton = MakeButton(panel.transform, font, "PlayButton", "Play Next Match",
-                new Vector2(0.5f, 0.5f), new Vector2(0f, -485f), new Vector2(520f, 90f), MenuBlue);
+                new Vector2(0.5f, 0.5f), new Vector2(640f, -470f), new Vector2(540f, 90f), MenuOrange, anchorPivot: false);
             cp.playButtonLabel = cp.playButton.GetComponentInChildren<Text>();
             cp.newGameButton = MakeButton(panel.transform, font, "NewGameButton", "New Game",
-                new Vector2(0.5f, 0.5f), new Vector2(-640f, -485f), new Vector2(340f, 80f), MenuRed);
+                new Vector2(0.5f, 0.5f), new Vector2(-470f, -400f), new Vector2(320f, 72f), MenuSlate, anchorPivot: false);
             cp.newGameButtonLabel = cp.newGameButton.GetComponentInChildren<Text>();
             cp.backButton = MakeButton(panel.transform, font, "BackButton", "Back",
-                new Vector2(0.5f, 0.5f), new Vector2(640f, -485f), new Vector2(300f, 80f), MenuRed);
+                new Vector2(0.5f, 0.5f), new Vector2(-790f, -400f), new Vector2(240f, 72f), MenuRed, anchorPivot: false);
 
             panel.SetActive(false);
             return panel;
         }
 
-        /// <summary>Normalized map UV → anchored position on the centred map rect.</summary>
-        static Vector2 SpotToMapPos(Vector2 spot, Vector2 mapSize)
-            => new Vector2((spot.x - 0.5f) * mapSize.x, (spot.y - 0.5f) * mapSize.y);
-
-        /// <summary>Where each pin's name label sits relative to its pin — hand-placed so
-        /// labels stay off the travel path and each other on the drawn continents.</summary>
-        static Vector2 PinLabelOffset(string regionId)
+        /// <summary>A rounded card with a darker lip underneath (the menu's panel style).</summary>
+        static GameObject MakeCard(Transform parent, string name, Vector2 pos, Vector2 size, Color color)
         {
-            switch (regionId)
-            {
-                case "himalaya":
-                case "forest":
-                case "sahara":
-                case "rockies":
-                case "arctic": return new Vector2(0f, 34f);   // label above the pin
-                case "skyfinals": return new Vector2(0f, -40f);
-                default: return new Vector2(0f, -34f);        // label below the pin
-            }
+            var lip = new GameObject(name + "Lip", typeof(RectTransform), typeof(Image));
+            lip.transform.SetParent(parent, false);
+            var lrt = lip.GetComponent<RectTransform>();
+            lrt.anchorMin = lrt.anchorMax = lrt.pivot = new Vector2(0.5f, 0.5f);
+            lrt.sizeDelta = size;
+            lrt.anchoredPosition = pos + new Vector2(0f, -8f);
+            var limg = lip.GetComponent<Image>();
+            limg.sprite = UISprite();
+            limg.type = Image.Type.Sliced;
+            limg.color = new Color(color.r * 0.5f, color.g * 0.5f, color.b * 0.5f, color.a);
+            limg.raycastTarget = false;
+
+            var go = new GameObject(name, typeof(RectTransform), typeof(Image));
+            go.transform.SetParent(parent, false);
+            var rt = go.GetComponent<RectTransform>();
+            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.sizeDelta = size;
+            rt.anchoredPosition = pos;
+            var img = go.GetComponent<Image>();
+            img.sprite = UISprite();
+            img.type = Image.Type.Sliced;
+            img.color = color;
+            return go;
         }
 
         /// <summary>

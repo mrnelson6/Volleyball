@@ -1,0 +1,9 @@
+savanna 0.5661 0.5297
+amazon 0.2715 0.4955
+outback 0.8508 0.3144
+himalaya 0.6601 0.6807
+forest 0.5239 0.7648
+sahara 0.5000 0.6130
+rockies 0.1668 0.7200
+arctic 0.3638 0.7811
+skyfinals 0.0662 0.6061

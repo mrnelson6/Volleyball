@@ -60,7 +60,8 @@ namespace Volleyball.EditorTools
 
         void OnPreprocessTexture()
         {
-            if (assetPath.StartsWith(PortraitRoot))
+            if (assetPath.StartsWith(PortraitRoot) || assetPath.StartsWith("Assets/Resources/UI/ArenaThumbs/")
+                || assetPath == "Assets/Resources/UI/world_map_toon.png")
             {
                 var pi = (TextureImporter)assetImporter;
                 pi.textureType = TextureImporterType.Sprite;

@@ -9,7 +9,8 @@ namespace Volleyball
     /// When a region has been conquered since the map was last seen, the fox visibly travels
     /// along the path to the next stop (tracked via PlayerPrefs so the trip plays exactly
     /// once). Pins tint by state (locked / current / conquered), clicking any pin previews
-    /// its region, clicking the current pin plays the next match. Built from
+    /// its region on the region card (arena postcard, blurb, the duo you'll face, the local
+    /// quirk), clicking the current pin plays the next match. Built from
     /// <see cref="RegionRoster"/> by MainMenuSceneBuilder; this refreshes from the save.
     /// </summary>
     public class CampaignPanel : MonoBehaviour
@@ -38,12 +39,21 @@ namespace Volleyball
         public Text newGameButtonLabel;
         public Button backButton;
 
-        static readonly Color PinLocked = new Color(0.70f, 0.70f, 0.70f, 0.45f);
+        [Header("Region card")]
+        public Text regionName;
+        public Text regionBlurb;
+        public Image regionThumb;     // arena postcard (Resources/UI/ArenaThumbs/<scene>)
+        public Text stateLabel;       // "NEXT MATCH 2/4" / "CONQUERED" / "LOCKED"
+        public Text teamName;
+        public Image[] oppPortraits;  // the duo you'll face (3D headshots)
+        public Text[] oppNames;
+        public Text quirkLabel;
+
+        static readonly Color PinLocked = new Color(0.55f, 0.58f, 0.66f, 1f);
         static readonly Color PinDone = new Color(0.35f, 0.85f, 0.45f, 1f);
         static readonly Color PinCurrent = new Color(1f, 0.80f, 0.20f, 1f);
         static readonly Color DotTravelled = new Color(0.95f, 0.85f, 0.55f, 0.9f);
         static readonly Color DotFuture = new Color(1f, 1f, 1f, 0.18f);
-        static readonly Color TextDim = new Color(1f, 1f, 1f, 0.45f);
 
         /// <summary>Which region the fox was last SEEN standing on — when the save is ahead
         /// of this, the travel animation plays and then catches it up.</summary>
@@ -123,7 +133,7 @@ namespace Volleyball
                     if (pins[i].pin != null)
                         pins[i].pin.color = done ? PinDone : current ? PinCurrent : PinLocked;
                     if (pins[i].label != null)
-                        pins[i].label.color = done || current ? Color.white : TextDim;
+                        pins[i].label.color = done || current ? Color.white : new Color(1f, 1f, 1f, 0.75f);
                 }
 
             if (legs != null)
@@ -153,8 +163,10 @@ namespace Volleyball
         /// current stop, a victory note when conquered, a nudge when still locked.</summary>
         void ShowRegionInfo(int i, CampaignSave save)
         {
-            if (infoLabel == null || i < 0 || i >= RegionRoster.All.Length) return;
+            if (i < 0 || i >= RegionRoster.All.Length) return;
             RegionDef region = RegionRoster.All[i];
+            FillRegionCard(i, region, save);
+            if (infoLabel == null) return;
 
             string line;
             if (IsCurrent(i) || (_tourComplete && i == _currentRegion))
@@ -176,6 +188,53 @@ namespace Volleyball
                 line = $"{region.displayName} — locked. Conquer the stops before it to travel here.\n{region.blurb}";
             }
             infoLabel.text = line;
+        }
+
+        /// <summary>The right-hand card: postcard, name, blurb, and the duo waiting there —
+        /// the next opponents for the current stop, the region champions otherwise.</summary>
+        void FillRegionCard(int i, RegionDef region, CampaignSave save)
+        {
+            bool current = IsCurrent(i) || (_tourComplete && i == _currentRegion);
+            bool done = IsDone(i);
+            int mi = current && save != null ? Mathf.Clamp(save.matchIndex, 0, region.matches.Length - 1)
+                                             : region.matches.Length - 1;
+            MatchDef match = region.matches[mi];
+
+            if (regionName != null) regionName.text = $"{i + 1}. {region.displayName}";
+            if (regionBlurb != null) regionBlurb.text = region.blurb;
+            if (regionThumb != null)
+            {
+                var thumb = Resources.Load<Sprite>("UI/ArenaThumbs/" + region.sceneName);
+                regionThumb.sprite = thumb;
+                regionThumb.enabled = thumb != null;
+                regionThumb.color = current || done ? Color.white : new Color(0.55f, 0.55f, 0.62f);
+            }
+            if (stateLabel != null)
+            {
+                stateLabel.text = current ? $"NEXT MATCH  {mi + 1}/{region.matches.Length}"
+                                : done ? "CONQUERED!" : "LOCKED — CHAMPIONS";
+                stateLabel.color = current ? PinCurrent : done ? PinDone : new Color(1f, 1f, 1f, 0.6f);
+            }
+            if (teamName != null)
+            {
+                teamName.text = match.teamName;
+                if (current && save != null && save.attemptsThisMatch > 0)
+                    teamName.text += $"  (attempt {save.attemptsThisMatch + 1})";
+            }
+            string[] ids = { match.opp1Id, match.opp2Id };
+            for (int k = 0; k < 2; k++)
+            {
+                CharacterDef ch = CharacterRoster.Get(ids[k]);
+                if (oppPortraits != null && k < oppPortraits.Length && oppPortraits[k] != null)
+                {
+                    oppPortraits[k].sprite = CharacterPortraits.Get(ch.id);
+                    oppPortraits[k].enabled = oppPortraits[k].sprite != null;
+                }
+                if (oppNames != null && k < oppNames.Length && oppNames[k] != null)
+                    oppNames[k].text = ch.displayName;
+            }
+            if (quirkLabel != null)
+                quirkLabel.text = string.IsNullOrEmpty(region.env.bannerNote) ? "" : region.env.bannerNote;
         }
 
         // ---- the travelling fox ------------------------------------------------
@@ -217,7 +276,7 @@ namespace Volleyball
             return pins[i].pin != null ? pins[i].pin.rectTransform.anchoredPosition : Vector2.zero;
         }
 
-        static readonly Vector2 MarkerOffset = new Vector2(0f, 34f); // fox stands atop the pin
+        static readonly Vector2 MarkerOffset = new Vector2(0f, 62f); // the fox's headshot floats above the pin
 
         void Update()
         {

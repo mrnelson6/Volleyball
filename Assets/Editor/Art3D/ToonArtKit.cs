@@ -52,8 +52,13 @@ namespace Volleyball.EditorTools
         /// <summary>Props + ground materials for a themed arena folder (Assets/Art/Arenas/&lt;folder&gt;,
         /// written by Tools/blender/arena_gen.py): same shader, that biome's palette strip.</summary>
         public static (Material props, Material ground) ArenaMaterials(string folder)
+            => MaterialsFor($"{ArenaDir}/{folder}", folder);
+
+        /// <summary>Props + ground materials for any generated folder with a palette.png
+        /// (arenas, the world map).</summary>
+        public static (Material props, Material ground) MaterialsFor(string dir, string folder)
         {
-            var pal = AssetDatabase.LoadAssetAtPath<Texture2D>($"{ArenaDir}/{folder}/palette.png");
+            var pal = AssetDatabase.LoadAssetAtPath<Texture2D>($"{dir}/palette.png");
             var props = Mat($"VB_{folder}_Props", Stylized, m =>
             {
                 m.SetTexture("_PaletteTex", pal);
