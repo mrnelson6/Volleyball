@@ -22,7 +22,7 @@ namespace Volleyball
 
         [Header("Wiring (set by CharacterPrefabBuilder)")]
         public Animator animator;
-        public AnimationClip idle, run, jump, spike, bump, set, block, dive, cheer;
+        public AnimationClip idle, run, jump, spike, bump, set, block, dive, cheer, knockdown;
 
         [Header("Tuning")]
         [Tooltip("Ground speed (units/sec) above which the run cycle plays.")]
@@ -47,6 +47,7 @@ namespace Volleyball
         float _swingTimer;
         HitType _swingType;
         bool _wasDiving;
+        bool _wasKnocked;
         Renderer[] _renderers;
         MaterialPropertyBlock _mpb;
         Color _glow = Color.clear;
@@ -208,7 +209,16 @@ namespace Volleyball
 
             // ---- which clip owns the body
             bool diving = _player.IsDiving;
-            if (diving)
+            bool knocked = _player.IsKnockedDown;
+            if (knocked)
+            {
+                if (!_wasKnocked)
+                {
+                    Play(knockdown != null ? knockdown : dive, restart: true, fade: 0.05f);
+                    GameAudio.PlayScenery(transform.position); // the thud of hitting the sand
+                }
+            }
+            else if (diving)
             {
                 if (!_wasDiving) Play(dive, restart: true, fade: 0.05f);
             }
@@ -220,13 +230,15 @@ namespace Volleyball
             else if (speed > runThreshold) Play(run, restart: false, fade: crossfade);
             else Play(idle, restart: false, fade: crossfade * 1.5f);
             _wasDiving = diving;
+            _wasKnocked = knocked;
 
             if (_cur.IsValid())
                 _cur.SetSpeed(_curClip == run ? Mathf.Clamp(speed / runReferenceSpeed, 0.7f, 1.6f) : 1f);
 
             // ---- facing
             Vector3 face;
-            if (diving && _player.DiveDir.sqrMagnitude > 0.01f) face = _player.DiveDir;
+            if (knocked && _player.KnockDir.sqrMagnitude > 0.01f) face = -_player.KnockDir; // bowled over backwards
+            else if (diving && _player.DiveDir.sqrMagnitude > 0.01f) face = _player.DiveDir;
             else if (_swingTimer > 0f) face = NetFacing();
             else if (speed > runThreshold) face = new Vector3(delta.x, 0f, delta.z);
             else face = NetFacing();

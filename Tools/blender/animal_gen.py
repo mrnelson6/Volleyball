@@ -659,7 +659,24 @@ def actions():
     cheer_b = pose({"Hips": (0, 0.08, 0)}, UpperArm_L=(140, 0, -30), UpperArm_R=(170, 0, 50), LowerArm_=(10, 0, 0),
                    Head=(-12, 0, -5), UpperLeg_=(12, 0, 0), LowerLeg_=(-30, 0, 0), Tail1=(20, 0, -25), Ear_=(0, 0, -10))
 
+    # bowled over by a diving player: hit, fall on your back, dizzy sprawl, sit up, stand
+    knock_hit = pose({"Hips": (0, -0.05, 0)}, Spine=(-25, 0, 0), Head=(-20, 0, 0),
+                     UpperArm_=(140, 0, -45), LowerArm_=(20, 0, 0), Tail1=(30, 0, 0), Ear_=(-30, 0, 0))
+    knock_fall = pose({"Hips": (0, -0.25, 0)}, Hips=(-55, 0, 0), Spine=(-10, 0, 0), Head=(-10, 0, 0),
+                      UpperArm_=(125, 0, -70), LowerArm_=(15, 0, 0), UpperLeg_=(45, 0, 10), LowerLeg_=(-20, 0, 0),
+                      Ear_=(-35, 0, 0))
+    knock_flat = pose({"Hips": (0, -0.42, 0)}, Hips=(-82, 0, 0), Head=(15, 0, 0),
+                      UpperArm_=(100, 0, -80), LowerArm_=(30, 0, 0), UpperLeg_=(35, 0, 15), LowerLeg_=(-25, 0, 0),
+                      Foot_=(-20, 0, 0), Tail1=(-20, 0, 0), Ear_=(20, 0, 0))
+    knock_dizzy = pose({"Hips": (0, -0.42, 0)}, Hips=(-82, 0, 0), Head=(25, 0, 14),
+                       UpperArm_=(95, 0, -85), LowerArm_=(40, 0, 0), UpperLeg_=(30, 0, 18), LowerLeg_=(-35, 0, 0),
+                       Foot_=(-20, 0, 0), Tail1=(-10, 0, 10), Ear_=(30, 0, -10))
+    knock_sit = pose({"Hips": (0, -0.32, 0)}, Hips=(-35, 0, 0), Spine=(30, 0, 0), Head=(5, 0, -8),
+                     UpperArm_=(20, 0, 30), LowerArm_=(30, 0, 0), UpperLeg_=(85, 0, 10), LowerLeg_=(-70, 0, 0))
+
     return {
+        "Knockdown": (34, False, [(0, knock_hit), (4, knock_fall), (8, knock_flat), (18, knock_dizzy),
+                                  (26, knock_sit), (34, idle_a)]),
         "Idle": (40, True, [(0, idle_a), (20, idle_b), (40, idle_a)]),
         "Run": (16, True, [(0, run_a), (4, run_b), (8, mirror_pose(run_a)), (12, mirror_pose(run_b)), (16, run_a)]),
         "Jump": (12, False, [(0, jump_crouch), (6, jump_air), (12, jump_air)]),

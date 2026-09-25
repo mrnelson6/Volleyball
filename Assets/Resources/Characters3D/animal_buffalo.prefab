@@ -70,6 +70,7 @@ MonoBehaviour:
   block: {fileID: -2452547117929850533, guid: 2fa544be8894cf84c9d56de1770d025c, type: 3}
   dive: {fileID: -3625496161102880836, guid: 2fa544be8894cf84c9d56de1770d025c, type: 3}
   cheer: {fileID: 2606927044688373672, guid: 2fa544be8894cf84c9d56de1770d025c, type: 3}
+  knockdown: {fileID: 1732356465712476239, guid: 2fa544be8894cf84c9d56de1770d025c, type: 3}
   runThreshold: 0.4
   runReferenceSpeed: 5
   swingHold: 0.45

@@ -117,6 +117,40 @@ namespace Volleyball
             }
         }
 
+        /// <summary>Knocked flat by someone diving into us: no control until we're back up.</summary>
+        public bool IsKnockedDown => _sim.knockdownTimer > Cfg.knockdownGrace;
+        /// <summary>Unit XZ direction we were bowled over in (the tumble; views fall away from it).</summary>
+        public Vector3 KnockDir => new Vector3(_sim.knockDir.x, 0f, _sim.knockDir.y);
+        /// <summary>Still in the sliding part of a dive — the part that bowls people over.</summary>
+        public bool IsDiveSliding => _sim.diveTimer > 0f;
+        /// <summary>Standing (or running) and not immune from a knockdown moments ago.</summary>
+        public bool CanBeKnockedDown => _sim.knockdownTimer <= 0f && !IsDiving;
+
+        /// <summary>
+        /// Knock this player down, bowled over toward <paramref name="dir"/>. AUTHORITY-SIDE ONLY
+        /// (BodyReferee, offline or on the server) — like the contact-error rolls it's a
+        /// match-level judgement; the result rides the sim state to every machine.
+        /// </summary>
+        public void KnockDown(Vector3 dir)
+        {
+            Vector2 d = new Vector2(dir.x, dir.z);
+            _sim.knockDir = d.sqrMagnitude > 1e-6f ? d.normalized : Vector2.zero;
+            _sim.knockdownTimer = Cfg.knockdownTime + Cfg.knockdownGrace;
+            _sim.diveTimer = 0f;
+            _sim.diveRecover = 0f;
+            _sim.bufferTime = 0f;
+            _sim.blockArm = 0f;
+        }
+
+        /// <summary>Where other players' simulations see this body. Online proxies report the
+        /// latest server snapshot (set by NetworkPlayer), which is fresher than their ~100ms-behind
+        /// interpolated view; everyone else reports their simulated position.</summary>
+        public Vector3 CollisionPosition => ProxyBodyPosition ?? _sim.position;
+        public Vector3? ProxyBodyPosition { get; set; }
+
+        /// <summary>Stable per-slot number for deterministic tie-breaks between bodies.</summary>
+        public int BodyOrder => (int)team * 2 + (halfSign > 0f ? 1 : 0);
+
         /// <summary>Simulated world position (y = jump height). The authoritative one — the
         /// transform only renders it.</summary>
         public Vector3 SimPosition => _sim.position;
@@ -185,6 +219,59 @@ namespace Volleyball
             return true;
         }
 
+        /// <summary>
+        /// Player-vs-player bodies, Overcooked-style. Only THIS body moves (every player runs the
+        /// same rule against the same tick-start frame, so a pair resolves symmetrically):
+        /// motion INTO someone is capped to a slow shove, head-on motion slips sideways round
+        /// them (to your own right when dead-on, like pedestrians), and any overlap eases apart
+        /// at a gentle speed. Analytic — players have no colliders, by design.
+        /// </summary>
+        Vector3 ResolveBodies(Vector3 from, Vector3 to, Vector2 steer, in BodyFrame bodies, float dt)
+        {
+            for (int i = 0; i < bodies.Count; i++)
+            {
+                BodyEntry o = bodies[i];
+                if (ReferenceEquals(o.player, this)) continue;
+                if (Mathf.Abs(from.y - o.position.y) > Mathf.Min(bodyHeight, o.height) * 0.75f) continue;
+
+                float minDist = bodyRadius + o.radius;
+                Vector2 rel = new Vector2(from.x - o.position.x, from.z - o.position.z); // them → us
+                float d0 = rel.magnitude;
+                if (d0 > minDist + 1f) continue;
+                Vector2 n = d0 > 1e-4f ? rel / d0 : new Vector2(BodyOrder > o.order ? 1f : -1f, 0f);
+                Vector2 delta = new Vector2(to.x - from.x, to.z - from.z);
+
+                float into = -Vector2.Dot(delta, n);
+                if (into > 0f && (rel + delta).magnitude < minDist)
+                {
+                    float allowed = Cfg.bodyShoveSpeed * dt;
+                    if (into > allowed) delta += n * (into - allowed);
+
+                    if (steer.sqrMagnitude > 0.01f)
+                    {
+                        Vector2 s = steer.normalized;
+                        float headOn = Mathf.Clamp01(Vector2.Dot(s, -n));
+                        Vector2 t = new Vector2(-n.y, n.x);
+                        float side = Vector2.Dot(s, t);
+                        float sign = Mathf.Abs(side) > 0.15f ? Mathf.Sign(side)
+                                   : Mathf.Sign(Vector2.Dot(new Vector2(s.y, -s.x), t) + 1e-6f); // your right
+                        delta += t * (sign * Cfg.bodySlipSpeed * dt * headOn);
+                    }
+                }
+
+                Vector2 now = rel + delta;
+                float dist = now.magnitude;
+                if (dist < minDist)
+                {
+                    Vector2 away = dist > 1e-4f ? now / dist : n;
+                    delta += away * Mathf.Min(minDist - dist, Cfg.bodySeparateSpeed * dt);
+                }
+                to.x = from.x + delta.x;
+                to.z = from.z + delta.y;
+            }
+            return to;
+        }
+
         static float ApexFor(HitType type, float startY)
         {
             switch (type)
@@ -218,6 +305,7 @@ namespace Volleyball
             _sim.blockArm = 0f;
             _sim.diveTimer = 0f;
             _sim.diveRecover = 0f;
+            _sim.knockdownTimer = 0f;
             _prevViewPos = _currViewPos = _sim.position;
         }
 
@@ -246,12 +334,12 @@ namespace Volleyball
             if (!SimulationEnabled || NetworkSession.IsOnline) return;
             int tick = Mathf.RoundToInt(Time.fixedTime / Time.fixedDeltaTime);
             InputCommand cmd = GetCommand(tick);
-            Simulate(in cmd, Time.fixedDeltaTime);
+            Simulate(in cmd, Time.fixedDeltaTime, SimRole.Authority, BodySet.Frame);
         }
 
         /// <summary>
         /// Advance one tick of the simulation from one command. Deterministic given
-        /// (state, command, dt) — apart from the authority-side contact rolls in the
+        /// (state, command, bodies, dt) — apart from the authority-side contact rolls in the
         /// Execute* methods, nothing here may read wall-clock time, per-frame input,
         /// randomness, or the camera. The <paramref name="role"/> scopes what runs:
         /// movement/jump/dive state always; local feedback (swing edges) only on live
@@ -260,6 +348,12 @@ namespace Volleyball
         /// command stream and come back as replicated results.
         /// </summary>
         public void Simulate(in InputCommand cmd, float dt, SimRole role = SimRole.Authority)
+            => Simulate(in cmd, dt, role, BodyFrame.Empty);
+
+        /// <param name="bodies">The other players' bodies at the start of this tick
+        /// (<see cref="BodySet"/>) — an explicit input, so pushing is order-independent and the
+        /// function stays pure. Empty = alone on court.</param>
+        public void Simulate(in InputCommand cmd, float dt, SimRole role, in BodyFrame bodies)
         {
             bool authority = role == SimRole.Authority;
             bool live = role != SimRole.Replay; // a real-time step, not a reconciliation re-run
@@ -278,12 +372,22 @@ namespace Volleyball
                 if (_sim.diveTimer <= 0f) _sim.diveRecover = Cfg.diveRecoverTime; // slide over — get up
             }
             else if (_sim.diveRecover > 0f) _sim.diveRecover -= dt;
+            if (_sim.knockdownTimer > 0f) _sim.knockdownTimer -= dt;
+            bool knockedDown = IsKnockedDown;
 
             // --- horizontal movement (clamped to the court, blocked by the net itself) ---
             Vector2 mv = cmd.moveWorld;
             if (mv.sqrMagnitude > 0.01f) _sim.lastMoveDir = mv;
             Vector3 pos = _sim.position;
-            if (_sim.diveTimer > 0f)
+            if (knockedDown)
+            {
+                // bowled over: a short tumble the way we were hit, easing out, then flat until up
+                float elapsed = Cfg.knockdownTime + Cfg.knockdownGrace - _sim.knockdownTimer;
+                float slide = Cfg.knockdownSlideSpeed * Mathf.Clamp01(1f - elapsed / 0.25f);
+                pos.x += _sim.knockDir.x * slide * dt;
+                pos.z += _sim.knockDir.y * slide * dt;
+            }
+            else if (_sim.diveTimer > 0f)
             {
                 // mid-dive: committed to the lunge — the dive direction overrides steering
                 pos.x += _sim.diveDir.x * diveSpeed * dt;
@@ -295,6 +399,12 @@ namespace Volleyball
                 pos.z += mv.y * moveSpeed * dt;
             }
             // (while recovering: face down in the sand — no movement)
+
+            // Other players are soft obstacles: you can't walk through them, only shove slowly,
+            // and walking head-on slips you round the side. A diver ploughs on regardless — the
+            // BodyReferee knocks whoever they hit down instead.
+            if (_sim.diveTimer <= 0f)
+                pos = ResolveBodies(_sim.position, pos, knockedDown ? Vector2.zero : mv, in bodies, dt);
 
             // One roam box for everyone: both halves and the deep zones behind both baselines
             // are walkable ALL match, by either team. Nobody is fenced into their own court —
@@ -325,11 +435,11 @@ namespace Volleyball
             }
 
             // --- diving: a grounded lunge toward the steer direction (or the ball) ---
-            if (cmd.dive && IsGrounded && !IsDiving && !servePhase)
+            if (cmd.dive && IsGrounded && !IsDiving && !knockedDown && !servePhase)
                 StartDive(mv, live);
 
             // --- jump + gravity (you can't jump out of a dive) ---
-            if (cmd.jump && IsGrounded && !IsDiving)
+            if (cmd.jump && IsGrounded && !IsDiving && !knockedDown)
                 _sim.vertVel = jumpSpeed;
             _sim.vertVel += Physics.gravity.y * dt;
             pos.y = _sim.position.y + _sim.vertVel * dt;
@@ -351,10 +461,10 @@ namespace Volleyball
             if (authority && cmd.serve != ServeIntent.None && match != null)
                 match.OnServeIntent(this, cmd.serve);
 
-            if (IsDiving)
+            if (IsDiving || knockedDown)
             {
                 // laid out: the only possible contact is the chaotic dive dig, and only
-                // while still sliding — once recovering, we're face down and out of the play
+                // while still sliding — once recovering (or bowled over) we're out of the play
                 if (authority && _sim.diveTimer > 0f && _sim.hitCooldown <= 0f) TryDiveHit();
                 _sim.bufferTime = 0f;
             }

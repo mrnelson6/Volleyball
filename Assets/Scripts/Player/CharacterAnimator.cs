@@ -151,7 +151,8 @@ namespace Volleyball
             if (_swingTimer > 0f) _swingTimer -= dt;
 
             Sprite frame;
-            if (_player.IsDiving) frame = DiveFrame();      // laid out — hold it through the whole slide + get-up
+            bool knocked = _player.IsKnockedDown;
+            if (_player.IsDiving || knocked) frame = DiveFrame(); // laid out — slide + get-up, or bowled over
             else if (_swingTimer > 0f) frame = SwingFrame(); // a contact wins (covers airborne spikes)
             else if (!_player.IsGrounded) frame = jump;
             else if (speed > runThreshold)
@@ -168,7 +169,7 @@ namespace Volleyball
             // lies on the sand instead of hovering at standing height; it eases back upright
             // during the get-up. A depth-wise dive keeps the sprite upright and unlowered — its
             // dedicated pose is already drawn laid out along the ground, feet at the baseline.
-            float flat = _player.DiveFlat01;
+            float flat = knocked ? 1f : _player.DiveFlat01;
             bool depthDive = flat > 0f && DiveIsDepthwise(out _);
             if (_billboard != null) _billboard.extraRoll = depthDive ? 0f : -_facing * 90f * flat;
             Vector3 lp = transform.localPosition;

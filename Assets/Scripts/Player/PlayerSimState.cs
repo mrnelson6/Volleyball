@@ -36,6 +36,12 @@ namespace Volleyball
         public Vector3 diveDir;
         public Vector2 lastMoveDir;   // last non-zero steer, so a stationary dive has a direction
 
+        /// <summary>Seconds left on a knockdown (someone dived into us): down while above
+        /// GameConfig.knockdownGrace, then a short immune get-up tail. Set authority-side only
+        /// (BodyReferee); prediction learns of it through reconciliation.</summary>
+        public float knockdownTimer;
+        public Vector2 knockDir;      // which way we were bowled over (unit XZ)
+
         /// <summary>Rides in every server snapshot (and back through reconciliation).</summary>
         public void NetworkSerialize<T>(Unity.Netcode.BufferSerializer<T> serializer)
             where T : Unity.Netcode.IReaderWriter
@@ -52,6 +58,8 @@ namespace Volleyball
             serializer.SerializeValue(ref diveRecover);
             serializer.SerializeValue(ref diveDir);
             serializer.SerializeValue(ref lastMoveDir);
+            serializer.SerializeValue(ref knockdownTimer);
+            serializer.SerializeValue(ref knockDir);
         }
     }
 }

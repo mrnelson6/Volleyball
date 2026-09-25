@@ -82,6 +82,7 @@ namespace Volleyball.EditorTools
             view.block = Clip("Block");
             view.dive = Clip("Dive");
             view.cheer = Clip("Cheer");
+            view.knockdown = Clip("Knockdown");
 
             PrefabUtility.SaveAsPrefabAsset(root, $"{PrefabDir}/animal_{id}.prefab");
             Object.DestroyImmediate(root);

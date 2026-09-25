@@ -73,6 +73,11 @@ namespace Volleyball
             if (players.Count == 0)
                 players.AddRange(FindObjectsByType<VolleyPlayer>());
 
+            // player-vs-player bodies: snapshot everyone before the tick's steps, referee dive
+            // knockdowns after them (added at runtime — no scene rebuild needed)
+            gameObject.AddComponent<BodyTick>().match = this;
+            gameObject.AddComponent<BodyReferee>().match = this;
+
             if (ball != null) ball.OnGroundHit += HandleGroundHit;
             ChatDirector.Bind(this); // callouts are judged against this court's roster and ball
 

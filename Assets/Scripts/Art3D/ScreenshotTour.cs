@@ -12,7 +12,8 @@ namespace Volleyball
     /// <c>-vbserver</c>: proof in pictures that models, animation and lighting work in the real
     /// game loop, capturable headlessly (needs a GPU — don't pass -nographics).
     /// Optional <c>-vbshotcount N</c> and <c>-vbshotarena &lt;SceneName&gt;</c> (default BeachArena).
-    /// <c>-vbshotmenu</c> instead captures the character-select screen with a few animals picked.
+    /// <c>-vbshotmenu</c> instead captures the character-select screen with a few animals picked;
+    /// <c>-vbshotknock</c> bowls a player over mid-match and captures the knockdown sequence.
     /// </summary>
     public static class ScreenshotTour
     {
@@ -32,6 +33,7 @@ namespace Volleyball
             runner.count = Mathf.Max(1, count);
             runner.arena = Arg("-vbshotarena") ?? SceneFlow.BeachArena;
             runner.menu = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-vbshotmenu") >= 0;
+            runner.knock = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-vbshotknock") >= 0;
         }
 
         static string Arg(string name)
@@ -48,6 +50,7 @@ namespace Volleyball
         public int count = 12;
         public string arena = SceneFlow.BeachArena;
         public bool menu;
+        public bool knock;
 
         IEnumerator Start()
         {
@@ -69,11 +72,20 @@ namespace Volleyball
             NetSlotBinder.BindAll(FindAnyObjectByType<MatchManager>(), cfg);
             yield return new WaitForSeconds(2.5f); // serve toss, first rally moving
 
+            if (knock)
+            {
+                // bowl the nearest-to-camera player over and film it (authority: offline)
+                VolleyPlayer victim = null;
+                foreach (var p in FindObjectsByType<VolleyPlayer>(FindObjectsSortMode.None))
+                    if (victim == null || p.SimPosition.x > victim.SimPosition.x) victim = p;
+                victim?.KnockDown(new Vector3(-1f, 0f, 0.3f));
+            }
+
             for (int i = 0; i < count; i++)
             {
                 string path = Path.Combine(outputDir, $"shot_{i:00}.png");
                 ScreenCapture.CaptureScreenshot(path);
-                yield return new WaitForSeconds(ScreenshotTour.Interval);
+                yield return new WaitForSeconds(knock ? 0.12f : ScreenshotTour.Interval);
             }
             yield return new WaitForSeconds(0.5f); // last capture flushes at end of frame
             Debug.Log("[Volleyball] SCREENSHOT TOUR done");

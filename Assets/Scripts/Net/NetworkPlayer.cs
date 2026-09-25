@@ -79,6 +79,8 @@ namespace Volleyball
 
             // networked: this adapter drives every simulation step
             _player.SimulationEnabled = false;
+            // only proxies report a server-fed body position; re-set on their next snapshot
+            _player.ProxyBodyPosition = null;
 
             if (IsServer)
             {
@@ -160,7 +162,7 @@ namespace Volleyball
                 {
                     cmd = Player.GetCommand(tick); // AI, or the host sampling its own devices
                 }
-                Player.Simulate(in cmd, dt, SimRole.Authority);
+                Player.Simulate(in cmd, dt, SimRole.Authority, BodySet.Frame);
                 _lastConsumedCmdTick = cmd.tick;
             }
         }
@@ -197,7 +199,7 @@ namespace Volleyball
                 InputCommand cmd = Player.GetCommand(tick);
                 int slot = tick & Mask;
                 _cmdHistory[slot] = cmd;
-                Player.Simulate(in cmd, dt, SimRole.Predict);
+                Player.Simulate(in cmd, dt, SimRole.Predict, BodySet.Frame);
                 _stateHistory[slot] = Player.CaptureSimState();
                 _historyTick[slot] = tick;
                 _lastPredictedTick = tick;
@@ -240,7 +242,10 @@ namespace Volleyball
                 float posErr = Vector3.Distance(predicted.position, serverState.position);
                 bool mismatch = posErr > 0.02f
                                 || Mathf.Abs(predicted.vertVel - serverState.vertVel) > 0.1f
-                                || (predicted.diveTimer > 0f) != (serverState.diveTimer > 0f);
+                                || (predicted.diveTimer > 0f) != (serverState.diveTimer > 0f)
+                                // knockdowns are decided server-side only (BodyReferee): the
+                                // owner learns it was bowled over right here
+                                || (predicted.knockdownTimer > 0f) != (serverState.knockdownTimer > 0f);
                 if (!mismatch) return; // prediction confirmed — the common case
                 LastCorrectionError = posErr;
             }
@@ -249,14 +254,16 @@ namespace Volleyball
                 LastCorrectionError = -1f; // no history to check against (fresh spawn / huge lag)
             }
 
-            // roll back to the server's truth and replay everything it hasn't seen yet
+            // roll back to the server's truth and replay everything it hasn't seen yet. Bodies
+            // replay against the CURRENT frame — the client keeps no history of the others, and
+            // at shove speeds the approximation is well inside the correction threshold.
             Player.ApplySimState(in serverState);
             float dt = Time.fixedDeltaTime;
             for (int t = serverTick + 1; t <= _lastPredictedTick; t++)
             {
                 int s = t & Mask;
                 InputCommand cmd = _historyTick[s] == t ? _cmdHistory[s] : InputCommand.Empty(t);
-                Player.Simulate(in cmd, dt, SimRole.Replay);
+                Player.Simulate(in cmd, dt, SimRole.Replay, BodySet.Frame);
                 _stateHistory[s] = Player.CaptureSimState();
                 _historyTick[s] = t;
             }
@@ -272,6 +279,9 @@ namespace Volleyball
             _proxyBuffer.Add(new ProxySample { tick = tick, state = state });
             _proxyBuffer.Sort((a, b) => a.tick.CompareTo(b.tick));
             while (_proxyBuffer.Count > 12) _proxyBuffer.RemoveAt(0);
+            // the owner's prediction pushes against where this body REALLY is (freshest server
+            // word), not the ~100ms-behind interpolated view
+            if (Player != null) Player.ProxyBodyPosition = _proxyBuffer[_proxyBuffer.Count - 1].state.position;
         }
 
         /// <summary>A rally reset teleported everyone — drop stale motion history.</summary>
@@ -279,6 +289,7 @@ namespace Volleyball
         {
             _proxyBuffer.Clear();
             if (Player == null) return;
+            if (IsProxy) Player.ProxyBodyPosition = new Vector3(groundPos.x, 0f, groundPos.z);
             Player.TeleportTo(groundPos);
             Player.ResetState();
             if (IsOwnedHuman) _lastPredictedTick = -1; // prediction restarts from the new spot

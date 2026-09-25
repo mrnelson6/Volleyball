@@ -86,6 +86,21 @@ namespace Volleyball
         public float diveBaseError = 3f;     // huge spray — the dig squirts off in a random direction
         public float divePopApex = 3.4f;     // nominal pop height; each dig rolls 0.6–1.5x this
 
+        [Header("Player bodies (bumping + knockdowns)")]
+        [Tooltip("How fast you can shove into another player (m/s). Walking into someone is " +
+                 "capped to this, so you slowly push them rather than walking through.")]
+        public float bodyShoveSpeed = 1.2f;
+        [Tooltip("How fast two overlapping bodies ease apart (m/s, each).")]
+        public float bodySeparateSpeed = 2.5f;
+        [Tooltip("Sideways slip when walking head-on into someone (m/s) — you slide around them.")]
+        public float bodySlipSpeed = 2.2f;
+        [Tooltip("Seconds a player stays down after being dived into.")]
+        public float knockdownTime = 1.0f;
+        [Tooltip("Immune get-up time after a knockdown, so nobody gets bowled over twice in a row.")]
+        public float knockdownGrace = 0.35f;
+        [Tooltip("Speed of the short tumble in the direction you were hit (m/s), easing out.")]
+        public float knockdownSlideSpeed = 4f;
+
         [Header("Blocking")]
         [Tooltip("A block is a TIMED PRESS, never automatic: jump at the net, then hit the hit " +
                  "key as the attack reaches your hands. No press, no block.")]
