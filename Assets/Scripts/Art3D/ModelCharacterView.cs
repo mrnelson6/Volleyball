@@ -158,6 +158,18 @@ namespace Volleyball
             return new Vector3(0f, 0f, z);
         }
 
+        void ShowcaseTick(float dt)
+        {
+            if (_curClip != null && !_curClip.isLooping && _cur.IsValid() && _cur.GetTime() >= _curClip.length)
+                Play(idle, restart: false, fade: 0.2f);
+            if (_fade < 1f)
+            {
+                _fade += dt / _fadeDuration;
+                ApplyWeights();
+            }
+            _graph.Evaluate(dt);
+        }
+
         public override void SetGlow(Color color, float amount)
         {
             Color g = amount > 0f ? new Color(color.r, color.g, color.b, amount * 0.55f) : Color.clear;
@@ -173,10 +185,19 @@ namespace Volleyball
             }
         }
 
+        /// <summary>Showcase mode (menus — no VolleyPlayer): play <paramref name="clip"/> now;
+        /// a one-shot clip hands back to idle when it finishes.</summary>
+        public void PlayShowcase(AnimationClip clip) => Play(clip ?? idle, restart: true, fade: 0.12f);
+
         // LateUpdate: the player's transform has been interpolated for this frame in Update.
         void LateUpdate()
         {
-            if (_player == null || !_graph.IsValid()) return;
+            if (!_graph.IsValid()) return;
+            if (_player == null)
+            {
+                ShowcaseTick(Time.deltaTime);
+                return;
+            }
 
             float dt = Time.deltaTime;
             Vector3 pos = _player.ViewGroundPosition;

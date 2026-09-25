@@ -6,12 +6,14 @@ namespace Volleyball.EditorTools
     /// Import settings for the generated 3D art under Assets/Art/ (written by
     /// Tools/blender/animal_gen.py and props_gen.py): no imported materials (everything uses
     /// Volleyball/Stylized + a palette strip), Blender axis conversion baked in, Generic rigs
-    /// for animals with clips renamed "Rig|Idle" → "Idle", and point-sampled palette textures.
+    /// for animals with clips renamed "Rig|Idle" → "Idle", point-sampled palette textures, and
+    /// sprite import for the baked character portraits.
     /// </summary>
     public class Art3DImportPostprocessor : AssetPostprocessor
     {
         const string ArtRoot = "Assets/Art/";
         const string CharRoot = "Assets/Art/Characters/";
+        const string PortraitRoot = "Assets/Resources/" + CharacterPortraits.ResourceDir + "/";
 
         static readonly string[] LoopingClips = { "Idle", "Run", "Cheer" };
 
@@ -58,6 +60,16 @@ namespace Volleyball.EditorTools
 
         void OnPreprocessTexture()
         {
+            if (assetPath.StartsWith(PortraitRoot))
+            {
+                var pi = (TextureImporter)assetImporter;
+                pi.textureType = TextureImporterType.Sprite;
+                pi.spriteImportMode = SpriteImportMode.Single;
+                pi.alphaIsTransparency = true;
+                pi.mipmapEnabled = false;
+                pi.sRGBTexture = true;
+                return;
+            }
             if (!assetPath.StartsWith(ArtRoot) || !assetPath.Contains("palette")) return;
             var imp = (TextureImporter)assetImporter;
             imp.textureType = TextureImporterType.Default;

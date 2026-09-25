@@ -311,11 +311,11 @@ namespace Volleyball.EditorTools
         }
 
         /// <summary>
-        /// The Quick Play character-select screen: an entry per roster animal (baked idle
-        /// portrait + name) in a scrollable grid on the left, and a preview pane on the right —
-        /// big portrait, name, blurb and height/speed/power/control/jump stat bars — plus Play
-        /// and Back. Portrait sprites are the human-blue baked idle frames, assigned at build
-        /// time; the live selection logic is <see cref="CharacterSelectPanel"/>.
+        /// The Quick Play character-select screen. Left: a scrollable grid of roster tiles — a 3D
+        /// headshot (PortraitBaker) on a card tinted by the animal's home region. Right: a live 3D
+        /// preview of the highlighted animal (<see cref="CharacterShowcase"/>, rendered from a
+        /// pedestal stage built below the menu beach), its name and blurb, and stat bars; then
+        /// venue, Play and Back. The selection logic is <see cref="CharacterSelectPanel"/>.
         /// </summary>
         static GameObject BuildCharacterSelectPanel(Transform parent, Font font)
         {
@@ -323,9 +323,10 @@ namespace Volleyball.EditorTools
             var cs = panel.AddComponent<CharacterSelectPanel>();
 
             Text title = MakeText(panel.transform, "Title", font,
-                new Vector2(0.5f, 1f), new Vector2(0f, -100f), new Vector2(1200f, 100f), 72,
+                new Vector2(0.5f, 1f), new Vector2(0f, -70f), new Vector2(1200f, 90f), 64,
                 TextAnchor.MiddleCenter);
             title.text = "Choose Your Animal";
+            title.fontStyle = FontStyle.Bold;
 
             // ---- roster grid (left): a vertical scroll view, since the roster is far
             //      bigger than one screen ----
@@ -334,8 +335,8 @@ namespace Volleyball.EditorTools
             scrollGO.transform.SetParent(panel.transform, false);
             var scrollRt = scrollGO.GetComponent<RectTransform>();
             scrollRt.anchorMin = scrollRt.anchorMax = scrollRt.pivot = new Vector2(0.5f, 0.5f);
-            scrollRt.sizeDelta = new Vector2(780f, 660f);
-            scrollRt.anchoredPosition = new Vector2(-460f, -30f);
+            scrollRt.sizeDelta = new Vector2(860f, 790f);
+            scrollRt.anchoredPosition = new Vector2(-460f, -40f);
             var scrollBg = scrollGO.GetComponent<Image>();
             scrollBg.sprite = UIBackground();
             scrollBg.type = Image.Type.Sliced;
@@ -351,14 +352,14 @@ namespace Volleyball.EditorTools
             contentRt.offsetMin = Vector2.zero;
             contentRt.offsetMax = Vector2.zero;
             var grid = contentGO.GetComponent<GridLayoutGroup>();
-            grid.cellSize = new Vector2(180f, 220f);
-            grid.spacing = new Vector2(10f, 10f);
+            grid.cellSize = new Vector2(158f, 186f);
+            grid.spacing = new Vector2(8f, 8f);
             grid.padding = new RectOffset(10, 10, 10, 10);
             grid.startCorner = GridLayoutGroup.Corner.UpperLeft;
             grid.startAxis = GridLayoutGroup.Axis.Horizontal;
             grid.childAlignment = TextAnchor.UpperCenter;
             grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-            grid.constraintCount = 4;
+            grid.constraintCount = 5;
             var fitter = contentGO.GetComponent<ContentSizeFitter>();
             fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
@@ -376,27 +377,41 @@ namespace Volleyball.EditorTools
                     typeof(RectTransform), typeof(Image), typeof(Button));
                 go.transform.SetParent(contentGO.transform, false); // grid lays it out
 
+                Color tint = RegionTint(ch.region);
                 var frame = go.GetComponent<Image>();
                 frame.sprite = UISprite();
                 frame.type = Image.Type.Sliced;
-                frame.color = new Color(1f, 1f, 1f, 0.10f); // panel re-tints on selection
+                frame.color = tint;
                 go.GetComponent<Button>().targetGraphic = frame;
+
+                // a lighter disc behind the head so dark animals (penguin, bear) still pop
+                var discGO = new GameObject("Disc", typeof(RectTransform), typeof(Image));
+                discGO.transform.SetParent(go.transform, false);
+                var drt = discGO.GetComponent<RectTransform>();
+                drt.anchorMin = drt.anchorMax = drt.pivot = new Vector2(0.5f, 0.5f);
+                drt.sizeDelta = new Vector2(132f, 132f);
+                drt.anchoredPosition = new Vector2(0f, 18f);
+                var disc = discGO.GetComponent<Image>();
+                disc.sprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/Knob.psd");
+                disc.color = new Color(1f, 1f, 1f, 0.22f);
+                disc.raycastTarget = false;
 
                 var portraitGO = new GameObject("Portrait", typeof(RectTransform), typeof(Image));
                 portraitGO.transform.SetParent(go.transform, false);
                 var prt = portraitGO.GetComponent<RectTransform>();
                 prt.anchorMin = prt.anchorMax = prt.pivot = new Vector2(0.5f, 0.5f);
-                prt.sizeDelta = new Vector2(150f, 160f);
-                prt.anchoredPosition = new Vector2(0f, 22f);
+                prt.sizeDelta = new Vector2(146f, 146f);
+                prt.anchoredPosition = new Vector2(0f, 18f);
                 var portrait = portraitGO.GetComponent<Image>();
-                portrait.sprite = CharacterArt.GetCharacterFrames(PlayerColors.Human, ch)[0]; // idle
-                portrait.preserveAspect = true; // heights differ per character — don't stretch
+                portrait.sprite = PortraitFor(ch);
+                portrait.preserveAspect = true;
                 portrait.raycastTarget = false;
 
                 Text nameLabel = MakeText(go.transform, "Name", font,
-                    new Vector2(0.5f, 0f), new Vector2(0f, 12f), new Vector2(180f, 40f), 24,
+                    new Vector2(0.5f, 0f), new Vector2(0f, 18f), new Vector2(156f, 32f), 20,
                     TextAnchor.MiddleCenter);
-                nameLabel.text = ch.displayName;
+                nameLabel.text = ShortName(ch.displayName);
+                nameLabel.fontStyle = FontStyle.Bold;
                 nameLabel.raycastTarget = false;
 
                 entries.Add(new CharacterSelectPanel.Entry
@@ -405,47 +420,124 @@ namespace Volleyball.EditorTools
                     button = go.GetComponent<Button>(),
                     frame = frame,
                     portrait = portrait,
+                    baseColor = tint,
                 });
             }
             cs.entries = entries.ToArray();
 
-            // ---- preview pane (right) ----
-            cs.previewName = MakeText(panel.transform, "PreviewName", font,
-                new Vector2(0.5f, 0.5f), new Vector2(430f, 320f), new Vector2(500f, 60f), 52,
-                TextAnchor.MiddleCenter);
+            // ---- preview pane (right): live 3D showcase on a sky card ----
+            var cardGO = new GameObject("ShowcaseCard", typeof(RectTransform), typeof(Image));
+            cardGO.transform.SetParent(panel.transform, false);
+            var cardRt = cardGO.GetComponent<RectTransform>();
+            cardRt.anchorMin = cardRt.anchorMax = cardRt.pivot = new Vector2(0.5f, 0.5f);
+            cardRt.sizeDelta = new Vector2(500f, 470f);
+            cardRt.anchoredPosition = new Vector2(440f, 130f);
+            var card = cardGO.GetComponent<Image>();
+            card.sprite = UISprite();
+            card.type = Image.Type.Sliced;
+            card.color = new Color(0.45f, 0.72f, 0.98f, 0.45f);
 
-            var previewGO = new GameObject("PreviewPortrait", typeof(RectTransform), typeof(Image));
-            previewGO.transform.SetParent(panel.transform, false);
-            var pvRt = previewGO.GetComponent<RectTransform>();
-            pvRt.anchorMin = pvRt.anchorMax = pvRt.pivot = new Vector2(0.5f, 0.5f);
-            pvRt.sizeDelta = new Vector2(250f, 330f);
-            pvRt.anchoredPosition = new Vector2(430f, 120f);
-            cs.previewPortrait = previewGO.GetComponent<Image>();
-            cs.previewPortrait.preserveAspect = true; // sprite comes from the selected entry
+            var showGO = new GameObject("Showcase", typeof(RectTransform), typeof(RawImage));
+            showGO.transform.SetParent(cardGO.transform, false);
+            var showRt = showGO.GetComponent<RectTransform>();
+            showRt.anchorMin = showRt.anchorMax = showRt.pivot = new Vector2(0.5f, 0.5f);
+            showRt.sizeDelta = new Vector2(470f, 470f);
+            var raw = showGO.GetComponent<RawImage>();
+            raw.raycastTarget = false;
+
+            var showcase = panel.AddComponent<CharacterShowcase>();
+            showcase.target = raw;
+            BuildShowcaseStage(showcase);
+            cs.showcase = showcase;
+
+            cs.previewName = MakeText(panel.transform, "PreviewName", font,
+                new Vector2(0.5f, 0.5f), new Vector2(440f, -130f), new Vector2(620f, 60f), 48,
+                TextAnchor.MiddleCenter);
+            cs.previewName.fontStyle = FontStyle.Bold;
 
             cs.previewBlurb = MakeText(panel.transform, "PreviewBlurb", font,
-                new Vector2(0.5f, 0.5f), new Vector2(430f, -80f), new Vector2(680f, 60f), 26,
+                new Vector2(0.5f, 0.5f), new Vector2(440f, -192f), new Vector2(700f, 64f), 24,
                 TextAnchor.MiddleCenter);
 
-            cs.heightBar = BuildStatBar(panel.transform, font, "Height", -140f);
-            cs.speedBar = BuildStatBar(panel.transform, font, "Speed", -188f);
-            cs.powerBar = BuildStatBar(panel.transform, font, "Power", -236f);
-            cs.controlBar = BuildStatBar(panel.transform, font, "Control", -284f);
-            cs.jumpBar = BuildStatBar(panel.transform, font, "Jump", -332f);
+            cs.heightBar = BuildStatBar(panel.transform, font, "Height", -248f);
+            cs.speedBar = BuildStatBar(panel.transform, font, "Speed", -286f);
+            cs.powerBar = BuildStatBar(panel.transform, font, "Power", -324f);
+            cs.controlBar = BuildStatBar(panel.transform, font, "Control", -362f);
+            cs.jumpBar = BuildStatBar(panel.transform, font, "Jump", -400f);
 
             cs.venueButton = MakeButton(panel.transform, font, "VenueButton", "Venue",
-                new Vector2(0.5f, 0.5f), new Vector2(430f, -392f), new Vector2(520f, 54f),
+                new Vector2(0.5f, 0.5f), new Vector2(290f, -474f), new Vector2(440f, 60f),
                 new Color(0.16f, 0.30f, 0.50f, 0.92f));
             cs.venueLabel = cs.venueButton.GetComponentInChildren<Text>();
             cs.venueLabel.fontSize = 26;
 
             cs.playButton = MakeButton(panel.transform, font, "PlayButton", "Play",
-                new Vector2(0.5f, 0.5f), new Vector2(430f, -460f), new Vector2(360f, 80f), MenuBlue);
+                new Vector2(0.5f, 0.5f), new Vector2(660f, -474f), new Vector2(260f, 76f),
+                new Color(0.30f, 0.80f, 0.40f, 0.95f));
             cs.backButton = MakeButton(panel.transform, font, "BackButton", "Back",
-                new Vector2(0.5f, 0.5f), new Vector2(-820f, -460f), new Vector2(300f, 80f), MenuRed);
+                new Vector2(0.5f, 0.5f), new Vector2(-790f, -474f), new Vector2(240f, 70f), MenuRed);
 
             panel.SetActive(false);
             return panel;
+        }
+
+        /// <summary>
+        /// The showcase's little world: a sand pedestal and its own camera, parked far below the
+        /// menu's beach so neither sees the other (the camera's far clip ends well short of it).
+        /// Lit by the scene's sun and ambient like everything else.
+        /// </summary>
+        static void BuildShowcaseStage(CharacterShowcase showcase)
+        {
+            var stage = new GameObject("Character Showcase Stage").transform;
+            stage.position = new Vector3(0f, -80f, 0f);
+
+            ToonArtKit.Prop("pedestal", Vector3.zero, 0f, 0.7f, ToonArtKit.PropsMaterial(), stage);
+            var point = new GameObject("Stand Point").transform;
+            point.SetParent(stage, false);
+            point.localPosition = new Vector3(0f, 0.02f, 0f);
+
+            var cam = new GameObject("Showcase Camera").AddComponent<Camera>();
+            cam.transform.SetParent(stage, false);
+            cam.clearFlags = CameraClearFlags.SolidColor;
+            cam.backgroundColor = new Color(0f, 0f, 0f, 0f); // the UI card shows through
+            cam.fieldOfView = 30f;
+            cam.nearClipPlane = 0.1f;
+            cam.farClipPlane = 25f;
+            cam.enabled = false; // CharacterShowcase runs it only while the panel is open
+
+            showcase.stageCamera = cam;
+            showcase.stagePoint = point;
+        }
+
+        static Sprite PortraitFor(CharacterDef ch)
+        {
+            var head = AssetDatabase.LoadAssetAtPath<Sprite>(
+                $"Assets/Resources/{CharacterPortraits.ResourceDir}/animal_{ch.id}.png");
+            return head != null ? head : CharacterArt.GetCharacterFrames(PlayerColors.Human, ch)[0];
+        }
+
+        /// <summary>"Finn the Fox" → "Finn" keeps tiles uncluttered; the preview shows the full name.</summary>
+        static string ShortName(string displayName)
+        {
+            int i = displayName.IndexOf(" the ", System.StringComparison.Ordinal);
+            return i > 0 ? displayName.Substring(0, i) : displayName;
+        }
+
+        /// <summary>Card tint per home region, so the grid reads as the world tour's teams.</summary>
+        static Color RegionTint(string region)
+        {
+            switch (region)
+            {
+                case "savanna": return new Color(0.95f, 0.72f, 0.30f, 0.35f);
+                case "amazon": return new Color(0.30f, 0.80f, 0.42f, 0.35f);
+                case "outback": return new Color(0.92f, 0.45f, 0.25f, 0.35f);
+                case "himalaya": return new Color(0.62f, 0.52f, 0.92f, 0.35f);
+                case "forest": return new Color(0.35f, 0.62f, 0.32f, 0.35f);
+                case "sahara": return new Color(0.96f, 0.64f, 0.36f, 0.35f);
+                case "rockies": return new Color(0.45f, 0.62f, 0.82f, 0.35f);
+                case "arctic": return new Color(0.62f, 0.86f, 1.00f, 0.35f);
+                default: return new Color(0.30f, 0.65f, 1.00f, 0.35f); // the home duo
+            }
         }
 
         // One preview stat row: right-aligned label, a bar whose fill the panel resizes, and a

@@ -107,14 +107,18 @@ namespace Volleyball.EditorTools
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
             // environment + camera + sun first, then the playable keys (which see the existing
-            // camera/light and skip their own)
-            ThemedArenaDecorator.BuildArena(theme);
+            // camera/light and skip their own). Arenas already converted to the 3D toon style
+            // build from the generated art instead, and hide the keys' placeholder visuals.
+            var toon = ToonArenaThemes.Find(theme.key);
+            if (toon != null) ToonArenaDecorator.Build(toon);
+            else ThemedArenaDecorator.BuildArena(theme);
             CourtKit.DropInCourt(new CourtKit.Options
             {
                 buildCamera = false,
                 buildLight = false,
                 buildUI = true,
             });
+            if (toon != null) ToonBeachDecorator.RestyleCourt();
 
             string path = $"{SceneDir}/{theme.key}.unity";
             Directory.CreateDirectory(Path.GetDirectoryName(AbsPath(path)));

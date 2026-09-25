@@ -17,6 +17,7 @@ namespace Volleyball.EditorTools
         public const string MatDir = "Assets/Art/Materials";
         public const string CharDir = "Assets/Art/Characters";
         public const string PropDir = "Assets/Art/Props";
+        public const string ArenaDir = "Assets/Art/Arenas";
 
         /// <summary>Yaw that turns a generated animal (which faces -Z after import) to face +Z.</summary>
         public const float ModelFacingYaw = 180f;
@@ -47,6 +48,24 @@ namespace Volleyball.EditorTools
             m.SetColor("_BaseColor", new Color(1.12f, 1.12f, 1.12f));   // characters a touch brighter
             m.SetFloat("_ShadowLift", 0.45f);
         });
+
+        /// <summary>Props + ground materials for a themed arena folder (Assets/Art/Arenas/&lt;folder&gt;,
+        /// written by Tools/blender/arena_gen.py): same shader, that biome's palette strip.</summary>
+        public static (Material props, Material ground) ArenaMaterials(string folder)
+        {
+            var pal = AssetDatabase.LoadAssetAtPath<Texture2D>($"{ArenaDir}/{folder}/palette.png");
+            var props = Mat($"VB_{folder}_Props", Stylized, m =>
+            {
+                m.SetTexture("_PaletteTex", pal);
+                m.SetFloat("_OutlineWidth", 1f);
+            });
+            var ground = Mat($"VB_{folder}_Ground", Stylized, m =>
+            {
+                m.SetTexture("_PaletteTex", pal);
+                m.SetFloat("_OutlineWidth", 0f);
+            });
+            return (props, ground);
+        }
 
         public static Material SkyMaterial() => Mat("VB_ToonSky", Shader.Find("Skybox/Procedural"), m =>
         {
@@ -95,10 +114,16 @@ namespace Volleyball.EditorTools
             return holder.gameObject;
         }
 
+        /// <summary>Place a beach prop (Assets/Art/Props).</summary>
         public static GameObject Prop(string name, Vector3 pos, float yaw, float scale, Material mat,
                                       Transform parent, bool castShadows = true)
+            => PropFrom(PropDir, name, pos, yaw, scale, mat, parent, castShadows);
+
+        /// <summary>Place <c>&lt;dir&gt;/prop_&lt;name&gt;.fbx</c> under a holder at pos/yaw/scale.</summary>
+        public static GameObject PropFrom(string dir, string name, Vector3 pos, float yaw, float scale, Material mat,
+                                          Transform parent, bool castShadows = true)
         {
-            var go = InstantiateModel($"{PropDir}/prop_{name}.fbx", parent);
+            var go = InstantiateModel($"{dir}/prop_{name}.fbx", parent);
             go.transform.localPosition = pos;
             go.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
             go.transform.localScale = Vector3.one * scale;
@@ -112,8 +137,9 @@ namespace Volleyball.EditorTools
 
         // ------------------------------------------------------------------ lighting
 
-        /// <summary>Sun + <see cref="ToonEnvironment"/> (applies sky, ambient probe, fog on enable).</summary>
-        public static ToonEnvironment BuildLighting(Transform root)
+        /// <summary>Sun + <see cref="ToonEnvironment"/> (applies sky, ambient probe, fog on enable).
+        /// Null preset = the Sunset Beach defaults.</summary>
+        public static ToonEnvironment BuildLighting(Transform root, ToonEnvironment.Preset preset = null)
         {
             var sunGo = new GameObject("Sun");
             sunGo.transform.SetParent(root, false);
@@ -126,8 +152,33 @@ namespace Volleyball.EditorTools
             env.transform.SetParent(root, false);
             env.sun = sun;
             env.skybox = SkyMaterial();
+            if (preset != null) env.preset = preset;
             env.Apply();
             return env;
+        }
+
+        // classic view was (20, 12, -3) looking at (0, 1.6, 0) with FOV 36
+        public static readonly Vector3 CameraTarget = new Vector3(0f, 1.4f, 0f);
+        public static readonly Vector3 CameraPosition = CameraTarget + new Vector3(20f, 10.4f, -3f) * 0.72f;
+        public const float CameraFov = 40f;
+
+        /// <summary>
+        /// The toon arenas' broadcast camera, pulled in along the classic sideline sightline (same
+        /// yaw, so camera-relative controls are unchanged) so the 3D animals read bigger on screen.
+        /// </summary>
+        public static void BuildBroadcastCamera()
+        {
+            if (Camera.main != null || GameObject.FindGameObjectWithTag("MainCamera") != null) return;
+
+            var go = new GameObject("Main Camera") { tag = "MainCamera" };
+            var cam = go.AddComponent<Camera>();
+            cam.clearFlags = CameraClearFlags.Skybox;
+            cam.fieldOfView = CameraFov;
+            cam.nearClipPlane = 0.3f;
+            cam.farClipPlane = 400f;
+            go.AddComponent<AudioListener>();
+            go.transform.position = CameraPosition;
+            go.transform.LookAt(CameraTarget);
         }
 
         // ------------------------------------------------------------------ Sunset Beach

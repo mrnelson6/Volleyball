@@ -67,3 +67,6 @@ Tools/deploy.config.json
 
 # look-dev contact sheet renders (Volleyball -> 3D -> Save Look-Dev Contact Sheet)
 lookdev_sheet*.png
+
+# Blender generator imports
+__pycache__/

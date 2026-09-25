@@ -4,8 +4,9 @@ using UnityEngine.UI;
 namespace Volleyball
 {
     /// <summary>
-    /// The Quick Play character-select screen: a grid of roster portraits, a preview pane
-    /// (portrait, name, blurb, stat bars) for whoever is highlighted, and Play/Back. Play
+    /// The Quick Play character-select screen: a grid of roster portraits (3D headshots baked by
+    /// PortraitBaker), a live 3D preview of whoever is highlighted (<see cref="CharacterShowcase"/>)
+    /// with name, blurb and stat bars, and Play/Back. Play
     /// launches Quick Play as the selected character with the AI players randomised. The last
     /// pick is remembered in PlayerPrefs. References are wired by MainMenuSceneBuilder.
     /// </summary>
@@ -17,7 +18,8 @@ namespace Volleyball
             public string characterId;
             public Button button;
             public Image frame;    // button background, tinted to show selection
-            public Image portrait; // baked idle sprite, also reused by the preview pane
+            public Image portrait; // 3D headshot (or baked idle sprite), also reused by the preview pane
+            public Color baseColor = new Color(1f, 1f, 1f, 0.10f); // region tint when not selected
         }
 
         [System.Serializable]
@@ -30,7 +32,8 @@ namespace Volleyball
         public Entry[] entries;
 
         [Header("Preview pane")]
-        public Image previewPortrait;
+        public CharacterShowcase showcase;
+        public Image previewPortrait; // 2D fallback when no showcase is wired
         public Text previewName;
         public Text previewBlurb;
         public StatBar heightBar, speedBar, powerBar, controlBar, jumpBar;
@@ -47,8 +50,7 @@ namespace Volleyball
 
         int _venueIndex;
 
-        static readonly Color FrameNormal = new Color(1f, 1f, 1f, 0.10f);
-        static readonly Color FrameSelected = new Color(0.30f, 0.65f, 1f, 0.55f);
+        static readonly Color FrameSelected = new Color(1f, 0.85f, 0.30f, 0.95f);
 
         string _selectedId;
 
@@ -85,14 +87,14 @@ namespace Volleyball
                 venueLabel.text = $"Venue:  {SceneFlow.ArenaNames[_venueIndex]}  ▶";
         }
 
-        void Select(string id)
+        public void Select(string id)
         {
             _selectedId = id;
             CharacterDef ch = CharacterRoster.Get(id);
 
             foreach (var e in entries)
                 if (e.frame != null)
-                    e.frame.color = e.characterId == ch.id ? FrameSelected : FrameNormal;
+                    e.frame.color = e.characterId == ch.id ? FrameSelected : e.baseColor;
 
             if (previewName != null) previewName.text = ch.displayName;
             if (previewBlurb != null)
@@ -101,6 +103,7 @@ namespace Volleyball
                 previewBlurb.text = $"{ch.blurb}\nPower-up: {pu.displayName} — {pu.blurb}";
                 previewBlurb.resizeTextForBestFit = true; // the second line must still fit
             }
+            if (showcase != null) showcase.Show(ch.id, PlayerColors.Human);
             if (previewPortrait != null)
             {
                 // reuse the entry's baked portrait so no sprite loading happens here

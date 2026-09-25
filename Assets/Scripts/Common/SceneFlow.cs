@@ -42,13 +42,13 @@ namespace Volleyball
         /// </summary>
         public static readonly string[] Arenas =
         {
-            BeachArena,
+            BeachArena, "SavannaArena", "AmazonArena", "SaharaArena", "ArcticArena",
         };
 
         /// <summary>Human-readable names parallel to <see cref="Arenas"/>, for menus/HUD.</summary>
         public static readonly string[] ArenaNames =
         {
-            "Sunset Beach",
+            "Sunset Beach", "Sunny Savanna", "Amazon Rainforest", "Sahara Dunes", "Polar Ice",
         };
 
         /// <summary>Load an arena by its index into <see cref="Arenas"/> (clamped, wraps safely).</summary>

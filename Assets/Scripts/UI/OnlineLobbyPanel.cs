@@ -131,14 +131,13 @@ namespace Volleyball
                 if (c.characterText != null) c.characterText.text = ch.displayName;
                 if (c.portrait != null)
                 {
-                    Sprite[] frames = CharacterSprites.LoadFrames(SlotJerseys[i], ch);
-                    if (frames != null && frames.Length > 0 && frames[0] != null)
-                    {
-                        c.portrait.sprite = frames[0]; // the idle frame as the portrait
-                        c.portrait.preserveAspect = true;
-                        c.portrait.enabled = true;
-                    }
-                    else c.portrait.enabled = false;
+                    // 3D headshot when baked (PortraitBaker), else the sprite-era idle frame
+                    Sprite head = CharacterPortraits.Get(ch.id);
+                    Sprite[] frames = head == null ? CharacterSprites.LoadFrames(SlotJerseys[i], ch) : null;
+                    Sprite pick = head != null ? head : frames != null && frames.Length > 0 ? frames[0] : null;
+                    c.portrait.sprite = pick;
+                    c.portrait.preserveAspect = true;
+                    c.portrait.enabled = pick != null;
                 }
 
                 if (c.claimButton != null) c.claimButton.interactable = slot.IsOpen;

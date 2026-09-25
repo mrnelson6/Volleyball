@@ -319,19 +319,29 @@ def ocean():
     return p.finish()
 
 
+def pedestal():
+    """Character-select showcase stand: a low sand drum with a darker rim, a couple of shells."""
+    p = Prop("pedestal")
+    p.cone((0, 0, -0.35), (0, 0, 0.0), 1.35, 1.25, SAND_D, segs=20, smooth=False)
+    p.cone((0, 0, -0.01), (0, 0, 0.02), 1.22, 1.22, SAND, segs=20, smooth=False)
+    p.ellipsoid((0.85, 0.55, 0.02), (0.12, 0.09, 0.04), WHITE, segs=(8, 4))
+    p.ellipsoid((-0.7, 0.75, 0.02), (0.10, 0.08, 0.035), ORANGE, segs=(8, 4))
+    return p.finish()
+
+
 PROPS = {
     "palm": lambda: palm(1), "palm_b": lambda: palm(7), "umbrella": umbrella, "towel": towel,
     "lifeguard_tower": lifeguard_tower, "rock_a": lambda: rock(3, "rock_a"), "rock_b": lambda: rock(11, "rock_b"),
     "beach_ball": beach_ball, "surfboard": surfboard, "cooler": cooler, "tiki_torch": tiki_torch,
-    "court": court, "terrain": terrain, "ocean": ocean,
+    "court": court, "terrain": terrain, "ocean": ocean, "pedestal": pedestal,
 }
 
 
 # ---------------------------------------------------------------- output
 
-def write_palette_png(path):
+def write_palette_png(path, palette=None):
     raw = b""
-    raw += b"\x00" + b"".join(bytes(int(round(c * 255)) for c in col) + b"\xff" for col in PALETTE)
+    raw += b"\x00" + b"".join(bytes(int(round(c * 255)) for c in col) + b"\xff" for col in (palette or PALETTE))
     def chunk(tag, data):
         return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xffffffff)
     png = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", SLOTS, 1, 8, 6, 0, 0, 0)) \
@@ -347,6 +357,16 @@ def clear_scene():
         bpy.data.meshes.remove(m)
 
 
+def export_mesh(obj, path):
+    bpy.ops.object.select_all(action="DESELECT")
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.export_scene.fbx(filepath=path, use_selection=True, object_types={"MESH"},
+                             apply_unit_scale=True, apply_scale_options="FBX_SCALE_ALL",
+                             axis_forward="-Z", axis_up="Y", mesh_smooth_type="FACE", bake_anim=False)
+    print(f"[props_gen] wrote {path} ({len(obj.data.polygons)} faces)")
+
+
 def export(names):
     os.makedirs(OUT_DIR, exist_ok=True)
     write_palette_png(os.path.join(OUT_DIR, "props_palette.png"))
@@ -354,14 +374,7 @@ def export(names):
         clear_scene()
         obj = PROPS[name]()
         obj.name = name
-        bpy.ops.object.select_all(action="DESELECT")
-        obj.select_set(True)
-        bpy.context.view_layer.objects.active = obj
-        path = os.path.join(OUT_DIR, f"prop_{name}.fbx")
-        bpy.ops.export_scene.fbx(filepath=path, use_selection=True, object_types={"MESH"},
-                                 apply_unit_scale=True, apply_scale_options="FBX_SCALE_ALL",
-                                 axis_forward="-Z", axis_up="Y", mesh_smooth_type="FACE", bake_anim=False)
-        print(f"[props_gen] wrote {path} ({len(obj.data.polygons)} faces)")
+        export_mesh(obj, os.path.join(OUT_DIR, f"prop_{name}.fbx"))
 
 
 def main():
@@ -372,4 +385,5 @@ def main():
     export(argv[1:] or list(PROPS))
 
 
-main()
+if __name__ == "__main__":  # importable by arena_gen.py for its mesh helpers
+    main()

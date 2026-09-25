@@ -11,7 +11,8 @@ namespace Volleyball
     /// every <see cref="Interval"/> seconds, then quits. The 3D overhaul's equivalent of
     /// <c>-vbserver</c>: proof in pictures that models, animation and lighting work in the real
     /// game loop, capturable headlessly (needs a GPU — don't pass -nographics).
-    /// Optional <c>-vbshotcount N</c>.
+    /// Optional <c>-vbshotcount N</c> and <c>-vbshotarena &lt;SceneName&gt;</c> (default BeachArena).
+    /// <c>-vbshotmenu</c> instead captures the character-select screen with a few animals picked.
     /// </summary>
     public static class ScreenshotTour
     {
@@ -29,6 +30,8 @@ namespace Volleyball
             var runner = go.AddComponent<ScreenshotTourRunner>();
             runner.outputDir = dir;
             runner.count = Mathf.Max(1, count);
+            runner.arena = Arg("-vbshotarena") ?? SceneFlow.BeachArena;
+            runner.menu = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-vbshotmenu") >= 0;
         }
 
         static string Arg(string name)
@@ -43,17 +46,25 @@ namespace Volleyball
     {
         public string outputDir;
         public int count = 12;
+        public string arena = SceneFlow.BeachArena;
+        public bool menu;
 
         IEnumerator Start()
         {
             Directory.CreateDirectory(outputDir);
             Debug.Log($"[Volleyball] SCREENSHOT TOUR -> {outputDir} ({count} shots)");
+            if (menu)
+            {
+                yield return MenuTour();
+                Application.Quit(0);
+                yield break;
+            }
 
             // all four slots AI, so rallies play out with nobody at the keyboard
             var cfg = MatchConfig.Solo("fox", "bear", "penguin", "giraffe");
             for (int i = 0; i < cfg.slots.Length; i++) cfg.slots[i].occupant = SlotOccupant.AI;
             MatchSetup.Current = cfg;
-            SceneManager.LoadScene(SceneFlow.BeachArena);
+            SceneManager.LoadScene(arena);
             yield return null; // scene objects Awake/Start
             NetSlotBinder.BindAll(FindAnyObjectByType<MatchManager>(), cfg);
             yield return new WaitForSeconds(2.5f); // serve toss, first rally moving
@@ -67,6 +78,31 @@ namespace Volleyball
             yield return new WaitForSeconds(0.5f); // last capture flushes at end of frame
             Debug.Log("[Volleyball] SCREENSHOT TOUR done");
             Application.Quit(0);
+        }
+
+        IEnumerator MenuTour()
+        {
+            SceneManager.LoadScene(SceneFlow.MainMenu);
+            yield return new WaitForSeconds(1.5f);
+            ScreenCapture.CaptureScreenshot(Path.Combine(outputDir, "menu_home.png"));
+            yield return new WaitForSeconds(0.5f);
+
+            CharacterSelectPanel panel = null;
+            foreach (var p in FindObjectsByType<CharacterSelectPanel>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                panel = p;
+            if (panel == null) { Debug.LogError("[Volleyball] SCREENSHOT TOUR: no CharacterSelectPanel"); yield break; }
+            panel.gameObject.SetActive(true);
+
+            string[] picks = { "fox", "lion", "giraffe", "penguin", "moose", "toucan" };
+            foreach (var id in picks)
+            {
+                panel.Select(id);
+                yield return new WaitForSeconds(0.6f); // mid-cheer
+                ScreenCapture.CaptureScreenshot(Path.Combine(outputDir, $"select_{id}.png"));
+                yield return new WaitForSeconds(0.4f);
+            }
+            yield return new WaitForSeconds(0.5f);
+            Debug.Log("[Volleyball] SCREENSHOT TOUR (menu) done");
         }
     }
 }

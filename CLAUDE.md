@@ -41,6 +41,13 @@ Check no editor is running first (`Temp/UnityLockfile` absent).
 
 - Full regen (sprites, prefabs, all 15 arenas, menu, hash refresh):
   `-batchmode -nographics -quit -projectPath <proj> -executeMethod Volleyball.EditorTools.WorldTourBuildAll.Build`
+- 3D art (toon overhaul) is generated too: `Tools/blender/animal_gen.py` (animals),
+  `props_gen.py` (beach + pedestal), `arena_gen.py` (Savanna/Amazon/Sahara/Arctic) via
+  `blender -b --factory-startup -P <script> -- export all` → `Assets/Art/`. The World Tour
+  build wraps animals into `Resources/Characters3D` prefabs. Character portraits
+  (`...PortraitBaker.BakeAll`) need a GPU — batch WITHOUT `-nographics`; PNGs are committed.
+  `-vbshots <dir>` (+ `-vbshotarena <Scene>` / `-vbshotmenu`) on a player build = all-AI
+  screenshot tour for eyeballing art changes.
 - Player builds: `...BuildKit.BuildWindows` / `.BuildWebGL` / `.BuildLinuxServer`
   → `Builds/`. Env var `VB_VERSION` stamps `PlayerSettings.bundleVersion`; the
   connect-time version handshake only lets identical stamps play together.
