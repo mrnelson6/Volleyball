@@ -15,9 +15,13 @@ production stack.
   across every build or clients explode on join. The hash-refresh pass at the
   end of the build exists because builders bake hash 0 into unsaved scenes.
 - **Simulation vs view.** Players simulate at a fixed 50Hz tick:
-  `VolleyPlayer.Simulate(InputCommand, dt, SimRole)` must stay a pure function
-  of (state, command, dt) — no `Camera.main`, no `Time.time`, no randomness, no
-  audio/UI (contact-error rolls are authority-side in `Execute*Authoritative`).
+  `VolleyPlayer.Simulate(InputCommand, dt, SimRole, BodyFrame)` must stay a pure
+  function of (state, command, bodies, dt) — no `Camera.main`, no `Time.time`, no
+  randomness, no audio/UI (contact-error rolls are authority-side in
+  `Execute*Authoritative`). Player-vs-player pushing reads ONLY the tick-start
+  `BodyFrame` (`BodySet`, captured by `BodyTick` before anyone steps), so step
+  order never matters; dive knockdowns are authority-side (`BodyReferee`) and
+  reach clients through the sim state (`knockdownTimer`).
   Gameplay reads `SimPosition`; anything differentiating position per rendered
   frame (run cycles, movement audio) reads `ViewGroundPosition`/the transform,
   and interpolation clocks use `Time.time`, never `Time.fixedTime` — the
