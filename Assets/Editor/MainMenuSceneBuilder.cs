@@ -31,48 +31,46 @@ namespace Volleyball.EditorTools
 
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-            // Live beach arena backdrop — the same 3D toon beach as the playable arena (its
-            // court model carries the lines and net). No ball/players/match — purely scenic.
-            ToonBeachDecorator.BuildEnvironment();
+            BuildMenuScenery();
 
-            Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            Font font = UIStyle.Body;
             GameObject canvasGO = BuildCanvas();
+            // everything lives under the safe-area root, so notches/rounded corners can't clip it
+            Transform ui = UIStyle.SafeRoot(canvasGO.transform);
 
             // Home screen root: the title and top-level buttons live under one container so
             // MainMenuController can hide the whole home screen while a panel is open.
             var homeRoot = new GameObject("HomeRoot", typeof(RectTransform));
-            homeRoot.transform.SetParent(canvasGO.transform, false);
+            homeRoot.transform.SetParent(ui, false);
             Stretch(homeRoot.GetComponent<RectTransform>());
 
-            // Title
-            Text title = MakeText(homeRoot.transform, "Title", font,
-                new Vector2(0.5f, 1f), new Vector2(0f, -130f), new Vector2(1500f, 130f), 96,
-                TextAnchor.MiddleCenter);
-            title.text = "ANIMAL VOLLEYBALL";
+            BuildLogo(homeRoot.transform);
 
-            Text subtitle = MakeText(homeRoot.transform, "Subtitle", font,
-                new Vector2(0.5f, 1f), new Vector2(0f, -230f), new Vector2(1000f, 60f), 40,
-                TextAnchor.MiddleCenter);
-            subtitle.text = "— WORLD TOUR —";
-            subtitle.color = new Color(1f, 1f, 1f, 0.85f);
-
-            // Top-level buttons (lower-centre stack)
+            // Top-level buttons: a chunky column down the left, leaving the beach scene visible
+            var column = new Vector2(0f, 0.5f);
+            float x = 90f + MenuBtnSize.x * 0.5f;
             Button quickPlay = MakeButton(homeRoot.transform, font, "QuickPlayButton", "Quick Play",
-                new Vector2(0.5f, 0.5f), new Vector2(0f, 120f), MenuBtnSize, MenuBlue);
+                column, new Vector2(x, 40f), MenuBtnSize, MenuOrange, anchorPivot: false);
             Button campaign = MakeButton(homeRoot.transform, font, "CampaignButton", "Campaign",
-                new Vector2(0.5f, 0.5f), new Vector2(0f, 10f), MenuBtnSize, MenuBlue);
+                column, new Vector2(x, -70f), MenuBtnSize, MenuTeal, anchorPivot: false);
             Button online = MakeButton(homeRoot.transform, font, "OnlineButton", "Online",
-                new Vector2(0.5f, 0.5f), new Vector2(0f, -100f), MenuBtnSize, MenuBlue);
+                column, new Vector2(x, -180f), MenuBtnSize, MenuPurple, anchorPivot: false);
             Button settings = MakeButton(homeRoot.transform, font, "SettingsButton", "Settings",
-                new Vector2(0.5f, 0.5f), new Vector2(0f, -210f), MenuBtnSize, MenuBlue);
+                column, new Vector2(x - 60f, -290f), MenuBtnSmall, MenuSlate, anchorPivot: false);
             Button quit = MakeButton(homeRoot.transform, font, "QuitButton", "Quit",
-                new Vector2(0.5f, 0.5f), new Vector2(0f, -320f), MenuBtnSize, MenuRed);
+                column, new Vector2(x - 60f, -380f), MenuBtnSmall, MenuRed, anchorPivot: false);
 
-            GameObject settingsPanel = BuildSettingsPanel(canvasGO.transform, font);
-            GameObject campaignPanel = BuildCampaignPanel(canvasGO.transform, font);
-            GameObject characterSelectPanel = BuildCharacterSelectPanel(canvasGO.transform, font);
-            GameObject lobbyPanel = BuildOnlineLobbyPanel(canvasGO.transform, font);
-            GameObject onlinePanel = BuildOnlinePanel(canvasGO.transform, font, lobbyPanel);
+            Text version = MakeText(homeRoot.transform, "Version", font,
+                new Vector2(1f, 0f), new Vector2(-24f, 16f), new Vector2(500f, 40f), 24, TextAnchor.LowerRight);
+            version.color = new Color(1f, 1f, 1f, 0.7f);
+            version.gameObject.AddComponent<VersionLabel>();
+            UIStyle.Pop(version, 1.5f);
+
+            GameObject settingsPanel = BuildSettingsPanel(ui, font);
+            GameObject campaignPanel = BuildCampaignPanel(ui, font);
+            GameObject characterSelectPanel = BuildCharacterSelectPanel(ui, font);
+            GameObject lobbyPanel = BuildOnlineLobbyPanel(ui, font);
+            GameObject onlinePanel = BuildOnlinePanel(ui, font, lobbyPanel);
 
             var ctrl = canvasGO.AddComponent<MainMenuController>();
             ctrl.quickPlayButton = quickPlay;
@@ -108,12 +106,104 @@ namespace Volleyball.EditorTools
                 "OK");
         }
 
+        // ----------------------------------------------------------------- home screen
+
+        /// <summary>Stacked cartoon logo, top-left, gently bobbing, with a WORLD TOUR badge.</summary>
+        static void BuildLogo(Transform parent)
+        {
+            Font title = UIStyle.Title;
+            var logo = new GameObject("Logo", typeof(RectTransform));
+            logo.transform.SetParent(parent, false);
+            var lrt = logo.GetComponent<RectTransform>();
+            lrt.anchorMin = lrt.anchorMax = lrt.pivot = new Vector2(0f, 1f);
+            lrt.sizeDelta = new Vector2(760f, 330f);
+            lrt.anchoredPosition = new Vector2(70f, -40f);
+            logo.AddComponent<MenuBob>();
+
+            var dark = new Color(0.28f, 0.12f, 0.05f, 1f);
+            Text animal = MakeText(logo.transform, "Animal", title,
+                new Vector2(0f, 1f), new Vector2(10f, 0f), new Vector2(760f, 130f), 128, TextAnchor.UpperLeft);
+            animal.text = "ANIMAL";
+            animal.color = new Color(1.00f, 0.86f, 0.26f);
+            UIStyle.Pop(animal, 6f, dark);
+
+            Text volley = MakeText(logo.transform, "Volleyball", title,
+                new Vector2(0f, 1f), new Vector2(0f, -112f), new Vector2(760f, 130f), 116, TextAnchor.UpperLeft);
+            volley.text = "VOLLEYBALL";
+            volley.color = new Color(1.00f, 0.55f, 0.18f);
+            UIStyle.Pop(volley, 6f, dark);
+
+            var badge = new GameObject("Badge", typeof(RectTransform), typeof(Image));
+            badge.transform.SetParent(logo.transform, false);
+            var brt = badge.GetComponent<RectTransform>();
+            brt.anchorMin = brt.anchorMax = brt.pivot = new Vector2(0f, 1f);
+            brt.sizeDelta = new Vector2(300f, 58f);
+            brt.anchoredPosition = new Vector2(14f, -246f);
+            var bimg = badge.GetComponent<Image>();
+            bimg.sprite = UISprite();
+            bimg.type = Image.Type.Sliced;
+            bimg.color = MenuTeal;
+            Text tour = MakeText(badge.transform, "Label", UIStyle.Body,
+                new Vector2(0.5f, 0.5f), new Vector2(0f, 2f), new Vector2(300f, 58f), 34, TextAnchor.MiddleCenter);
+            tour.text = "WORLD TOUR";
+            UIStyle.Pop(tour, 2f, new Color(0.05f, 0.25f, 0.22f, 0.9f));
+        }
+
+        /// <summary>
+        /// The live backdrop: the toon Sunset Beach, a gang of 3D animals hanging out on the far
+        /// court (idling, cheering now and then), and a slow drifting camera framed so the button
+        /// column on the left doesn't cover them.
+        /// </summary>
+        static void BuildMenuScenery()
+        {
+            ToonBeachDecorator.BuildEnvironment();
+
+            var cam = Camera.main;
+            if (cam != null)
+            {
+                // framed from the +Z end so the net runs off behind the button column
+                var look = new Vector3(-0.8f, 1.3f, 4.6f);
+                cam.transform.position = new Vector3(8.8f, 3.3f, -0.6f);
+                cam.transform.LookAt(look);
+                cam.fieldOfView = 42f;
+                cam.gameObject.AddComponent<MenuCameraDrift>().lookAt = look;
+            }
+
+            var gang = new GameObject("Menu Animals").transform;
+            (string id, Vector3 pos, Color jersey)[] cast =
+            {
+                ("fox", new Vector3(1.2f, 0f, 3.0f), new Color(0.20f, 0.50f, 0.95f)),
+                ("bear", new Vector3(-1.4f, 0f, 4.6f), new Color(0.45f, 0.80f, 1.00f)),
+                ("penguin", new Vector3(2.6f, 0f, 5.2f), new Color(0.95f, 0.30f, 0.25f)),
+                ("giraffe", new Vector3(-2.4f, 0f, 3.4f), new Color(0.98f, 0.60f, 0.20f)),
+                ("lion", new Vector3(-0.6f, 0f, 7.0f), new Color(0.30f, 0.80f, 0.42f)),
+            };
+            for (int i = 0; i < cast.Length; i++)
+            {
+                var (id, pos, jersey) = cast[i];
+                var spot = new GameObject("Menu " + id).transform;
+                spot.SetParent(gang, false);
+                spot.position = pos;
+                Vector3 toCam = cam != null ? cam.transform.position - pos : Vector3.right;
+                toCam.y = 0f;
+                spot.rotation = Quaternion.LookRotation(toCam.normalized) * Quaternion.Euler(0f, (i % 3 - 1) * 18f, 0f);
+                var a = spot.gameObject.AddComponent<MenuAnimal>();
+                a.characterId = id;
+                a.jersey = jersey;
+            }
+        }
+
         // ----------------------------------------------------------------- palette / sizes
 
-        static readonly Vector2 MenuBtnSize = new Vector2(440f, 96f);
-        static readonly Color MenuBlue = new Color(0.20f, 0.45f, 0.85f, 0.92f);
-        static readonly Color MenuRed = new Color(0.80f, 0.32f, 0.28f, 0.92f);
-        static readonly Color PanelDim = new Color(0.04f, 0.06f, 0.10f, 0.88f);
+        static readonly Vector2 MenuBtnSize = new Vector2(460f, 96f);
+        static readonly Vector2 MenuBtnSmall = new Vector2(340f, 76f);
+        static readonly Color MenuBlue = new Color(0.22f, 0.55f, 0.95f, 1f);
+        static readonly Color MenuRed = new Color(0.92f, 0.34f, 0.30f, 1f);
+        static readonly Color MenuOrange = new Color(1.00f, 0.58f, 0.18f, 1f);
+        static readonly Color MenuTeal = new Color(0.16f, 0.72f, 0.64f, 1f);
+        static readonly Color MenuPurple = new Color(0.56f, 0.42f, 0.95f, 1f);
+        static readonly Color MenuSlate = new Color(0.36f, 0.46f, 0.62f, 1f);
+        static readonly Color PanelDim = new Color(0.05f, 0.07f, 0.16f, 0.86f);
 
         static readonly (AudioChannel ch, string label)[] VolumeRows =
         {
@@ -806,36 +896,79 @@ namespace Volleyball.EditorTools
                 typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             var canvas = canvasGO.GetComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            var scaler = canvasGO.GetComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920f, 1080f);
-            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-            scaler.matchWidthOrHeight = 0.5f;
+            UIStyle.ConfigureScaler(canvasGO.GetComponent<CanvasScaler>());
             return canvasGO;
         }
 
+        /// <summary>
+        /// A chunky toy button: rounded pill in <paramref name="color"/> sitting on a darker "lip"
+        /// (reads as a raised key), outlined label, and <see cref="MenuButtonJuice"/> bounce.
+        /// With anchorPivot=false the pivot stays centred, so pos is the button's centre.
+        /// </summary>
         static Button MakeButton(Transform parent, Font font, string name, string label,
-                                 Vector2 anchor, Vector2 pos, Vector2 size, Color color)
+                                 Vector2 anchor, Vector2 pos, Vector2 size, Color color,
+                                 bool anchorPivot = true)
         {
-            var go = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
+            // the Button lives on the root (clicks bubble up from the face), so hiding the
+            // button's GameObject hides the whole thing — lip included
+            var go = new GameObject(name, typeof(RectTransform), typeof(Button));
             go.transform.SetParent(parent, false);
             var rt = go.GetComponent<RectTransform>();
             rt.anchorMin = rt.anchorMax = anchor;
-            rt.pivot = anchor;
+            rt.pivot = anchorPivot ? anchor : new Vector2(0.5f, 0.5f);
             rt.sizeDelta = size;
             rt.anchoredPosition = pos;
 
-            var img = go.GetComponent<Image>();
+            float lip = Mathf.Clamp(size.y * 0.09f, 4f, 9f);
+            var lipGO = new GameObject("Lip", typeof(RectTransform), typeof(Image));
+            lipGO.transform.SetParent(go.transform, false);
+            var lrt = lipGO.GetComponent<RectTransform>();
+            Stretch(lrt);
+            lrt.offsetMin = new Vector2(0f, -lip);
+            lrt.offsetMax = new Vector2(0f, -lip);
+            var lipImg = lipGO.GetComponent<Image>();
+            lipImg.sprite = UISprite();
+            lipImg.type = Image.Type.Sliced;
+            lipImg.color = new Color(color.r * 0.55f, color.g * 0.55f, color.b * 0.55f, color.a);
+            lipImg.raycastTarget = false;
+
+            var face = new GameObject("Face", typeof(RectTransform), typeof(Image));
+            face.transform.SetParent(go.transform, false);
+            Stretch(face.GetComponent<RectTransform>());
+            var img = face.GetComponent<Image>();
             img.sprite = UISprite();
             img.type = Image.Type.Sliced;
             img.color = color;
-            go.GetComponent<Button>().targetGraphic = img;
+            var button = go.GetComponent<Button>();
+            button.targetGraphic = img;
+            var colors = button.colors;
+            colors.highlightedColor = new Color(1.08f, 1.08f, 1.08f, 1f);
+            colors.pressedColor = new Color(0.85f, 0.85f, 0.85f, 1f);
+            button.colors = colors;
 
-            Text t = MakeText(go.transform, "Label", font,
-                new Vector2(0.5f, 0.5f), Vector2.zero, size, 36, TextAnchor.MiddleCenter);
+            // a soft highlight across the top half gives the pill some volume
+            var shine = new GameObject("Shine", typeof(RectTransform), typeof(Image));
+            shine.transform.SetParent(face.transform, false);
+            var srt = shine.GetComponent<RectTransform>();
+            srt.anchorMin = new Vector2(0f, 0.52f);
+            srt.anchorMax = new Vector2(1f, 1f);
+            srt.offsetMin = new Vector2(8f, 0f);
+            srt.offsetMax = new Vector2(-8f, -4f);
+            var shineImg = shine.GetComponent<Image>();
+            shineImg.sprite = UISprite();
+            shineImg.type = Image.Type.Sliced;
+            shineImg.color = new Color(1f, 1f, 1f, 0.16f);
+            shineImg.raycastTarget = false;
+
+            int fontSize = Mathf.RoundToInt(Mathf.Clamp(size.y * 0.44f, 22f, 44f));
+            Text t = MakeText(face.transform, "Label", font,
+                new Vector2(0.5f, 0.5f), new Vector2(0f, 2f), size, fontSize, TextAnchor.MiddleCenter);
             t.text = label;
             t.raycastTarget = false;
-            return go.GetComponent<Button>();
+            UIStyle.Pop(t, 2f, new Color(color.r * 0.35f, color.g * 0.35f, color.b * 0.35f, 0.9f));
+
+            go.AddComponent<MenuButtonJuice>();
+            return button;
         }
 
         static Slider MakeSlider(Transform parent, string name, Vector2 anchor, Vector2 pos, Vector2 size)

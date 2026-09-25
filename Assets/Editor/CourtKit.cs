@@ -380,12 +380,9 @@ namespace Volleyball.EditorTools
             var canvas = canvasGO.GetComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             var scaler = canvasGO.GetComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920f, 1080f);
-            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-            scaler.matchWidthOrHeight = 0.5f;
+            UIStyle.ConfigureScaler(scaler); // Expand: the full 1920x1080 layout fits any aspect
 
-            Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            Font font = UIStyle.Body;
 
             Text score = MakeText(canvasGO.transform, "Score", font,
                 new Vector2(0.5f, 1f), new Vector2(0f, -60f), new Vector2(800f, 80f), 48,

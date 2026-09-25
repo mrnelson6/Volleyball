@@ -101,6 +101,21 @@ namespace Volleyball
                 ScreenCapture.CaptureScreenshot(Path.Combine(outputDir, $"select_{id}.png"));
                 yield return new WaitForSeconds(0.4f);
             }
+            panel.gameObject.SetActive(false);
+
+            // the other full-screen panels, one at a time (layout / cropping checks)
+            foreach (var type in new[] { typeof(SettingsPanel), typeof(CampaignPanel), typeof(OnlinePanel) })
+            {
+                MonoBehaviour other = null;
+                foreach (var p in FindObjectsByType(type, FindObjectsInactive.Include, FindObjectsSortMode.None))
+                    other = (MonoBehaviour)p;
+                if (other == null) continue;
+                other.gameObject.SetActive(true);
+                yield return new WaitForSeconds(0.6f);
+                ScreenCapture.CaptureScreenshot(Path.Combine(outputDir, $"panel_{type.Name}.png"));
+                yield return new WaitForSeconds(0.3f);
+                other.gameObject.SetActive(false);
+            }
             yield return new WaitForSeconds(0.5f);
             Debug.Log("[Volleyball] SCREENSHOT TOUR (menu) done");
         }
