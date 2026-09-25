@@ -64,3 +64,6 @@ Thumbs.db
 
 # per-machine deploy settings
 Tools/deploy.config.json
+
+# look-dev contact sheet renders (Volleyball -> 3D -> Save Look-Dev Contact Sheet)
+lookdev_sheet*.png

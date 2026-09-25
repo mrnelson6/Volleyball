@@ -1,0 +1,1084 @@
+{
+ "species": [
+  {
+   "head": "Muzzle",
+   "ears": "Pointed",
+   "horns": "None",
+   "neck": 0.0,
+   "tail": 1.3,
+   "markings": "None",
+   "marking": [
+    0.15,
+    0.12,
+    0.1
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "fox",
+   "height": 0.95,
+   "fur": [
+    0.87,
+    0.45,
+    0.15
+   ],
+   "accent": [
+    0.96,
+    0.9,
+    0.78
+   ]
+  },
+  {
+   "head": "Muzzle",
+   "ears": "Round",
+   "horns": "None",
+   "neck": 0.0,
+   "tail": 0.3,
+   "markings": "None",
+   "marking": [
+    0.15,
+    0.12,
+    0.1
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "bear",
+   "height": 1.18,
+   "fur": [
+    0.45,
+    0.3,
+    0.18
+   ],
+   "accent": [
+    0.7,
+    0.55,
+    0.38
+   ]
+  },
+  {
+   "head": "Muzzle",
+   "ears": "Round",
+   "horns": "None",
+   "neck": 0.0,
+   "tail": 1.0,
+   "markings": "MaskPatch",
+   "marking": [
+    0.25,
+    0.18,
+    0.12
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "meerkat",
+   "height": 0.75,
+   "fur": [
+    0.8,
+    0.68,
+    0.48
+   ],
+   "accent": [
+    0.92,
+    0.85,
+    0.7
+   ]
+  },
+  {
+   "head": "LongMuzzle",
+   "ears": "Pointed",
+   "horns": "None",
+   "neck": 0.0,
+   "tail": 1.0,
+   "markings": "Stripes",
+   "marking": [
+    0.12,
+    0.12,
+    0.13
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "zebra",
+   "height": 1.05,
+   "fur": [
+    0.92,
+    0.92,
+    0.92
+   ],
+   "accent": [
+    0.35,
+    0.33,
+    0.33
+   ]
+  },
+  {
+   "head": "LongMuzzle",
+   "ears": "Pointed",
+   "horns": "Tusks",
+   "neck": 0.0,
+   "tail": 1.0,
+   "markings": "None",
+   "marking": [
+    0.15,
+    0.12,
+    0.1
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "warthog",
+   "height": 0.9,
+   "fur": [
+    0.55,
+    0.45,
+    0.38
+   ],
+   "accent": [
+    0.7,
+    0.6,
+    0.52
+   ]
+  },
+  {
+   "head": "LongMuzzle",
+   "ears": "Round",
+   "horns": "Horns",
+   "neck": 1.0,
+   "tail": 1.0,
+   "markings": "Spots",
+   "marking": [
+    0.55,
+    0.35,
+    0.15
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "giraffe",
+   "height": 1.3,
+   "fur": [
+    0.9,
+    0.75,
+    0.4
+   ],
+   "accent": [
+    0.96,
+    0.88,
+    0.65
+   ]
+  },
+  {
+   "head": "Muzzle",
+   "ears": "Round",
+   "horns": "None",
+   "neck": 0.0,
+   "tail": 1.1,
+   "markings": "None",
+   "marking": [
+    0.15,
+    0.12,
+    0.1
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "lion",
+   "height": 1.1,
+   "fur": [
+    0.8,
+    0.6,
+    0.3
+   ],
+   "accent": [
+    0.93,
+    0.85,
+    0.68
+   ]
+  },
+  {
+   "head": "LongMuzzle",
+   "ears": "Round",
+   "horns": "Horns",
+   "neck": 0.0,
+   "tail": 0.6,
+   "markings": "None",
+   "marking": [
+    0.15,
+    0.12,
+    0.1
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "rhino",
+   "height": 1.0,
+   "fur": [
+    0.55,
+    0.55,
+    0.6
+   ],
+   "accent": [
+    0.72,
+    0.72,
+    0.76
+   ]
+  },
+  {
+   "head": "Round",
+   "ears": "Round",
+   "horns": "None",
+   "neck": 0.0,
+   "tail": 0.0,
+   "markings": "None",
+   "marking": [
+    0.15,
+    0.12,
+    0.1
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "capybara",
+   "height": 0.95,
+   "fur": [
+    0.6,
+    0.45,
+    0.28
+   ],
+   "accent": [
+    0.72,
+    0.58,
+    0.4
+   ]
+  },
+  {
+   "head": "Beak",
+   "ears": "None",
+   "horns": "None",
+   "neck": 0.0,
+   "tail": 0.8,
+   "markings": "None",
+   "marking": [
+    0.15,
+    0.12,
+    0.1
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "toucan",
+   "height": 0.85,
+   "fur": [
+    0.15,
+    0.15,
+    0.18
+   ],
+   "accent": [
+    0.95,
+    0.55,
+    0.1
+   ]
+  },
+  {
+   "head": "Round",
+   "ears": "None",
+   "horns": "None",
+   "neck": 0.0,
+   "tail": 0.0,
+   "markings": "MaskPatch",
+   "marking": [
+    0.3,
+    0.25,
+    0.18
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "sloth",
+   "height": 0.9,
+   "fur": [
+    0.55,
+    0.5,
+    0.4
+   ],
+   "accent": [
+    0.8,
+    0.74,
+    0.6
+   ]
+  },
+  {
+   "head": "Muzzle",
+   "ears": "Round",
+   "horns": "None",
+   "neck": 0.0,
+   "tail": 1.2,
+   "markings": "Spots",
+   "marking": [
+    0.2,
+    0.14,
+    0.08
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "jaguar",
+   "height": 1.0,
+   "fur": [
+    0.85,
+    0.65,
+    0.25
+   ],
+   "accent": [
+    0.95,
+    0.85,
+    0.6
+   ]
+  },
+  {
+   "head": "Round",
+   "ears": "Round",
+   "horns": "None",
+   "neck": 0.0,
+   "tail": 0.0,
+   "markings": "None",
+   "marking": [
+    0.15,
+    0.12,
+    0.1
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "wombat",
+   "height": 0.85,
+   "fur": [
+    0.5,
+    0.42,
+    0.36
+   ],
+   "accent": [
+    0.65,
+    0.56,
+    0.48
+   ]
+  },
+  {
+   "head": "Muzzle",
+   "ears": "Pointed",
+   "horns": "None",
+   "neck": 0.0,
+   "tail": 1.0,
+   "markings": "None",
+   "marking": [
+    0.15,
+    0.12,
+    0.1
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "dingo",
+   "height": 0.95,
+   "fur": [
+    0.8,
+    0.6,
+    0.35
+   ],
+   "accent": [
+    0.92,
+    0.82,
+    0.62
+   ]
+  },
+  {
+   "head": "Beak",
+   "ears": "None",
+   "horns": "None",
+   "neck": 0.6,
+   "tail": 0.5,
+   "markings": "None",
+   "marking": [
+    0.15,
+    0.12,
+    0.1
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "emu",
+   "height": 1.15,
+   "fur": [
+    0.45,
+    0.4,
+    0.33
+   ],
+   "accent": [
+    0.6,
+    0.54,
+    0.44
+   ]
+  },
+  {
+   "head": "Muzzle",
+   "ears": "Tall",
+   "horns": "None",
+   "neck": 0.0,
+   "tail": 1.4,
+   "markings": "None",
+   "marking": [
+    0.15,
+    0.12,
+    0.1
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "kangaroo",
+   "height": 1.05,
+   "fur": [
+    0.7,
+    0.5,
+    0.35
+   ],
+   "accent": [
+    0.88,
+    0.76,
+    0.6
+   ]
+  },
+  {
+   "head": "Round",
+   "ears": "Round",
+   "horns": "None",
+   "neck": 0.0,
+   "tail": 1.3,
+   "markings": "MaskPatch",
+   "marking": [
+    0.95,
+    0.88,
+    0.78
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "redpanda",
+   "height": 0.85,
+   "fur": [
+    0.75,
+    0.3,
+    0.12
+   ],
+   "accent": [
+    0.95,
+    0.88,
+    0.78
+   ]
+  },
+  {
+   "head": "LongMuzzle",
+   "ears": "Droopy",
+   "horns": "Horns",
+   "neck": 0.0,
+   "tail": 1.2,
+   "markings": "None",
+   "marking": [
+    0.15,
+    0.12,
+    0.1
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "yak",
+   "height": 1.15,
+   "fur": [
+    0.3,
+    0.22,
+    0.16
+   ],
+   "accent": [
+    0.55,
+    0.48,
+    0.42
+   ]
+  },
+  {
+   "head": "LongMuzzle",
+   "ears": "Droopy",
+   "horns": "Horns",
+   "neck": 0.0,
+   "tail": 0.6,
+   "markings": "None",
+   "marking": [
+    0.15,
+    0.12,
+    0.1
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "markhor",
+   "height": 1.0,
+   "fur": [
+    0.65,
+    0.58,
+    0.48
+   ],
+   "accent": [
+    0.82,
+    0.76,
+    0.66
+   ]
+  },
+  {
+   "head": "Muzzle",
+   "ears": "Round",
+   "horns": "None",
+   "neck": 0.0,
+   "tail": 1.4,
+   "markings": "Spots",
+   "marking": [
+    0.3,
+    0.3,
+    0.33
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "snowleopard",
+   "height": 1.0,
+   "fur": [
+    0.8,
+    0.8,
+    0.82
+   ],
+   "accent": [
+    0.94,
+    0.94,
+    0.95
+   ]
+  },
+  {
+   "head": "Muzzle",
+   "ears": "Tall",
+   "horns": "None",
+   "neck": 0.0,
+   "tail": 0.3,
+   "markings": "None",
+   "marking": [
+    0.15,
+    0.12,
+    0.1
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "hare",
+   "height": 0.8,
+   "fur": [
+    0.62,
+    0.52,
+    0.4
+   ],
+   "accent": [
+    0.85,
+    0.78,
+    0.66
+   ]
+  },
+  {
+   "head": "Muzzle",
+   "ears": "Round",
+   "horns": "None",
+   "neck": 0.0,
+   "tail": 0.4,
+   "markings": "MaskPatch",
+   "marking": [
+    0.12,
+    0.12,
+    0.14
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "badger",
+   "height": 0.85,
+   "fur": [
+    0.45,
+    0.45,
+    0.48
+   ],
+   "accent": [
+    0.9,
+    0.9,
+    0.88
+   ]
+  },
+  {
+   "head": "LongMuzzle",
+   "ears": "Pointed",
+   "horns": "Tusks",
+   "neck": 0.0,
+   "tail": 0.6,
+   "markings": "None",
+   "marking": [
+    0.15,
+    0.12,
+    0.1
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "boar",
+   "height": 0.95,
+   "fur": [
+    0.4,
+    0.32,
+    0.26
+   ],
+   "accent": [
+    0.58,
+    0.48,
+    0.4
+   ]
+  },
+  {
+   "head": "LongMuzzle",
+   "ears": "Pointed",
+   "horns": "Antlers",
+   "neck": 0.0,
+   "tail": 0.3,
+   "markings": "None",
+   "marking": [
+    0.15,
+    0.12,
+    0.1
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "stag",
+   "height": 1.2,
+   "fur": [
+    0.55,
+    0.42,
+    0.28
+   ],
+   "accent": [
+    0.78,
+    0.68,
+    0.52
+   ]
+  },
+  {
+   "head": "Round",
+   "ears": "Tall",
+   "horns": "None",
+   "neck": 0.0,
+   "tail": 1.5,
+   "markings": "None",
+   "marking": [
+    0.15,
+    0.12,
+    0.1
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "jerboa",
+   "height": 0.75,
+   "fur": [
+    0.85,
+    0.7,
+    0.45
+   ],
+   "accent": [
+    0.95,
+    0.88,
+    0.72
+   ]
+  },
+  {
+   "head": "Muzzle",
+   "ears": "Tall",
+   "horns": "None",
+   "neck": 0.0,
+   "tail": 1.1,
+   "markings": "None",
+   "marking": [
+    0.15,
+    0.12,
+    0.1
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "fennec",
+   "height": 0.8,
+   "fur": [
+    0.9,
+    0.78,
+    0.55
+   ],
+   "accent": [
+    0.97,
+    0.92,
+    0.8
+   ]
+  },
+  {
+   "head": "LongMuzzle",
+   "ears": "Pointed",
+   "horns": "Horns",
+   "neck": 0.0,
+   "tail": 0.8,
+   "markings": "MaskPatch",
+   "marking": [
+    0.25,
+    0.2,
+    0.16
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "oryx",
+   "height": 1.1,
+   "fur": [
+    0.85,
+    0.8,
+    0.7
+   ],
+   "accent": [
+    0.95,
+    0.92,
+    0.85
+   ]
+  },
+  {
+   "head": "LongMuzzle",
+   "ears": "Round",
+   "horns": "None",
+   "neck": 0.5,
+   "tail": 0.8,
+   "markings": "None",
+   "marking": [
+    0.15,
+    0.12,
+    0.1
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "camel",
+   "height": 1.25,
+   "fur": [
+    0.78,
+    0.62,
+    0.4
+   ],
+   "accent": [
+    0.9,
+    0.78,
+    0.58
+   ]
+  },
+  {
+   "head": "Muzzle",
+   "ears": "Round",
+   "horns": "None",
+   "neck": 0.0,
+   "tail": 1.2,
+   "markings": "MaskPatch",
+   "marking": [
+    0.1,
+    0.1,
+    0.12
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "raccoon",
+   "height": 0.85,
+   "fur": [
+    0.5,
+    0.5,
+    0.53
+   ],
+   "accent": [
+    0.78,
+    0.78,
+    0.8
+   ]
+  },
+  {
+   "head": "LongMuzzle",
+   "ears": "Droopy",
+   "horns": "Antlers",
+   "neck": 0.0,
+   "tail": 0.2,
+   "markings": "None",
+   "marking": [
+    0.15,
+    0.12,
+    0.1
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "moose",
+   "height": 1.28,
+   "fur": [
+    0.38,
+    0.28,
+    0.2
+   ],
+   "accent": [
+    0.55,
+    0.44,
+    0.34
+   ]
+  },
+  {
+   "head": "LongMuzzle",
+   "ears": "Round",
+   "horns": "Horns",
+   "neck": 0.0,
+   "tail": 0.9,
+   "markings": "None",
+   "marking": [
+    0.15,
+    0.12,
+    0.1
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "buffalo",
+   "height": 1.1,
+   "fur": [
+    0.35,
+    0.25,
+    0.18
+   ],
+   "accent": [
+    0.22,
+    0.16,
+    0.12
+   ]
+  },
+  {
+   "head": "Muzzle",
+   "ears": "Round",
+   "horns": "None",
+   "neck": 0.0,
+   "tail": 1.3,
+   "markings": "None",
+   "marking": [
+    0.15,
+    0.12,
+    0.1
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "cougar",
+   "height": 1.0,
+   "fur": [
+    0.75,
+    0.58,
+    0.38
+   ],
+   "accent": [
+    0.9,
+    0.8,
+    0.65
+   ]
+  },
+  {
+   "head": "Beak",
+   "ears": "None",
+   "horns": "None",
+   "neck": 0.0,
+   "tail": 0.2,
+   "markings": "None",
+   "marking": [
+    0.15,
+    0.12,
+    0.1
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "penguin",
+   "height": 0.8,
+   "fur": [
+    0.1,
+    0.12,
+    0.16
+   ],
+   "accent": [
+    0.95,
+    0.75,
+    0.2
+   ]
+  },
+  {
+   "head": "Beak",
+   "ears": "None",
+   "horns": "None",
+   "neck": 0.0,
+   "tail": 0.4,
+   "markings": "Spots",
+   "marking": [
+    0.55,
+    0.55,
+    0.58
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "snowyowl",
+   "height": 0.85,
+   "fur": [
+    0.92,
+    0.92,
+    0.95
+   ],
+   "accent": [
+    0.3,
+    0.28,
+    0.25
+   ]
+  },
+  {
+   "head": "Round",
+   "ears": "None",
+   "horns": "Tusks",
+   "neck": 0.0,
+   "tail": 0.3,
+   "markings": "None",
+   "marking": [
+    0.15,
+    0.12,
+    0.1
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "walrus",
+   "height": 1.1,
+   "fur": [
+    0.6,
+    0.42,
+    0.35
+   ],
+   "accent": [
+    0.75,
+    0.6,
+    0.52
+   ]
+  },
+  {
+   "head": "Muzzle",
+   "ears": "Round",
+   "horns": "None",
+   "neck": 0.0,
+   "tail": 0.2,
+   "markings": "None",
+   "marking": [
+    0.15,
+    0.12,
+    0.1
+   ],
+   "nose": [
+    0.1,
+    0.08,
+    0.08
+   ],
+   "id": "polarbear",
+   "height": 1.2,
+   "fur": [
+    0.92,
+    0.9,
+    0.85
+   ],
+   "accent": [
+    0.98,
+    0.97,
+    0.94
+   ]
+  }
+ ]
+}
