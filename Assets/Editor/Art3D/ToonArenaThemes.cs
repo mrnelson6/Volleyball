@@ -4,7 +4,7 @@ using UnityEngine;
 namespace Volleyball.EditorTools
 {
     /// <summary>
-    /// The regional arenas converted to the 3D toon style: per-biome lighting plus a prop layout
+    /// The arenas converted to the 3D toon style (all fifteen — beach aside, these): per-biome lighting plus a prop layout
     /// over the generated meshes in Assets/Art/Arenas/&lt;folder&gt; (Tools/blender/arena_gen.py).
     /// <see cref="ThemedLevelBuilder"/> builds these instead of the primitive-based
     /// <see cref="ThemedArenaDecorator"/> theme with the same scene key, so scene names — and with
@@ -54,6 +54,18 @@ namespace Volleyball.EditorTools
         }
 
         public static Theme Find(string key) => Array.Find(All, t => t.key == key);
+
+        static ToonEnvironment.Preset Light(Color sun, float intensity, Vector3 euler,
+                                            Color ambSky, Color ambEquator, Color ambGround,
+                                            Color skyTint, Color skyGround, float exposure, Color fog,
+                                            float fogStart = 45f, float fogEnd = 190f)
+            => new ToonEnvironment.Preset
+            {
+                sunColor = sun, sunIntensity = intensity, sunEuler = euler,
+                ambientSky = ambSky, ambientEquator = ambEquator, ambientGround = ambGround,
+                skyTint = skyTint, skyGround = skyGround, skyExposure = exposure,
+                fogColor = fog, fogStart = fogStart, fogEnd = fogEnd,
+            };
 
         public static readonly Theme[] All =
         {
@@ -162,6 +174,208 @@ namespace Volleyball.EditorTools
                     p.Put("snowman", -7.5f, 11.5f, 110f, 1.0f);
                     p.Put("rock_a", -13f, 10f, 0f, 1.2f);
                     p.Put("floes", 0f, 0f);
+                },
+            },
+            new Theme
+            {
+                key = "OutbackArena", folder = "Outback",
+                lighting = Light(new Color(1.00f, 0.88f, 0.70f), 1.25f, new Vector3(45f, -50f, 0f),
+                    new Color(0.72f, 0.70f, 0.66f), new Color(0.80f, 0.62f, 0.48f), new Color(0.60f, 0.36f, 0.24f),
+                    new Color(0.55f, 0.62f, 0.78f), new Color(0.75f, 0.50f, 0.35f), 1.3f, new Color(0.92f, 0.78f, 0.62f)),
+                dress = p =>
+                {
+                    p.Put("eucalyptus", -12f, -14f, 20f, 1.1f);
+                    p.Put("eucalyptus_b", -14f, 8f, 150f, 1.2f);
+                    p.Put("eucalyptus", 11f, 18f, 260f, 0.9f);
+                    p.Put("windmill", -11.5f, -3f, 60f, 1.0f);
+                    p.Put("termite_mound", -8f, 13f, 0f, 1.1f);
+                    p.Put("termite_mound", 9f, -15f, 90f, 1.3f);
+                    p.Put("boulder", -14f, 15f, 30f, 1.3f);
+                    p.Put("boulder", 12f, -18f, 70f, 1.0f);
+                    p.Scatter("spinifex", 30, 31);
+                },
+            },
+            new Theme
+            {
+                key = "HimalayaArena", folder = "Himalaya",
+                lighting = Light(new Color(1.00f, 0.97f, 0.92f), 1.2f, new Vector3(35f, -50f, 0f),
+                    new Color(0.70f, 0.78f, 0.95f), new Color(0.78f, 0.80f, 0.86f), new Color(0.62f, 0.62f, 0.66f),
+                    new Color(0.35f, 0.50f, 0.85f), new Color(0.70f, 0.72f, 0.78f), 1.3f, new Color(0.82f, 0.88f, 0.97f)),
+                dress = p =>
+                {
+                    p.Put("stupa", -12f, 2f, 90f, 1.1f);
+                    p.Put("prayer_flags", -9f, -12f, 30f, 1.0f);
+                    p.Put("prayer_flags", -9f, 12f, -20f, 1.0f);
+                    p.Put("prayer_flags", 10f, 17f, 90f, 0.9f);
+                    p.Put("pine_snow", -14f, -8f, 0f, 1.2f);
+                    p.Put("pine_snow", -13f, 15f, 60f, 1.0f);
+                    p.Put("pine_snow", 12f, -17f, 120f, 1.1f);
+                    p.Put("boulder", -14f, -16f, 0f, 1.4f);
+                    p.Put("boulder", 11f, 14f, 40f, 1.0f);
+                },
+            },
+            new Theme
+            {
+                key = "ForestArena", folder = "Forest",
+                lighting = Light(new Color(1.00f, 0.95f, 0.82f), 1.05f, new Vector3(50f, -40f, 0f),
+                    new Color(0.52f, 0.64f, 0.57f), new Color(0.47f, 0.57f, 0.44f), new Color(0.26f, 0.31f, 0.21f),
+                    new Color(0.45f, 0.58f, 0.62f), new Color(0.40f, 0.48f, 0.40f), 1.15f, new Color(0.55f, 0.66f, 0.60f),
+                    fogStart: 30f, fogEnd: 140f),
+                dress = p =>
+                {
+                    p.Put("fir", -12f, -14f, 0f, 1.0f);
+                    p.Put("fir_b", -14f, -4f, 40f, 1.1f);
+                    p.Put("fir", -12.5f, 9f, 80f, 1.0f);
+                    p.Put("fir_b", -10f, 17f, 120f, 0.9f);
+                    p.Put("fir", 12f, -17f, 160f, 0.9f);
+                    p.Put("fir_b", 12f, 17f, 200f, 1.0f);
+                    p.Put("cabin", -11f, 3f, 90f, 1.0f);
+                    p.Put("mushroom", -8f, -11f, 0f, 1.1f);
+                    p.Put("mushroom", -8f, 12f, 60f, 1.0f);
+                    p.Put("mushroom", 9f, 14f, 120f, 1.2f);
+                    p.Put("log", -9f, -15f, 30f, 1.0f);
+                    p.Scatter("fern", 16, 41, 0.9f, 1.4f);
+                },
+            },
+            new Theme
+            {
+                key = "RockiesArena", folder = "Rockies", water = true,
+                lighting = Light(new Color(1.00f, 0.95f, 0.85f), 1.2f, new Vector3(40f, -45f, 0f),
+                    new Color(0.62f, 0.72f, 0.92f), new Color(0.66f, 0.70f, 0.66f), new Color(0.40f, 0.42f, 0.32f),
+                    new Color(0.40f, 0.58f, 0.85f), new Color(0.55f, 0.60f, 0.55f), 1.3f, new Color(0.75f, 0.84f, 0.95f)),
+                dress = p =>
+                {
+                    p.Put("fir", -12f, -15f, 0f, 1.1f);
+                    p.Put("fir_b", -14f, -6f, 50f, 1.0f);
+                    p.Put("fir", -11f, 15f, 90f, 1.1f);
+                    p.Put("fir_b", 12f, -17f, 140f, 1.0f);
+                    p.Put("fir", 12f, 16f, 220f, 0.9f);
+                    p.Put("cabin", -12f, 5f, 90f, 1.0f);
+                    p.Put("boulder", -9f, -12f, 0f, 1.0f);
+                    p.Put("boulder_b", -9f, 12f, 60f, 1.1f);
+                    p.Put("boulder", 10f, -15f, 120f, 0.9f);
+                },
+            },
+            new Theme
+            {
+                key = "VolcanoArena", folder = "Volcano", water = true,
+                lighting = Light(new Color(1.00f, 0.62f, 0.40f), 1.05f, new Vector3(30f, -40f, 0f),
+                    new Color(0.48f, 0.32f, 0.32f), new Color(0.58f, 0.34f, 0.26f), new Color(0.48f, 0.22f, 0.12f),
+                    new Color(0.70f, 0.30f, 0.20f), new Color(0.30f, 0.15f, 0.10f), 0.8f, new Color(0.45f, 0.22f, 0.16f),
+                    fogStart: 35f, fogEnd: 170f),
+                dress = p =>
+                {
+                    p.Put("obsidian_spikes", -10f, -12f, 0f, 1.1f);
+                    p.Put("obsidian_spikes", -12f, 6f, 90f, 1.0f);
+                    p.Put("obsidian_spikes", 10f, 16f, 180f, 0.9f);
+                    p.Put("lava_rock", -9f, 12f, 0f, 1.0f);
+                    p.Put("lava_rock_b", -14f, -4f, 60f, 1.2f);
+                    p.Put("lava_rock_b", 9f, -15f, 120f, 1.0f);
+                    p.Put("charred_tree", -12f, -16f, 0f, 1.0f);
+                    p.Put("charred_tree", -11f, 16f, 90f, 1.1f);
+                    p.Put("charred_tree", 12f, -18f, 200f, 0.9f);
+                },
+            },
+            new Theme
+            {
+                key = "LunarArena", folder = "Lunar",
+                lighting = Light(new Color(1.00f, 1.00f, 1.00f), 1.35f, new Vector3(35f, -60f, 0f),
+                    new Color(0.30f, 0.32f, 0.40f), new Color(0.36f, 0.36f, 0.40f), new Color(0.30f, 0.30f, 0.32f),
+                    new Color(0.00f, 0.00f, 0.00f), new Color(0.05f, 0.05f, 0.07f), 0.05f, new Color(0.05f, 0.05f, 0.08f),
+                    fogStart: 150f, fogEnd: 500f),
+                dress = p =>
+                {
+                    p.Put("crater", -10f, -10f, 0f, 1.0f);
+                    p.Put("crater_b", -11f, 11f, 40f, 1.1f);
+                    p.Put("crater", 9f, 15f, 80f, 0.9f);
+                    p.Put("crater_b", -14f, -2f, 0f, 1.3f);
+                    p.Put("lander", -12f, 4f, 30f, 1.0f);
+                    p.Put("satellite_dish", -9f, -15f, 60f, 1.0f);
+                    p.Put("boulder", -14f, 15f, 0f, 1.0f);
+                    p.Put("boulder", 10f, -16f, 90f, 0.8f);
+                },
+            },
+            new Theme
+            {
+                key = "AtlantisArena", folder = "Atlantis",
+                lighting = Light(new Color(0.70f, 0.90f, 1.00f), 0.95f, new Vector3(65f, -30f, 0f),
+                    new Color(0.38f, 0.64f, 0.78f), new Color(0.32f, 0.58f, 0.68f), new Color(0.26f, 0.42f, 0.47f),
+                    new Color(0.15f, 0.45f, 0.60f), new Color(0.10f, 0.30f, 0.40f), 0.9f, new Color(0.18f, 0.45f, 0.58f),
+                    fogStart: 15f, fogEnd: 110f),
+                dress = p =>
+                {
+                    p.Put("column_ruin", -11f, -12f, 0f, 1.0f);
+                    p.Put("column_ruin_b", -12f, -4f, 40f, 1.0f);
+                    p.Put("column_ruin", -11f, 6f, 80f, 1.1f);
+                    p.Put("column_ruin_b", -12f, 14f, 120f, 1.0f);
+                    p.Put("column_ruin", 10f, 17f, 160f, 0.9f);
+                    p.Put("column_ruin_b", 10f, -17f, 200f, 0.9f);
+                    p.Put("coral", -8f, -10f, 0f, 1.2f);
+                    p.Put("coral_b", -8f, 11f, 60f, 1.1f);
+                    p.Put("coral", 9f, -14f, 120f, 1.0f);
+                    p.Put("clam", -9f, 2f, 90f, 1.0f);
+                    p.Scatter("kelp", 14, 51, 0.9f, 1.4f);
+                },
+            },
+            new Theme
+            {
+                key = "SkyArena", folder = "Sky",
+                lighting = Light(new Color(1.00f, 0.95f, 0.88f), 1.0f, new Vector3(45f, -40f, 0f),
+                    new Color(0.62f, 0.68f, 0.92f), new Color(0.70f, 0.70f, 0.86f), new Color(0.62f, 0.62f, 0.80f),
+                    new Color(0.45f, 0.62f, 0.95f), new Color(0.72f, 0.76f, 0.95f), 1.25f, new Color(0.78f, 0.84f, 0.98f)),
+                dress = p =>
+                {
+                    p.Put("cloud_tower", -12f, -12f, 0f, 1.0f);
+                    p.Put("cloud_tower", -12f, 12f, 90f, 1.1f);
+                    p.Put("harp", -10f, 0f, 90f, 1.2f);
+                    p.Scatter("cloud_puff", 8, 61, 0.9f, 1.6f);
+                    p.Scatter("cloud_puff_b", 8, 62, 0.9f, 1.6f);
+                },
+            },
+            new Theme
+            {
+                key = "GraveyardArena", folder = "Graveyard",
+                lighting = Light(new Color(0.65f, 0.70f, 1.00f), 0.75f, new Vector3(40f, -60f, 0f),
+                    new Color(0.30f, 0.27f, 0.45f), new Color(0.32f, 0.28f, 0.40f), new Color(0.19f, 0.17f, 0.24f),
+                    new Color(0.25f, 0.18f, 0.40f), new Color(0.12f, 0.10f, 0.18f), 0.35f, new Color(0.22f, 0.18f, 0.32f),
+                    fogStart: 20f, fogEnd: 120f),
+                dress = p =>
+                {
+                    p.Put("tombstone", -9f, -8f, 90f, 1.0f);
+                    p.Put("tombstone_b", -9f, -2.5f, 90f, 1.0f);
+                    p.Put("tombstone", -9f, 3f, 90f, 1.0f);
+                    p.Put("tombstone_b", -9f, 8.5f, 90f, 1.0f);
+                    p.Put("tombstone", -12f, -13f, 70f, 1.0f);
+                    p.Put("tombstone_b", -12f, 13f, 110f, 1.0f);
+                    p.Put("dead_tree", -14f, -16f, 0f, 1.0f);
+                    p.Put("dead_tree_b", -13f, 15f, 90f, 1.1f);
+                    p.Put("dead_tree", 11f, -17f, 200f, 0.9f);
+                    p.Put("crypt", -14.5f, 0f, 90f, 1.0f);
+                    p.Put("pumpkin", -7.5f, -12f, 0f, 1.0f);
+                    p.Put("pumpkin", -7.5f, 12f, 90f, 1.0f);
+                    p.Put("pumpkin", 8f, 14f, 200f, 1.0f);
+                    foreach (var sx in new[] { -1f, 1f })
+                        foreach (var sz in new[] { -1f, 1f })
+                            p.Put("lamp_post", sx * 6.2f, sz * 10f);
+                },
+            },
+            new Theme
+            {
+                key = "NeonArena", folder = "Neon",
+                lighting = Light(new Color(0.72f, 0.62f, 1.00f), 0.65f, new Vector3(50f, -40f, 0f),
+                    new Color(0.34f, 0.27f, 0.52f), new Color(0.36f, 0.29f, 0.46f), new Color(0.21f, 0.19f, 0.29f),
+                    new Color(0.35f, 0.15f, 0.55f), new Color(0.10f, 0.06f, 0.15f), 0.35f, new Color(0.22f, 0.12f, 0.35f),
+                    fogStart: 40f, fogEnd: 180f),
+                dress = p =>
+                {
+                    p.Put("rooftop_edge", 0f, 0f);
+                    p.Put("ac_unit", -11f, -12f, 0f, 1.0f);
+                    p.Put("ac_unit_b", -11f, 10f, 90f, 1.0f);
+                    p.Put("ac_unit", 9f, -15f, 180f, 1.0f);
+                    p.Put("ac_unit_b", 10f, 15f, 270f, 1.0f);
+                    p.Put("water_tower", -13f, -3f, 0f, 1.0f);
+                    p.Put("neon_sign", -15f, -12f, 270f, 1.1f);
+                    p.Put("neon_sign_b", -15f, 12f, 270f, 1.1f);
                 },
             },
         };

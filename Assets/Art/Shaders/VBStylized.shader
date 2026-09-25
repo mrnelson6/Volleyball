@@ -5,6 +5,7 @@
 // The chosen art direction is toon + outline (picked in the Phase 0 look-dev, 2026-09):
 // two flat tones split at the light terminator, a tinted shadow side, a rim highlight, and an
 // inverted-hull outline pass. _OutlineWidth 0 disables the outline (terrain, thin court lines).
+// A palette texel's ALPHA marks it self-lit: 1 = normally lit, lower = glows (arena_gen.py).
 Shader "Volleyball/Stylized"
 {
     Properties
@@ -83,7 +84,8 @@ Shader "Volleyball/Stylized"
 
             half4 frag(Varyings i) : SV_Target
             {
-                half3 albedo = SAMPLE_TEXTURE2D(_PaletteTex, sampler_PaletteTex, i.uv).rgb * _BaseColor.rgb;
+                half4 pal = SAMPLE_TEXTURE2D(_PaletteTex, sampler_PaletteTex, i.uv);
+                half3 albedo = pal.rgb * _BaseColor.rgb;
                 float3 n = normalize(i.normalWS);
 
                 Light light = GetMainLight(TransformWorldToShadowCoord(i.positionWS));
@@ -101,6 +103,8 @@ Shader "Volleyball/Stylized"
                 float rim = step(0.72, 1.0 - saturate(dot(n, v))) * step(0.0, ndl);
                 col += rim * 0.35 * light.color * albedo;
                 col += _GlowColor.rgb * _GlowColor.a; // power-up glow (PowerUpGlow via CharacterView)
+                // self-lit palette slots (lava, neon, lanterns, moon): alpha < 1 in the palette strip
+                col = lerp(col, albedo * 1.35, saturate((1.0 - pal.a) * 1.25));
 
                 col = MixFog(col, i.fogFactor);
                 return half4(col, 1);

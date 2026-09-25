@@ -264,6 +264,7 @@ FEATURES = {
     "toucan": {"beak_scale": 1.6, "beak_fat": 1.5},
     "snowyowl": {"beak_scale": 0.45, "facial_disc": True},
     "emu": {"beak_scale": 0.75},
+    "penguin": {"white_belly": True},
     "walrus": {"big_tusks": True, "whisker_pad": True},
     "sloth": {"claws": True},
     "wombat": {"nose_scale": 1.8},
@@ -360,6 +361,11 @@ def add_features(mb, sp, skel):
             p = hc + Vector((0, math.sin(ang) * hr * 0.97, math.cos(ang) * hr * 0.97))
             n = (p - hc).normalized()
             mb.cone(p - n * 0.02, p + n * 0.13, 0.05, 0.01, SLOT_MARK, "Head", segs=5)
+
+    if fx.get("white_belly"):
+        # the classic tuxedo front: a white belly pushing out through the jersey, down to the shorts
+        mb.ellipsoid((0, -0.10, 0.80), (0.21, 0.19, 0.30), SLOT_TRIM, "Spine", segs=(14, 9))
+        mb.ellipsoid((0, -0.06, 0.62), (0.20, 0.19, 0.12), SLOT_TRIM, "Hips", segs=(12, 7))
 
     if fx.get("hump"):
         mb.ellipsoid((0, 0.24, 1.02), (0.20, 0.17, 0.20), SLOT_FUR, "Chest")

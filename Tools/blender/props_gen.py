@@ -341,7 +341,9 @@ PROPS = {
 
 def write_palette_png(path, palette=None):
     raw = b""
-    raw += b"\x00" + b"".join(bytes(int(round(c * 255)) for c in col) + b"\xff" for col in (palette or PALETTE))
+    # colours may carry a 4th value: alpha < 1 marks a self-lit slot for the shader (lava, neon)
+    raw += b"\x00" + b"".join(bytes(int(round(c * 255)) for c in (tuple(col) + (1.0,))[:4])
+                               for col in (palette or PALETTE))
     def chunk(tag, data):
         return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xffffffff)
     png = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", SLOTS, 1, 8, 6, 0, 0, 0)) \

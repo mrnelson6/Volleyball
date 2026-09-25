@@ -8,6 +8,7 @@ backdrop ring, and its own props. Output: Assets/Art/Arenas/<Theme>/{palette.png
 Usage (headless):
   blender -b --factory-startup -P Tools/blender/arena_gen.py -- export savanna amazon sahara arctic
   blender -b --factory-startup -P Tools/blender/arena_gen.py -- export all
+More themes (Outback ... Neon) live in arena_themes_more.py.
 """
 import math
 import os
@@ -82,6 +83,9 @@ def floes():
 
 def backdrop(kind):
     """A ring of big distant shapes behind the far side of the court (-X hemisphere)."""
+    import arena_themes_more
+    if kind in arena_themes_more.EXTRA_BACKDROPS:
+        return arena_themes_more.EXTRA_BACKDROPS[kind]()
     rng = random.Random(len(kind) * 7)
     p = pg.Prop("backdrop")
     n = 16
@@ -383,8 +387,13 @@ THEMES = {
 }
 
 
+def _all_themes():
+    import arena_themes_more
+    return {**THEMES, **arena_themes_more.MORE_THEMES}
+
+
 def export_theme(key):
-    t = THEMES[key]
+    t = _all_themes()[key]
     out = os.path.join(OUT_ROOT, t["folder"])
     os.makedirs(out, exist_ok=True)
     pg.write_palette_png(os.path.join(out, "palette.png"), t["palette"])
@@ -412,7 +421,7 @@ def main():
     if not argv or argv[0] != "export":
         print(__doc__)
         return
-    keys = list(THEMES) if argv[1:] in ([], ["all"]) else argv[1:]
+    keys = list(_all_themes()) if argv[1:] in ([], ["all"]) else argv[1:]
     for k in keys:
         export_theme(k)
 

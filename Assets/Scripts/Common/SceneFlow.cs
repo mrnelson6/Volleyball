@@ -24,8 +24,7 @@ namespace Volleyball
 
         /// <summary>
         /// Every venue that exists (beach first, then the world-tour regional courts, then the
-        /// fantasy arenas). The scenes are all still built, but only <see cref="Arenas"/> are
-        /// offered while the 3D overhaul re-dresses them one at a time.
+        /// fantasy arenas).
         /// </summary>
         public static readonly string[] AllArenas =
         {
@@ -36,19 +35,20 @@ namespace Volleyball
         };
 
         /// <summary>
-        /// Venues offered by Quick Play's venue cycler and the online lobby — the ones converted
-        /// to the 3D toon style so far. Campaign matches load their region's scene only when it's
-        /// listed here (see <see cref="LoadCampaignMatch"/>).
+        /// Venues offered by Quick Play's venue cycler and the online lobby — all of them, now that
+        /// every arena is in the 3D toon style. Campaign matches load their region's scene only
+        /// when it's listed here (see <see cref="LoadCampaignMatch"/>).
         /// </summary>
-        public static readonly string[] Arenas =
-        {
-            BeachArena, "SavannaArena", "AmazonArena", "SaharaArena", "ArcticArena",
-        };
+        public static readonly string[] Arenas = AllArenas;
 
         /// <summary>Human-readable names parallel to <see cref="Arenas"/>, for menus/HUD.</summary>
         public static readonly string[] ArenaNames =
         {
-            "Sunset Beach", "Sunny Savanna", "Amazon Rainforest", "Sahara Dunes", "Polar Ice",
+            "Sunset Beach",
+            "Sunny Savanna", "Amazon Rainforest", "Australian Outback", "Himalayan Peaks",
+            "Black Forest", "Sahara Dunes", "Rocky Mountains", "Polar Ice",
+            "Volcano Rim", "Lunar Base", "Atlantis Deep",
+            "Cloud Kingdom", "Haunted Graveyard", "Neon Rooftop",
         };
 
         /// <summary>Load an arena by its index into <see cref="Arenas"/> (clamped, wraps safely).</summary>
