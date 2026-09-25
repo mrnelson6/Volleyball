@@ -7,28 +7,13 @@ using UnityEngine.InputSystem;
 namespace Volleyball
 {
     /// <summary>
-    /// Look-dev controller for the 3D overhaul: applies the toon lighting preset (sun, trilight
-    /// ambient, sky, fog) and cycles camera shots with C in play mode. Lives only in the generated
-    /// LookDev scene (Volleyball → 3D → Build Look-Dev Scene); game code never depends on it.
+    /// Look-dev camera shots: C cycles them in play mode. Lighting comes from the scene's
+    /// <see cref="ToonEnvironment"/> (the same component the toon arenas use). Lives only in the
+    /// generated LookDev scene (Volleyball → 3D → Build Look-Dev Scene).
     /// </summary>
     [ExecuteAlways]
     public class LookDevStyle : MonoBehaviour
     {
-        [Serializable]
-        public class Preset
-        {
-            public Color sunColor = new Color(1.00f, 0.95f, 0.86f);
-            public float sunIntensity = 1.15f;
-            public Vector3 sunEuler = new Vector3(42f, -45f, 0f);
-            public Color ambientSky = new Color(0.62f, 0.72f, 0.95f);
-            public Color ambientEquator = new Color(0.70f, 0.68f, 0.72f);
-            public Color ambientGround = new Color(0.55f, 0.48f, 0.45f);
-            public Color skyTint = new Color(0.46f, 0.56f, 0.70f);
-            public Color skyGround = new Color(0.62f, 0.64f, 0.68f);
-            public float skyExposure = 1.25f;
-            public Color fogColor = new Color(0.70f, 0.85f, 1.00f);
-        }
-
         [Serializable]
         public class Shot
         {
@@ -38,46 +23,12 @@ namespace Volleyball
             public float fov = 36f;
         }
 
-        public Light sun;
         public Camera cam;
-        public Material skybox;
-        public Preset preset = new Preset();
         public Shot[] shots = new Shot[0];
         public int shot;
 
-        void OnEnable() => Apply();
-        void OnValidate() => Apply();
-
-        public void Apply()
-        {
-            var p = preset ??= new Preset();
-            if (sun != null)
-            {
-                sun.color = p.sunColor;
-                sun.intensity = p.sunIntensity;
-                sun.transform.rotation = Quaternion.Euler(p.sunEuler);
-            }
-
-            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = p.ambientSky;
-            RenderSettings.ambientEquatorColor = p.ambientEquator;
-            RenderSettings.ambientGroundColor = p.ambientGround;
-            RenderSettings.fog = true;
-            RenderSettings.fogMode = FogMode.Linear;
-            RenderSettings.fogStartDistance = 45f;
-            RenderSettings.fogEndDistance = 190f;
-            RenderSettings.fogColor = p.fogColor;
-
-            if (skybox != null)
-            {
-                skybox.SetColor("_SkyTint", p.skyTint);
-                skybox.SetColor("_GroundColor", p.skyGround);
-                skybox.SetFloat("_Exposure", p.skyExposure);
-                RenderSettings.skybox = skybox;
-            }
-
-            ApplyShot();
-        }
+        void OnEnable() => ApplyShot();
+        void OnValidate() => ApplyShot();
 
         public void ApplyShot()
         {

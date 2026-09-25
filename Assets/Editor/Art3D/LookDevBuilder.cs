@@ -18,12 +18,7 @@ namespace Volleyball.EditorTools
     public static class LookDevBuilder
     {
         public const string ScenePath = "Assets/Scenes/LookDev.unity";
-        const string MatDir = "Assets/Art/Materials";
-        const string CharDir = "Assets/Art/Characters";
-        const string PropDir = "Assets/Art/Props";
 
-        /// <summary>Yaw that turns a generated model to face Unity +Z (Blender -Y after import).</summary>
-        const float ModelFacingYaw = 0f;
 
         static readonly Color JerseyA = new Color(0.20f, 0.50f, 0.95f);
         static readonly Color JerseyA2 = new Color(0.45f, 0.80f, 1.00f);
@@ -36,31 +31,6 @@ namespace Volleyball.EditorTools
             AssetDatabase.Refresh();
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-            var shader = Shader.Find("Volleyball/Stylized");
-            var propPalette = AssetDatabase.LoadAssetAtPath<Texture2D>(PropDir + "/props_palette.png");
-            var propsMat = Mat("VB_Props", shader, m => { m.SetTexture("_PaletteTex", propPalette); m.SetFloat("_OutlineWidth", 1f); });
-            var groundMat = Mat("VB_Ground", shader, m => { m.SetTexture("_PaletteTex", propPalette); m.SetFloat("_OutlineWidth", 0f); });
-            var animalMat = Mat("VB_Animal", shader, m =>
-            {
-                m.SetFloat("_OutlineWidth", 0.8f);                           // thinner than props
-                m.SetColor("_OutlineColor", new Color(0.30f, 0.20f, 0.18f)); // warm brown, not black
-                m.SetColor("_BaseColor", new Color(1.12f, 1.12f, 1.12f));   // characters a touch brighter
-                m.SetFloat("_ShadowLift", 0.45f);
-            });
-            var sky = Mat("VB_LookDevSky", Shader.Find("Skybox/Procedural"), m =>
-            {
-                m.SetFloat("_SunSize", 0.03f);
-                m.SetFloat("_AtmosphereThickness", 0.8f);
-            });
-
-            // --- light + camera
-            var sunGo = new GameObject("Sun");
-            var sun = sunGo.AddComponent<Light>();
-            sun.type = LightType.Directional;
-            sun.shadows = LightShadows.Soft;
-            sun.shadowStrength = 0.85f;
-            RenderSettings.sun = sun;
-
             var camGo = new GameObject("Main Camera") { tag = "MainCamera" };
             var cam = camGo.AddComponent<Camera>();
             cam.clearFlags = CameraClearFlags.Skybox;
@@ -68,43 +38,24 @@ namespace Volleyball.EditorTools
             cam.farClipPlane = 400f;
             camGo.AddComponent<AudioListener>();
 
-            // --- environment
+            // same lighting + beach the toon Sunset Beach arena uses
             var env = new GameObject("Environment").transform;
-            Prop("terrain", Vector3.zero, 0f, 1f, groundMat, env);
-            Prop("ocean", Vector3.zero, 0f, 1f, groundMat, env);
-            Prop("court", Vector3.zero, 0f, 1f, groundMat, env); // thin lines: no outline
-
-            Prop("palm", new Vector3(-11f, 0f, -14f), 20f, 1f, propsMat, env);
-            Prop("palm_b", new Vector3(-11.5f, 0f, 8f), 140f, 1.1f, propsMat, env);
-            Prop("palm", new Vector3(-9.5f, 0f, 15.5f), 250f, 0.9f, propsMat, env);
-            Prop("palm_b", new Vector3(-16f, 0f, -3f), 60f, 1.2f, propsMat, env);
-            Prop("umbrella", new Vector3(-7.5f, 0f, -11.5f), 0f, 1f, propsMat, env);
-            Prop("towel", new Vector3(-7.6f, 0f, -10.2f), 80f, 1f, propsMat, env);
-            Prop("cooler", new Vector3(-6.3f, 0f, -12.8f), 20f, 1f, propsMat, env);
-            Prop("lifeguard_tower", new Vector3(-9.5f, 0f, 2f), 90f, 1f, propsMat, env);
-            Prop("surfboard", new Vector3(-7.2f, 0f, 11.8f), 70f, 1f, propsMat, env);
-            Prop("rock_a", new Vector3(-12.5f, 0f, -6f), 0f, 1.4f, propsMat, env);
-            Prop("rock_b", new Vector3(-13.5f, 0f, 12.5f), 40f, 1.8f, propsMat, env);
-            Prop("rock_a", new Vector3(10f, 0f, -15f), 120f, 1.0f, propsMat, env);
-            foreach (var sx in new[] { -1f, 1f })
-                foreach (var sz in new[] { -1f, 1f })
-                    Prop("tiki_torch", new Vector3(sx * 6.2f, 0f, sz * 10f), 0f, 1f, propsMat, env);
-            var sandBall = Prop("beach_ball", new Vector3(-5.8f, 0.3f, -8.5f), 30f, 0.3f, propsMat, env);
+            ToonArtKit.BuildLighting(env);
+            ToonArtKit.BuildBeachEnvironment(env);
 
             // --- the rally: fox spikes over the net at a leaping giraffe
+            var animalMat = ToonArtKit.AnimalMaterial();
             var cast = new GameObject("Animals").transform;
             Animal("fox", JerseyA, new Vector3(0.6f, 0.75f, -1.3f), 0f, "Spike", 0.30f, animalMat, cast);
             Animal("bear", JerseyA2, new Vector3(-2.2f, 0f, -5.6f), 15f, "Bump", 0.2f, animalMat, cast);
             Animal("giraffe", JerseyB, new Vector3(0.3f, 0.35f, 0.9f), 180f, "Block", 0.25f, animalMat, cast);
             Animal("penguin", JerseyB2, new Vector3(-1.6f, 0f, 5.0f), 200f, "Set", 0.2f, animalMat, cast);
-            var ball = Prop("beach_ball", new Vector3(0.9f, 3.35f, -0.7f), 10f, 0.3f, propsMat, null);
+            var ball = ToonArtKit.Prop("beach_ball", new Vector3(0.9f, 3.35f, -0.7f), 10f, 0.3f, ToonArtKit.PropsMaterial(), null);
             ball.name = "Ball";
 
-            // --- style controller
+            // --- camera shots
             var ld = new GameObject("LookDev").AddComponent<LookDevStyle>();
-            ld.sun = sun;
             ld.cam = cam;
-            ld.skybox = sky;
             ld.shots = new[]
             {
                 new LookDevStyle.Shot { label = "Broadcast (current game camera)", position = new Vector3(20f, 12f, -3f), lookAt = new Vector3(0f, 1.6f, 0f), fov = 36f },
@@ -112,7 +63,7 @@ namespace Volleyball.EditorTools
                 new LookDevStyle.Shot { label = "Character portrait", position = new Vector3(3.6f, 1.9f, -3.4f), lookAt = new Vector3(0.3f, 1.55f, -0.2f), fov = 34f },
                 new LookDevStyle.Shot { label = "Behind the team", position = new Vector3(1.5f, 4.2f, -16.5f), lookAt = new Vector3(0f, 1.5f, 1f), fov = 46f },
             };
-            ld.Apply();
+            ld.ApplyShot();
 
             Directory.CreateDirectory(Path.GetDirectoryName(ScenePath));
             EditorSceneManager.SaveScene(scene, ScenePath);
@@ -126,6 +77,7 @@ namespace Volleyball.EditorTools
             if (!File.Exists(ScenePath)) Build();
             EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
             var ld = Object.FindFirstObjectByType<LookDevStyle>();
+            Object.FindFirstObjectByType<ToonEnvironment>()?.Apply();
             foreach (var c in Object.FindObjectsByType<LookDevAnimalCycler>(FindObjectsSortMode.None)) c.Pose();
             foreach (var a in Object.FindObjectsByType<AnimalLook>(FindObjectsSortMode.None)) a.Apply();
 
@@ -138,8 +90,7 @@ namespace Volleyball.EditorTools
             for (int i = 0; i < ld.shots.Length; i++)
             {
                 ld.shot = i;
-                ld.Apply();
-                PushAmbientProbe(ld.preset);
+                ld.ApplyShot();
                 ld.cam.targetTexture = rt;
                 ld.cam.Render();
                 RenderTexture.active = rt;
@@ -174,74 +125,16 @@ namespace Volleyball.EditorTools
 
         // ------------------------------------------------------------------ helpers
 
-        /// <summary>Batch mode doesn't re-bake the ambient probe from trilight colours, so do it by hand.</summary>
-        static void PushAmbientProbe(LookDevStyle.Preset p)
-        {
-            var sh = new SphericalHarmonicsL2();
-            sh.AddAmbientLight(p.ambientEquator * 0.55f);
-            sh.AddDirectionalLight(Vector3.up, p.ambientSky, 0.55f);
-            sh.AddDirectionalLight(Vector3.down, p.ambientGround, 0.45f);
-            RenderSettings.ambientProbe = sh;
-        }
-
-        static Material Mat(string name, Shader shader, System.Action<Material> setup)
-        {
-            Directory.CreateDirectory(MatDir);
-            string path = $"{MatDir}/{name}.mat";
-            var m = AssetDatabase.LoadAssetAtPath<Material>(path);
-            if (m == null)
-            {
-                m = new Material(shader);
-                AssetDatabase.CreateAsset(m, path);
-            }
-            else m.shader = shader;
-            setup(m);
-            EditorUtility.SetDirty(m);
-            return m;
-        }
-
-        static GameObject Instantiate(string assetPath, Transform parent)
-        {
-            var model = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
-            if (model == null)
-            {
-                Debug.LogError("[Volleyball] Missing generated model " + assetPath +
-                               " — run Tools/blender/*_gen.py export first.");
-                return new GameObject(Path.GetFileNameWithoutExtension(assetPath) + " (missing)");
-            }
-            // The model root carries the importer's axis-conversion rotation, so placement goes on
-            // a wrapper — writing the root's rotation would tip Blender's Z-up meshes over.
-            var holder = new GameObject(model.name).transform;
-            if (parent != null) holder.SetParent(parent, false);
-            var go = (GameObject)PrefabUtility.InstantiatePrefab(model);
-            go.transform.SetParent(holder, false);
-            return holder.gameObject;
-        }
-
-        static GameObject Prop(string name, Vector3 pos, float yaw, float scale, Material mat, Transform parent)
-        {
-            var go = Instantiate($"{PropDir}/prop_{name}.fbx", parent);
-            go.transform.localPosition = pos;
-            go.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
-            go.transform.localScale = Vector3.one * scale;
-            foreach (var r in go.GetComponentsInChildren<Renderer>())
-            {
-                r.sharedMaterial = mat;
-                r.shadowCastingMode = name == "terrain" || name == "ocean" ? ShadowCastingMode.Off : ShadowCastingMode.On;
-            }
-            return go;
-        }
-
         static void Animal(string id, Color jersey, Vector3 pos, float yaw, string clipName, float poseTime,
                            Material mat, Transform parent)
         {
             var holder = new GameObject(id).transform;
             holder.SetParent(parent, false);
             holder.localPosition = pos;
-            holder.localRotation = Quaternion.Euler(0f, yaw + ModelFacingYaw, 0f);
+            holder.localRotation = Quaternion.Euler(0f, yaw + ToonArtKit.ModelFacingYaw, 0f);
 
-            string path = $"{CharDir}/animal_{id}.fbx";
-            var variant = Instantiate(path, holder);
+            string path = $"{ToonArtKit.CharDir}/animal_{id}.fbx";
+            var variant = ToonArtKit.InstantiateModel(path, holder);
             if (variant.transform.childCount == 0) return; // missing model, already logged
             var go = variant.transform.GetChild(0).gameObject; // the imported model root owns the Animator
             foreach (var r in go.GetComponentsInChildren<Renderer>())

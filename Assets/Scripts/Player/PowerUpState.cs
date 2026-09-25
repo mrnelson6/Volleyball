@@ -30,7 +30,7 @@ namespace Volleyball
         readonly List<ActiveStatus> _statuses = new List<ActiveStatus>();
 
         // Giant Growth visual state, cached so the sprite/shadow revert exactly.
-        CharacterAnimator _giantAnim;
+        CharacterView _giantAnim;
         DropShadow _giantShadow;
         Vector3 _giantBaseScale;
         float _giantBaseLocalY;
@@ -209,11 +209,11 @@ namespace Volleyball
             VBLog.Event($"POWERUP END {s.def.type} on '{_owner.name}'");
         }
 
-        // ---- Giant Growth visuals: scale the sprite child + shadow, revert exactly ----
+        // ---- Giant Growth visuals: scale the view (sprite or model) + shadow, revert exactly ----
 
         void ApplyGiantVisuals(float scale)
         {
-            CharacterAnimator anim = _owner.GetComponentInChildren<CharacterAnimator>();
+            CharacterView anim = CharacterView.Of(_owner);
             if (anim != null)
             {
                 _giantAnim = anim;

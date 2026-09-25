@@ -11,7 +11,7 @@ namespace Volleyball
     /// gracefully falls back to whatever sprite is already on the renderer.
     /// </summary>
     [RequireComponent(typeof(SpriteRenderer))]
-    public class CharacterAnimator : MonoBehaviour
+    public class CharacterAnimator : CharacterView
     {
         public Sprite idle, run0, run1, jump, swing;
         [Tooltip("Per-contact poses; each falls back to 'swing' if unset.")]
@@ -58,12 +58,12 @@ namespace Volleyball
         /// <summary>Re-read the sprite's resting local height. Call after moving the sprite
         /// child (e.g. a runtime character swap to a taller/shorter figure), or the dive
         /// lay-down offset keeps easing toward the old character's height.</summary>
-        public void CaptureBaseLocalY() => _baseLocalY = transform.localPosition.y;
+        public override void CaptureBaseLocalY() => _baseLocalY = transform.localPosition.y;
 
         /// <summary>Point this animator at a replacement player component (the online slot
         /// binder swaps PlayerController/AIController on the same GameObject at runtime).
         /// The old component died with its event, so only the new hookup matters.</summary>
-        public void Rebind(VolleyPlayer p)
+        public override void Rebind(VolleyPlayer p)
         {
             if (_player != null) _player.Swung -= OnSwing;
             _player = p;
@@ -73,6 +73,11 @@ namespace Volleyball
         }
 
         void OnSwing(HitType type) { _swingTimer = swingHold; _swingType = type; }
+
+        public override void SetGlow(Color color, float amount)
+        {
+            if (_sr != null) _sr.color = Color.Lerp(Color.white, color, amount);
+        }
 
         // The contact pose to hold: bump (hands together), set (both hands up), block (arms
         // overhead), or the default swing (spike/serve). Missing poses fall back to swing.

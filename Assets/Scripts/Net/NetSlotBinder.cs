@@ -45,10 +45,10 @@ namespace Volleyball
             int rosterIndex = match != null ? match.players.IndexOf(old) : -1;
 
             // The glow caches its player in Awake — drop it and let the fresh controller's
-            // Start re-add a correctly-bound one. The animator keeps its baked sprites, so
-            // it gets rebound in place instead.
-            var glow = go.GetComponentInChildren<PowerUpGlow>();
-            if (glow != null) Object.DestroyImmediate(glow);
+            // Start re-add a correctly-bound one. The views (sprite and/or 3D model) keep their
+            // assets, so they get rebound in place instead.
+            foreach (var glow in go.GetComponentsInChildren<PowerUpGlow>(true))
+                Object.DestroyImmediate(glow);
 
             Object.DestroyImmediate(old);
             VolleyPlayer fresh = human ? (VolleyPlayer)go.AddComponent<PlayerController>()
@@ -60,7 +60,7 @@ namespace Volleyball
 
             if (rosterIndex >= 0) match.players[rosterIndex] = fresh;
             match?.OnPlayerReplaced(old, fresh);
-            go.GetComponentInChildren<CharacterAnimator>()?.Rebind(fresh);
+            foreach (var view in go.GetComponentsInChildren<CharacterView>(true)) view.Rebind(fresh);
             go.GetComponent<NetworkPlayer>()?.Reconfigure();
 
             VBLog.Event($"SLOT BIND {go.name} -> {(human ? "human" : "AI")} ({team}/{halfSign})");

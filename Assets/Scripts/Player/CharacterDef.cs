@@ -157,7 +157,9 @@ namespace Volleyball
                 height = 1.10f, speed = 1.05f, power = 1.15f, control = 0.95f, jump = 1.00f,
                 fur = new Color(0.80f, 0.60f, 0.30f),
                 furAccent = new Color(0.93f, 0.85f, 0.68f),
-                art = new SpeciesArt { head = HeadShape.Muzzle, ears = EarStyle.Round, tail = 1.1f },
+                // markings stay None (the sprite draws no pattern); markingColor is the 3D mane
+                art = new SpeciesArt { head = HeadShape.Muzzle, ears = EarStyle.Round, tail = 1.1f,
+                                       markingColor = new Color(0.62f, 0.34f, 0.13f) },
             },
             new CharacterDef
             {

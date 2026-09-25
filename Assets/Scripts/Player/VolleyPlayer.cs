@@ -155,11 +155,11 @@ namespace Volleyball
             _lastGroundPos = GroundPosition;
             Power.Bind(this, match);
 
-            // the charged/active glow lives on the sprite child; added at runtime so the
-            // baked arena scenes need no rebuild for it
-            var anim = GetComponentInChildren<CharacterAnimator>();
-            if (anim != null && anim.GetComponent<PowerUpGlow>() == null)
-                anim.gameObject.AddComponent<PowerUpGlow>();
+            // swap in the 3D model when this character has one (sprite child stays as the
+            // fallback), then hang the charged/active glow on whichever view is drawing — both
+            // at runtime, so the baked arena scenes need no rebuild for them
+            CharacterModels.Ensure(this);
+            CharacterModels.EnsureGlow(this);
         }
 
         /// <summary>Produce this player's intent for the given tick. The human samples its

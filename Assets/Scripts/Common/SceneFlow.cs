@@ -23,11 +23,11 @@ namespace Volleyball
         public const string NeonArena = "NeonArena";
 
         /// <summary>
-        /// Every playable venue for Quick Play's venue cycler (beach first, then the world-tour
-        /// regional courts, then the fantasy arenas). Campaign matches don't use this list —
-        /// they load each region's <see cref="RegionDef.sceneName"/> directly.
+        /// Every venue that exists (beach first, then the world-tour regional courts, then the
+        /// fantasy arenas). The scenes are all still built, but only <see cref="Arenas"/> are
+        /// offered while the 3D overhaul re-dresses them one at a time.
         /// </summary>
-        public static readonly string[] Arenas =
+        public static readonly string[] AllArenas =
         {
             BeachArena,
             "SavannaArena", "AmazonArena", "OutbackArena", "HimalayaArena",
@@ -35,14 +35,20 @@ namespace Volleyball
             VolcanoArena, LunarArena, AtlantisArena, SkyArena, GraveyardArena, NeonArena,
         };
 
+        /// <summary>
+        /// Venues offered by Quick Play's venue cycler and the online lobby — the ones converted
+        /// to the 3D toon style so far. Campaign matches load their region's scene only when it's
+        /// listed here (see <see cref="LoadCampaignMatch"/>).
+        /// </summary>
+        public static readonly string[] Arenas =
+        {
+            BeachArena,
+        };
+
         /// <summary>Human-readable names parallel to <see cref="Arenas"/>, for menus/HUD.</summary>
         public static readonly string[] ArenaNames =
         {
             "Sunset Beach",
-            "Sunny Savanna", "Amazon Rainforest", "Australian Outback", "Himalayan Peaks",
-            "Black Forest", "Sahara Dunes", "Rocky Mountains", "Polar Ice",
-            "Volcano Rim", "Lunar Base", "Atlantis Deep",
-            "Cloud Kingdom", "Haunted Graveyard", "Neon Rooftop",
         };
 
         /// <summary>Load an arena by its index into <see cref="Arenas"/> (clamped, wraps safely).</summary>
@@ -97,7 +103,8 @@ namespace Volleyball
         /// Launch the next world-tour match from the save: the current region picks the court
         /// scene and environment, the current tournament match picks the opponent duo and AI
         /// difficulty, and the human always plays the protagonist duo. Regions whose courts
-        /// aren't built yet fall back to the beach so the campaign stays playable mid-development.
+        /// aren't built yet — or aren't converted to 3D yet (not in <see cref="Arenas"/>) —
+        /// fall back to the beach so the campaign stays playable mid-development.
         /// </summary>
         public static void LoadCampaignMatch()
         {
@@ -116,7 +123,8 @@ namespace Volleyball
             MatchSetup.Current = cfg;
 
             Time.timeScale = 1f;
-            string scene = Application.CanStreamedLevelBeLoaded(region.sceneName)
+            string scene = System.Array.IndexOf(Arenas, region.sceneName) >= 0
+                           && Application.CanStreamedLevelBeLoaded(region.sceneName)
                 ? region.sceneName : BeachArena;
             SceneManager.LoadScene(scene);
         }

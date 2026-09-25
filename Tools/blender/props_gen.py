@@ -288,21 +288,22 @@ def smoothstep(e0, e1, x):
 
 
 def height(x, y):
-    # distance outside the flat pad around the court + roam area
-    dx = max(0.0, abs(x) - 12.0)
-    dy = max(0.0, abs(y) - 17.0)
+    # distance outside the flat pad. The pad matches the game's scoring ground sheet (CourtKit:
+    # ~x +-16, z +-22) so an out-of-bounds ball never visibly sinks into a dune before it lands.
+    dx = max(0.0, abs(x) - 16.0)
+    dy = max(0.0, abs(y) - 22.0)
     outside = math.hypot(dx, dy)
     dune = (0.7 * math.sin(0.33 * x + 1.3) * math.cos(0.27 * y) + 0.45 * math.sin(0.55 * y + 0.2 * x)
             + 0.5 * noise.noise(Vector((x * 0.12, y * 0.12, 0.7))))
     h = smoothstep(0.0, 6.0, outside) * (dune + 0.4 + outside * 0.06)
-    sea = max(0.0, -x - 16.0)  # beach slopes toward the sea on the far side of the court
+    sea = max(0.0, -x - 18.0)  # beach slopes toward the sea on the far side of the court
     h = h * (1.0 - smoothstep(0.0, 8.0, sea)) - sea * 0.09
     return h
 
 
 def ocean():
     p = Prop("ocean")
-    x0, x1, y0, y1 = -160.0, -20.0, -160.0, 160.0
+    x0, x1, y0, y1 = -160.0, -21.0, -160.0, 160.0
     nx, ny = 20, 30
     grid = {}
     for i in range(nx + 1):

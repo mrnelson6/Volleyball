@@ -104,14 +104,15 @@ namespace Volleyball
 
         /// <summary>
         /// Turn <paramref name="player"/> into <paramref name="ch"/>: stats (via characterId),
-        /// baked sprites in the player's jersey colour, feet-on-ground sprite offset, and shadow
-        /// size. Safe no-op on the visuals if the frames aren't baked; stats always apply.
+        /// baked sprites in the player's jersey colour, feet-on-ground sprite offset, the 3D model
+        /// when one exists (see CharacterModels), and shadow size. Safe no-op on the visuals if the frames aren't baked; stats always apply.
         /// </summary>
         public static void Apply(VolleyPlayer player, CharacterDef ch)
         {
             player.characterId = ch.id;
 
-            var anim = player.GetComponentInChildren<CharacterAnimator>();
+            // include inactive: the sprite child is parked (not deleted) while a 3D model draws
+            var anim = player.GetComponentInChildren<CharacterAnimator>(true);
             Sprite[] f = anim != null ? LoadFrames(player.jerseyColor, ch) : null;
             if (f != null)
             {
@@ -133,6 +134,9 @@ namespace Volleyball
                 anim.transform.localPosition = SpriteLocalPosFor(ch);
                 anim.CaptureBaseLocalY();
             }
+
+            // 3D model when this animal has one (sprite above stays dressed as the fallback)
+            if (Application.isPlaying) CharacterModels.Apply(player, ch);
 
             // the blob shadow lives on its own object, targeting the player
             foreach (var ds in Object.FindObjectsByType<DropShadow>(FindObjectsSortMode.None))

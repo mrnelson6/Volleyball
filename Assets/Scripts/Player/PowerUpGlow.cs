@@ -3,36 +3,34 @@ using UnityEngine;
 namespace Volleyball
 {
     /// <summary>
-    /// Tints the player's sprite by their power-up state: a pulsing glow in the power-up's
-    /// colour while the meter is full, a steady tint while their own cast is running, plain
-    /// white otherwise. Added at runtime by VolleyPlayer.Start onto the sprite child (no
-    /// scene rebuild needed). The colour channel is free — CharacterAnimator only ever swaps
-    /// sprites, never tints.
+    /// Highlights the player's view by their power-up state: a pulsing glow in the power-up's
+    /// colour while the meter is full, a steady one while their own cast is running, none
+    /// otherwise. Added at runtime onto the active <see cref="CharacterView"/> (sprite or 3D
+    /// model — see VolleyPlayer.Start and CharacterModels), so no scene rebuild is needed.
     /// </summary>
-    [RequireComponent(typeof(SpriteRenderer))]
     public class PowerUpGlow : MonoBehaviour
     {
-        SpriteRenderer _sr;
+        CharacterView _view;
         VolleyPlayer _player;
 
         void Awake()
         {
-            _sr = GetComponent<SpriteRenderer>();
+            _view = GetComponent<CharacterView>();
             _player = GetComponentInParent<VolleyPlayer>();
         }
 
         void LateUpdate()
         {
-            if (_sr == null || _player == null) return;
+            if (_view == null || _player == null) return;
 
             PowerUpState power = _player.Power;
-            Color c = Color.white;
             PowerUpDef active = power.OwnActiveDef;
             if (active != null)
-                c = Color.Lerp(Color.white, active.color, 0.6f);
+                _view.SetGlow(active.color, 0.6f);
             else if (power.IsFull && GameConfig.Instance.powerUpsEnabled)
-                c = Color.Lerp(Color.white, power.Def.color, Mathf.PingPong(Time.time * 2.4f, 0.55f));
-            _sr.color = c;
+                _view.SetGlow(power.Def.color, Mathf.PingPong(Time.time * 2.4f, 0.55f));
+            else
+                _view.SetGlow(Color.white, 0f);
         }
     }
 }

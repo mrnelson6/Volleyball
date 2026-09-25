@@ -15,6 +15,7 @@ Shader "Volleyball/Stylized"
         _OutlineColor ("Outline Color", Color) = (0.13, 0.09, 0.11, 1)
         _ShadowTint ("Shadow Tint", Color) = (0.45, 0.35, 0.9, 1)
         _ShadowLift ("Shadow Lift", Range(0, 1)) = 0
+        _GlowColor ("Glow (rgb colour, a strength)", Color) = (0, 0, 0, 0)
     }
 
     SubShader
@@ -30,6 +31,7 @@ Shader "Volleyball/Stylized"
             float4 _ShadowTint;
             float _OutlineWidth;
             float _ShadowLift;
+            float4 _GlowColor;
         CBUFFER_END
 
         TEXTURE2D(_PaletteTex);
@@ -98,6 +100,7 @@ Shader "Volleyball/Stylized"
                 half3 col = lerp(shade, lit, d);
                 float rim = step(0.72, 1.0 - saturate(dot(n, v))) * step(0.0, ndl);
                 col += rim * 0.35 * light.color * albedo;
+                col += _GlowColor.rgb * _GlowColor.a; // power-up glow (PowerUpGlow via CharacterView)
 
                 col = MixFog(col, i.fogFactor);
                 return half4(col, 1);

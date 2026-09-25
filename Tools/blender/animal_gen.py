@@ -233,6 +233,168 @@ def build_armature(name, skel):
     return obj
 
 
+
+# ---------------------------------------------------------------- species identity features
+# The shared parts (head template, ears, horns, markings) make every animal buildable, but on
+# their own a lion is a bear with a tail. These per-species extras carry the silhouette cues
+# that make each animal read at a glance. Art-only data, so it lives here rather than in
+# CharacterDef. Colours come from the existing palette slots (mane/mohawk/rings use MARK).
+FEATURES = {
+    "lion": {"mane": True, "whiskers": True},
+    "jaguar": {"whiskers": True},
+    "cougar": {"whiskers": True},
+    "snowleopard": {"whiskers": True},
+    "rhino": {"nose_horn": True},
+    "buffalo": {"curved_horns": True, "horn_boss": True},
+    "yak": {"curved_horns": True, "fringe": True},
+    "markhor": {"spiral_horns": True, "beard": True},
+    "oryx": {"long_horns": True},
+    "zebra": {"mohawk": True},
+    "warthog": {"mohawk": True},
+    "boar": {"mohawk": True},
+    "camel": {"hump": True},
+    "moose": {"dewlap": True},
+    "fennec": {"ear_scale": 1.45},
+    "jerboa": {"ear_scale": 1.35, "foot_scale": 1.4},
+    "hare": {"foot_scale": 1.35, "whiskers": True},
+    "kangaroo": {"foot_scale": 1.5},
+    "raccoon": {"ringed_tail": True, "mask_band": True},
+    "redpanda": {"ringed_tail": True},
+    "badger": {"head_stripe": True},
+    "toucan": {"beak_scale": 1.6, "beak_fat": 1.5},
+    "snowyowl": {"beak_scale": 0.45, "facial_disc": True},
+    "emu": {"beak_scale": 0.75},
+    "walrus": {"big_tusks": True, "whisker_pad": True},
+    "sloth": {"claws": True},
+    "wombat": {"nose_scale": 1.8},
+    "capybara": {"nose_scale": 1.4},
+}
+
+# species whose horn/tusk silhouette is built by a feature instead of the generic style
+CUSTOM_HORNS = ("nose_horn", "curved_horns", "spiral_horns", "long_horns", "big_tusks")
+
+
+def feats(sp):
+    return FEATURES.get(sp["id"], {})
+
+
+def chain(mb, pts, r0, r1, slot, bone, segs=8):
+    """Tapered tube through a list of points (curved horns)."""
+    n = len(pts) - 1
+    for i in range(n):
+        ra = r0 + (r1 - r0) * i / n
+        rb = r0 + (r1 - r0) * (i + 1) / n
+        mb.cone(pts[i], pts[i + 1] + (pts[i + 1] - pts[i]) * 0.1, ra, rb, slot, bone, segs=segs)
+
+
+def add_features(mb, sp, skel):
+    fx = feats(sp)
+    hc, hr = skel.head_c, skel.head_r
+    head = sp["head"]
+    snout_y = {"LongMuzzle": -hr * 1.1, "Muzzle": -hr * 0.9}.get(head, -hr * 0.85)
+
+    if fx.get("mane"):
+        # fluffy halo behind and around the face, plus a chin tuft
+        mb.ellipsoid(hc + Vector((0, hr * 0.28, -hr * 0.05)), (hr * 1.30, hr * 0.62, hr * 1.25), SLOT_MARK, "Head", segs=(16, 10))
+        for k in range(12):
+            a = k / 12 * math.tau
+            p = hc + Vector((math.cos(a) * hr * 1.18, hr * 0.05, math.sin(a) * hr * 1.12))
+            mb.sphere(p, 0.12, SLOT_MARK, "Head", segs=(8, 6))
+        mb.ellipsoid(hc + Vector((0, -hr * 0.35, -hr * 0.95)), (0.16, 0.10, 0.12), SLOT_MARK, "Head", segs=(10, 6))
+
+    if fx.get("whiskers"):
+        for side in (1, -1):
+            root = hc + Vector((side * hr * 0.28, snout_y - 0.02, -hr * 0.30))
+            for dz in (0.03, -0.01, -0.05):
+                tip = root + Vector((side * 0.22, 0.03, dz * 2.0))
+                mb.cone(root, tip, 0.008, 0.003, SLOT_EYE_DARK, "Head", segs=4)
+
+    if fx.get("whisker_pad"):
+        for side in (1, -1):
+            mb.ellipsoid(hc + Vector((side * hr * 0.28, -hr * 0.95, -hr * 0.35)), (0.13, 0.10, 0.11), SLOT_ACCENT, "Head")
+
+    if fx.get("nose_horn"):
+        base = hc + Vector((0, -hr * 1.05, -hr * 0.05))
+        mb.cone(base, base + Vector((0, -0.10, 0.26)), 0.075, 0.012, SLOT_HORN, "Head", segs=10)
+        base2 = hc + Vector((0, -hr * 0.62, hr * 0.25))
+        mb.cone(base2, base2 + Vector((0, -0.04, 0.12)), 0.05, 0.01, SLOT_HORN, "Head", segs=8)
+
+    for side in (1, -1):
+        if fx.get("curved_horns"):
+            b = hc + Vector((side * hr * 0.72, 0.02, hr * 0.55))
+            pts = [b, b + Vector((side * 0.14, 0.0, -0.02)), b + Vector((side * 0.26, -0.02, 0.06)),
+                   b + Vector((side * 0.30, -0.05, 0.20))]
+            chain(mb, pts, 0.065, 0.012, SLOT_HORN, "Head")
+        if fx.get("spiral_horns"):
+            b = hc + Vector((side * hr * 0.30, 0.03, hr * 0.85))
+            pts = []
+            for k in range(10):
+                t = k / 9
+                a = t * math.tau * 1.6
+                pts.append(b + Vector((side * (0.03 + 0.07 * t + 0.035 * math.cos(a)),
+                                       0.10 * t + 0.035 * math.sin(a), 0.42 * t)))
+            chain(mb, pts, 0.05, 0.01, SLOT_HORN, "Head", segs=7)
+        if fx.get("long_horns"):
+            b = hc + Vector((side * hr * 0.25, 0.04, hr * 0.85))
+            mb.cone(b, b + Vector((side * 0.05, 0.28, 0.58)), 0.035, 0.008, SLOT_HORN, "Head", segs=8)
+        if fx.get("big_tusks"):
+            b = hc + Vector((side * hr * 0.28, -hr * 1.05, -hr * 0.55))
+            mb.cone(b, b + Vector((side * 0.02, -0.03, -0.30)), 0.035, 0.01, SLOT_TRIM, "Head", segs=8)
+    if fx.get("horn_boss"):
+        mb.ellipsoid(hc + Vector((0, 0.0, hr * 0.78)), (hr * 0.85, hr * 0.45, hr * 0.28), SLOT_HORN, "Head", segs=(12, 7))
+
+    if fx.get("fringe"):  # shaggy yak fringe over the brow and a skirt below the jaw
+        for k in range(9):
+            x = (k / 8 - 0.5) * hr * 1.6
+            mb.ellipsoid(hc + Vector((x, -hr * 0.55, hr * 0.62)), (0.07, 0.06, 0.12), SLOT_FUR, "Head", segs=(7, 5))
+        mb.ellipsoid(hc + Vector((0, -hr * 0.1, -hr * 0.95)), (hr * 0.95, hr * 0.8, hr * 0.35), SLOT_FUR, "Head")
+
+    if fx.get("beard"):
+        b = hc + Vector((0, -hr * 1.0, -hr * 0.75))
+        mb.cone(b, b + Vector((0, -0.02, -0.26)), 0.07, 0.02, SLOT_MARK, "Head", segs=8)
+
+    if fx.get("mohawk"):
+        for k in range(7):
+            t = k / 6
+            ang = math.radians(-35 + 125 * t)  # from forehead over the crown to the nape
+            p = hc + Vector((0, math.sin(ang) * hr * 0.97, math.cos(ang) * hr * 0.97))
+            n = (p - hc).normalized()
+            mb.cone(p - n * 0.02, p + n * 0.13, 0.05, 0.01, SLOT_MARK, "Head", segs=5)
+
+    if fx.get("hump"):
+        mb.ellipsoid((0, 0.24, 1.02), (0.20, 0.17, 0.20), SLOT_FUR, "Chest")
+
+    if fx.get("dewlap"):
+        mb.ellipsoid(hc + Vector((0, -hr * 0.55, -hr * 1.1)), (0.07, 0.06, 0.14), SLOT_FUR, "Head", segs=(8, 6))
+
+    if fx.get("head_stripe"):  # white blaze from the crown down between the eyes to the snout
+        for ang in (0, 22, 44, 66):
+            a = math.radians(ang)
+            p = hc + Vector((0, -math.sin(a) * hr * 0.97, math.cos(a) * hr * 0.97))
+            n = (p - hc).normalized()
+            rot = Vector((0, 0, 1)).rotation_difference(n).to_matrix()
+            mb.ellipsoid(p, (0.055, 0.09, 0.02), SLOT_TRIM, "Head", rot=rot, segs=(8, 5))
+
+    if fx.get("mask_band"):  # bandit mask across both eyes (drawn under the eyes)
+        mb.ellipsoid(hc + Vector((0, -hr * 0.78, hr * 0.14)), (hr * 0.78, hr * 0.17, hr * 0.26), SLOT_MARK, "Head", segs=(14, 8))
+
+    if fx.get("facial_disc"):
+        mb.ellipsoid(hc + Vector((0, -hr * 0.5, 0)), (hr * 0.85, hr * 0.5, hr * 0.8), SLOT_TRIM, "Head", segs=(14, 9))
+
+    if fx.get("ringed_tail") and sp["tail"] > 0.05:
+        for a, b, bone in ((skel.tail0, skel.tail1, "Tail1"), (skel.tail1, skel.tail2, "Tail2")):
+            for tt in (0.35, 0.8):
+                mb.ring(a, b, tt, 0.125, 0.06, SLOT_MARK, bone)
+
+    if fx.get("claws"):
+        for side in (1, -1):
+            s = ".L" if side == 1 else ".R"
+            w = Vector(skel.wrist) if side == 1 else mx(skel.wrist)
+            for k in (-1, 0, 1):
+                b = w + Vector((k * 0.035, -0.04, -0.10))
+                mb.cone(b, b + Vector((0, -0.05, -0.10)), 0.018, 0.004, SLOT_HORN, "Hand" + s, segs=5)
+
+
 # ---------------------------------------------------------------- body parts
 
 def build_body(sp, skel):
@@ -246,7 +408,8 @@ def build_body(sp, skel):
         f = (lambda p: Vector(p)) if side == 1 else mx
         mb.capsule(f(skel.hip) + Vector((0, 0, -0.04)), f(skel.knee), 0.105, SLOT_FUR, "UpperLeg" + s)
         mb.capsule(f(skel.knee), f(skel.ankle) + Vector((0, 0, 0.02)), 0.09, SLOT_FUR, "LowerLeg" + s)
-        mb.ellipsoid(f(skel.ankle) + Vector((0, -0.07, -0.025)), (0.095, 0.14, 0.06), SLOT_ACCENT, "Foot" + s)
+        fs = feats(sp).get("foot_scale", 1.0)
+        mb.ellipsoid(f(skel.ankle) + Vector((0, -0.07 * fs, -0.025)), (0.095, 0.14 * fs, 0.06), SLOT_ACCENT, "Foot" + s)
     mb.ellipsoid((0, 0, 0.60), (0.29, 0.23, 0.15), SLOT_SHORTS, "Hips")
 
     # --- torso (jersey) + collar trim
@@ -279,11 +442,14 @@ def build_body(sp, skel):
         mb.ellipsoid(hc + Vector((0, -hr * 0.85, -hr * 0.38)), (0.15, 0.21, 0.12), SLOT_ACCENT, "Head")
         mb.ellipsoid(hc + Vector((0, -hr * 1.48, -hr * 0.30)), (0.07, 0.035, 0.04), SLOT_NOSE, "Head", segs=(10, 6))
     elif head == "Beak":
-        mb.cone(hc + Vector((0, -hr * 0.72, -hr * 0.15)), hc + Vector((0, -hr * 1.55, -hr * 0.30)),
-                0.10, 0.012, SLOT_ACCENT, "Head", segs=10)
+        bs, bf = feats(sp).get("beak_scale", 1.0), feats(sp).get("beak_fat", 1.0)
+        base = hc + Vector((0, -hr * 0.72, -hr * 0.15))
+        tip = base + Vector((0, -hr * 0.83 * bs, -hr * 0.15 * bs))
+        mb.cone(base, tip, 0.10 * bf, 0.012 * bf, SLOT_ACCENT, "Head", segs=10)
     else:  # Round
         mb.ellipsoid(hc + Vector((0, -hr * 0.86, -hr * 0.22)), (0.11, 0.06, 0.08), SLOT_ACCENT, "Head")
-        mb.ellipsoid(hc + Vector((0, -hr * 1.0, -hr * 0.10)), (0.045, 0.03, 0.03), SLOT_NOSE, "Head", segs=(10, 6))
+        ns = feats(sp).get("nose_scale", 1.0)
+        mb.ellipsoid(hc + Vector((0, -hr * 1.0, -hr * 0.10)), (0.045 * ns, 0.03 * ns, 0.03 * ns), SLOT_NOSE, "Head", segs=(10, 6))
 
     # birds with a dark head get a pale face disc so the eyes read (penguin)
     if head == "Beak" and sum(sp["fur"]) < 0.9:
@@ -304,6 +470,7 @@ def build_body(sp, skel):
 
     # --- ears
     ears = sp["ears"]
+    es = feats(sp).get("ear_scale", 1.0)
     for side in (1, -1):
         s = ".L" if side == 1 else ".R"
         bone = "Ear" + s
@@ -317,9 +484,11 @@ def build_body(sp, skel):
             mb.ellipsoid(c, (0.085, 0.04, 0.085), SLOT_FUR, bone, segs=(10, 7))
             mb.ellipsoid(c + Vector((0, -0.028, 0)), (0.05, 0.02, 0.05), SLOT_ACCENT, bone, segs=(8, 6))
         elif ears == "Tall":
-            c = hc + Vector((side * hr * 0.35, 0.03, hr * 1.45))
-            mb.ellipsoid(c, (0.065, 0.035, 0.24), SLOT_FUR, bone, segs=(10, 7))
-            mb.ellipsoid(c + Vector((0, -0.025, 0)), (0.035, 0.02, 0.18), SLOT_ACCENT, bone, segs=(8, 6))
+            # ear_scale > 1: bigger ears that splay outward (fennec, jerboa)
+            c = hc + Vector((side * hr * (0.35 + 0.5 * (es - 1)), 0.03, hr * (1.45 + 0.5 * (es - 1))))
+            tilt = Matrix.Rotation(side * math.radians(55 * (es - 1)), 3, "Y")
+            mb.ellipsoid(c, (0.065 * es * es, 0.035, 0.24 * es), SLOT_FUR, bone, rot=tilt, segs=(10, 7))
+            mb.ellipsoid(c + Vector((0, -0.025, 0)), (0.035 * es * es, 0.02, 0.18 * es), SLOT_ACCENT, bone, rot=tilt, segs=(8, 6))
         elif ears == "Droopy":
             c = hc + Vector((side * hr * 1.02, 0.0, hr * 0.05))
             rot = Matrix.Rotation(side * math.radians(25), 3, "Y")
@@ -327,6 +496,8 @@ def build_body(sp, skel):
 
     # --- horns
     horns = sp["horns"]
+    if any(feats(sp).get(k) for k in CUSTOM_HORNS):
+        horns = "None"  # silhouette built in add_features
     for side in (1, -1):
         if horns == "Horns":
             base = hc + Vector((side * hr * 0.30, 0.02, hr * 0.85))
@@ -385,6 +556,7 @@ def build_body(sp, skel):
             rot = Vector((0, 0, 1)).rotation_difference(n).to_matrix()
             mb.ellipsoid(hc + n * hr * 0.97, (0.05, 0.04, 0.012), SLOT_MARK, "Head", rot=rot, segs=(8, 5))
 
+    add_features(mb, sp, skel)
     return mb
 
 
@@ -586,7 +758,7 @@ def export_species(sp):
         add_leaf_bones=False, primary_bone_axis="Y", secondary_bone_axis="X",
         armature_nodetype="NULL", bake_anim=True, bake_anim_use_all_actions=True,
         bake_anim_use_nla_strips=False, bake_anim_force_startend_keying=True,
-        bake_anim_simplify_factor=0.0, bake_anim_step=1.0)
+        bake_anim_simplify_factor=1.0, bake_anim_step=1.0)
     print(f"[animal_gen] wrote {path} ({len(mesh.data.vertices)} verts)")
 
 

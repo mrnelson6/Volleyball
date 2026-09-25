@@ -31,11 +31,9 @@ namespace Volleyball.EditorTools
 
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
-            // Live beach arena backdrop (environment + camera + sun) plus the visual court
-            // (sand ground, lines, net) so it matches the playable arena. No ball/players/match —
-            // it's purely scenic.
-            ArenaDecorator.BuildSunsetBeachArena();
-            CourtKit.BuildCourtVisual();
+            // Live beach arena backdrop — the same 3D toon beach as the playable arena (its
+            // court model carries the lines and net). No ball/players/match — purely scenic.
+            ToonBeachDecorator.BuildEnvironment();
 
             Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             GameObject canvasGO = BuildCanvas();

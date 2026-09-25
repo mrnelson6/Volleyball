@@ -84,14 +84,16 @@ namespace Volleyball.EditorTools
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
             // environment + camera + sun first, then the playable keys (which see the existing
-            // camera/light and skip their own)
-            ArenaDecorator.BuildSunsetBeachArena();
+            // camera/light and skip their own), then hide the keys' placeholder visuals under
+            // the 3D toon beach (their colliders/markers stay — they ARE the gameplay)
+            ToonBeachDecorator.BuildEnvironment();
             CourtKit.DropInCourt(new CourtKit.Options
             {
                 buildCamera = false,
                 buildLight = false,
                 buildUI = true,
             });
+            ToonBeachDecorator.RestyleCourt();
 
             Directory.CreateDirectory(Path.GetDirectoryName(AbsPath(ArenaScenePath)));
             EditorSceneManager.SaveScene(scene, ArenaScenePath);
