@@ -22,11 +22,35 @@ namespace Volleyball.EditorTools
         {
             var root = new GameObject(DecorRootName).transform;
             ToonArtKit.BuildLighting(root);
-            ArenaDecorator.BuildShowcaseCamera(); // same broadcast camera the game has always used
+            BuildBroadcastCamera();
             ToonArtKit.BuildBeachEnvironment(root);
             int solids = DecorColliders.ApplyTo(root);
             Debug.Log($"[Volleyball] Toon beach dressed; {solids} props made solid.");
         }
+
+        /// <summary>
+        /// The broadcast camera, pulled in along the classic sideline sightline (same yaw, so
+        /// camera-relative controls are unchanged) so the 3D animals read bigger on screen.
+        /// </summary>
+        static void BuildBroadcastCamera()
+        {
+            if (Camera.main != null || GameObject.FindGameObjectWithTag("MainCamera") != null) return;
+
+            var go = new GameObject("Main Camera") { tag = "MainCamera" };
+            var cam = go.AddComponent<Camera>();
+            cam.clearFlags = CameraClearFlags.Skybox;
+            cam.fieldOfView = CameraFov;
+            cam.nearClipPlane = 0.3f;
+            cam.farClipPlane = 400f;
+            go.AddComponent<AudioListener>();
+            go.transform.position = CameraPosition;
+            go.transform.LookAt(CameraTarget);
+        }
+
+        // classic view was (20, 12, -3) looking at (0, 1.6, 0) with FOV 36
+        public static readonly Vector3 CameraTarget = new Vector3(0f, 1.4f, 0f);
+        public static readonly Vector3 CameraPosition = CameraTarget + new Vector3(20f, 10.4f, -3f) * 0.72f;
+        public const float CameraFov = 40f;
 
         public static void RestyleCourt()
         {
