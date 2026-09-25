@@ -590,7 +590,9 @@ def pose(loc=None, **bones):
 # Each action: (frames, loop, [(frame, (rot_dict, loc_dict)), ...]).
 # Rotations are XYZ euler degrees in each bone's local space. Every bone's local Z points
 # "forward" (-Y) at rest, so +X always swings a bone's tip forward, and for left-side
-# hanging limbs +Z swings the tip outward (away from the body).
+# hanging limbs +Z swings the tip outward (away from the body). Careful with raised arms:
+# Z is applied after X, so once an arm is lifted past ~120 deg (X) the spread flips —
+# NEGATIVE Z spreads a raised left arm outward (set, block, cheer).
 def actions():
     idle_a = pose(Spine=(3, 0, 0), UpperArm_=(4, 0, 8), LowerArm_=(18, 0, 0), Tail1=(15, 0, 12), Tail2=(10, 0, 8))
     idle_b = pose({"Hips": (0, -0.015, 0)}, Spine=(-1, 0, 0), Chest=(2, 0, 0), UpperArm_=(0, 0, 11), LowerArm_=(24, 0, 0),
@@ -607,7 +609,7 @@ def actions():
     jump_crouch = pose({"Hips": (0, -0.10, 0)}, Spine=(22, 0, 0), UpperLeg_=(55, 0, 0), LowerLeg_=(-85, 0, 0), Foot_=(20, 0, 0),
                        UpperArm_=(-40, 0, 12), LowerArm_=(20, 0, 0))
     jump_air = pose(Spine=(-6, 0, 0), UpperLeg_=(55, 0, 4), LowerLeg_=(-95, 0, 0), Foot_=(-10, 0, 0),
-                    UpperArm_=(150, 0, 42), LowerArm_=(15, 0, 0), Tail1=(-30, 0, 0), Ear_=(-30, 0, 0), Head=(-12, 0, 0))
+                    UpperArm_=(150, 0, -40), LowerArm_=(15, 0, 0), Tail1=(-30, 0, 0), Ear_=(-30, 0, 0), Head=(-12, 0, 0))
 
     spike_wind = pose(Spine=(-18, -12, 0), Chest=(-8, -18, 0), Head=(-18, 0, 0),
                       UpperArm_R=(160, 0, -55), LowerArm_R=(95, 0, 0), UpperArm_L=(125, 0, 40), LowerArm_L=(10, 0, 0),
@@ -630,25 +632,25 @@ def actions():
 
     set_ready = pose({"Hips": (0, -0.05, 0)}, Spine=(-4, 0, 0), Head=(-22, 0, 0),
                      UpperLeg_=(22, 0, 0), LowerLeg_=(-38, 0, 0),
-                     UpperArm_=(150, 0, 45), LowerArm_=(70, 0, -20), Hand_=(-30, 0, 0))
+                     UpperArm_=(150, 0, -40), LowerArm_=(70, 0, 20), Hand_=(-30, 0, 0))
     set_push = pose(Spine=(-8, 0, 0), Head=(-25, 0, 0), UpperLeg_=(4, 0, 0), LowerLeg_=(-8, 0, 0), Foot_=(-15, 0, 0),
-                    UpperArm_=(168, 0, 35), LowerArm_=(15, 0, -10), Hand_=(-20, 0, 0))
+                    UpperArm_=(168, 0, -30), LowerArm_=(15, 0, 10), Hand_=(-20, 0, 0))
 
     block = pose(Spine=(-4, 0, 0), Head=(-10, 0, 0), UpperLeg_=(14, 0, 3), LowerLeg_=(-35, 0, 0), Foot_=(-20, 0, 0),
-                 UpperArm_=(175, 0, 30), LowerArm_=(0, 0, 0), Hand_=(-10, 0, 0), Ear_=(-15, 0, 0))
+                 UpperArm_=(162, 0, -48), LowerArm_=(-5, 0, 0), Hand_=(-10, 0, 0), Ear_=(-15, 0, 0))
 
     dive_load = pose({"Hips": (0, -0.12, 0)}, Hips=(20, 0, 0), Spine=(25, 0, 0), UpperLeg_=(55, 0, 0), LowerLeg_=(-85, 0, 0),
                      UpperArm_=(70, 0, 10), LowerArm_=(10, 0, 0))
     dive_fly = pose({"Hips": (0, -0.25, 0)}, Hips=(78, 0, 0), Spine=(5, 0, 0), Head=(-55, 0, 0), Neck=(-15, 0, 0),
                     UpperLeg_=(-10, 0, 6), LowerLeg_=(-20, 0, 0), Foot_=(-30, 0, 0),
-                    UpperArm_=(165, 0, 30), LowerArm_=(0, 0, 0), Tail1=(40, 0, 0), Ear_=(40, 0, 0))
+                    UpperArm_=(165, 0, -15), LowerArm_=(0, 0, 0), Tail1=(40, 0, 0), Ear_=(40, 0, 0))
     dive_land = pose({"Hips": (0, -0.40, 0)}, Hips=(88, 0, 0), Spine=(0, 0, 0), Head=(-60, 0, 0), Neck=(-20, 0, 0),
                      UpperLeg_=(-5, 0, 8), LowerLeg_=(-35, 0, 0), Foot_=(-30, 0, 0),
-                     UpperArm_=(160, 0, 40), LowerArm_=(10, 0, 0), Tail1=(25, 0, 0))
+                     UpperArm_=(160, 0, -25), LowerArm_=(10, 0, 0), Tail1=(25, 0, 0))
 
-    cheer_a = pose(UpperArm_L=(170, 0, 50), UpperArm_R=(140, 0, -30), LowerArm_=(10, 0, 0), Head=(-12, 0, 5),
+    cheer_a = pose(UpperArm_L=(170, 0, -50), UpperArm_R=(140, 0, 30), LowerArm_=(10, 0, 0), Head=(-12, 0, 5),
                    Tail1=(20, 0, 25), Ear_=(0, 0, 10))
-    cheer_b = pose({"Hips": (0, 0.08, 0)}, UpperArm_L=(140, 0, 30), UpperArm_R=(170, 0, -50), LowerArm_=(10, 0, 0),
+    cheer_b = pose({"Hips": (0, 0.08, 0)}, UpperArm_L=(140, 0, -30), UpperArm_R=(170, 0, 50), LowerArm_=(10, 0, 0),
                    Head=(-12, 0, -5), UpperLeg_=(12, 0, 0), LowerLeg_=(-30, 0, 0), Tail1=(20, 0, -25), Ear_=(0, 0, -10))
 
     return {
