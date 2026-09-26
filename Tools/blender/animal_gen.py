@@ -46,6 +46,12 @@ def seg(n, lo=3):
 SLOTS = 16
 SLOT_FUR, SLOT_ACCENT, SLOT_JERSEY, SLOT_MARK, SLOT_NOSE, SLOT_EYE_WHITE, SLOT_EYE_DARK, \
     SLOT_SHORTS, SLOT_HORN, SLOT_TRIM = range(10)
+# fixed "wardrobe" colours for per-character looks (glasses, hats, jewellery, tattoos, scars)
+SLOT_DARK, SLOT_GOLD, SLOT_RED, SLOT_TEAL, SLOT_PINK, SLOT_TAN = range(10, 16)
+WARDROBE = {
+    SLOT_DARK: [0.13, 0.12, 0.15], SLOT_GOLD: [0.98, 0.76, 0.18], SLOT_RED: [0.86, 0.18, 0.20],
+    SLOT_TEAL: [0.10, 0.68, 0.66], SLOT_PINK: [0.98, 0.56, 0.70], SLOT_TAN: [0.93, 0.78, 0.58],
+}
 
 JERSEY_PREVIEW = [0.20, 0.50, 0.95]
 
@@ -110,6 +116,56 @@ class MeshBuilder:
                                   radius1=r1, radius2=r2, depth=d.length, matrix=m, calc_uvs=False)
         self._finish(r["verts"], slot, bone)
 
+    def dome(self, center, radii, slot, bone, cut=0.0, rot=None, segs=(16, 10)):
+        """Ellipsoid with everything below local z = cut removed (hat crowns, caps)."""
+        m = Matrix.Translation(Vector(center))
+        if rot is not None:
+            m = m @ rot.to_4x4()
+        m = m @ Matrix.Diagonal((radii[0], radii[1], radii[2], 1.0))
+        r = bmesh.ops.create_uvsphere(self.bm, u_segments=seg(segs[0], 5), v_segments=seg(segs[1], 3),
+                                      radius=1.0, matrix=m, calc_uvs=False)
+        inv = m.inverted()
+        drop = [v for v in r["verts"] if (inv @ v.co).z < cut - 1e-4]
+        bmesh.ops.delete(self.bm, geom=drop, context="VERTS")
+        self._finish([v for v in r["verts"] if v.is_valid], slot, bone)
+
+    def tube(self, center, rx, ry, h, slot, bone, rot=None, caps=True, segs=16, taper=1.0):
+        """Elliptical cylinder of height h along local Z (hat bands, headbands, lenses)."""
+        m = Matrix.Translation(Vector(center))
+        if rot is not None:
+            m = m @ rot.to_4x4()
+        m = m @ Matrix.Diagonal((rx, ry, h, 1.0))
+        r = bmesh.ops.create_cone(self.bm, cap_ends=caps, cap_tris=False, segments=seg(segs, 6),
+                                  radius1=1.0, radius2=taper, depth=1.0, matrix=m, calc_uvs=False)
+        self._finish(r["verts"], slot, bone)
+
+    def hoop(self, center, radius, thick, axis, slot, bone, n=12, arc=1.0):
+        """A torus-ish ring (earrings, glasses rims, nose rings): a closed chain of short tubes."""
+        c, ax = Vector(center), Vector(axis).normalized()
+        u = ax.orthogonal().normalized()
+        v = ax.cross(u)
+        steps = max(6, int(n * arc))
+        pts = [c + (u * math.cos(k / n * math.tau) + v * math.sin(k / n * math.tau)) * radius
+               for k in range(steps + 1)]
+        for a, b in zip(pts, pts[1:]):
+            d = b - a
+            self.cone(a - d * 0.15, b + d * 0.15, thick, thick, slot, bone, segs=6)
+
+    def patch(self, pos, normal, su, sv, slot, bone, angle=0.0, thick=0.012):
+        """Flat decal-like ellipse lying on a surface (scars, plasters, tattoos, blush)."""
+        n = Vector(normal).normalized()
+        rot = Matrix.Rotation(angle, 3, n) @ Vector((0, 0, 1)).rotation_difference(n).to_matrix()
+        self.ellipsoid(pos, (su, sv, thick), slot, bone, rot=rot, segs=(10, 6))
+
+    def reshape(self, bones, center, scale):
+        """Non-uniformly scale every vertex bound to `bones` about `center` (head shapes)."""
+        idx = {self.groups.index(b) for b in bones if b in self.groups}
+        c = Vector(center)
+        for vert in self.bm.verts:
+            if any(g in idx for g in vert[self.deform].keys()):
+                d = vert.co - c
+                vert.co = c + Vector((d.x * scale[0], d.y * scale[1], d.z * scale[2]))
+
     def ring(self, a, b, t, radius, width, slot, bone):
         """A band around the a->b limb at parameter t (stripes)."""
         a, b = Vector(a), Vector(b)
@@ -169,13 +225,17 @@ class Skeleton:
         head_kind = sp["head"]
         self.hip_z = 0.56
         self.leg_x = 0.14
-        self.head_r = 0.28 if head_kind == "Beak" else 0.30
+        lk = look(sp)
+        self.head_r = (0.28 if head_kind == "Beak" else 0.30) * lk.get("head", 1.0)
+        self.head_shape = Vector(lk.get("head_shape", (1.0, 1.0, 1.0)))
         self.neck_base = Vector((0, 0, 1.08))
         self.neck_top = Vector((0, 0, 1.08 + 0.06 + neck * 0.55))
         self.head_c = self.neck_top + Vector((0, 0, self.head_r * 0.85))
-        self.shoulder = Vector((0.29, 0, 1.00))
-        self.elbow = Vector((0.37, 0.0, 0.78))
-        self.wrist = Vector((0.40, -0.02, 0.56))
+        # arm length stretches the elbow/wrist down from the shoulder; shoulders set the width
+        al = lk.get("arm_len", 1.0)
+        self.shoulder = Vector((0.29 * lk.get("shoulders", 1.0), 0, 1.00))
+        self.elbow = self.shoulder + Vector((0.08, 0.0, -0.22)) * al
+        self.wrist = self.elbow + Vector((0.03, -0.02, -0.22)) * al
         self.hip = Vector((self.leg_x, 0, self.hip_z))
         self.knee = Vector((self.leg_x, -0.01, 0.31))
         self.ankle = Vector((self.leg_x, 0.0, 0.08))
@@ -185,6 +245,11 @@ class Skeleton:
         self.tail1 = self.tail0 + Vector((0, 0.16, 0.10)) * tl
         self.tail2 = self.tail1 + Vector((0, 0.12, 0.20)) * tl
 
+    def on_head(self, offset):
+        """Head-centre offset -> world point after the per-character head reshape."""
+        o = Vector(offset)
+        return self.head_c + Vector((o.x * self.head_shape.x, o.y * self.head_shape.y, o.z * self.head_shape.z))
+
     def bones(self):
         """(name, head, tail, parent, roll-axis) — roll axis is where the bone's local Z points."""
         hc, nt = self.head_c, self.neck_top
@@ -193,7 +258,7 @@ class Skeleton:
             ("Spine", Vector((0, 0, self.hip_z + 0.14)), Vector((0, 0, 0.90)), "Hips", FWD),
             ("Chest", Vector((0, 0, 0.90)), self.neck_base, "Spine", FWD),
             ("Neck", self.neck_base, nt, "Chest", FWD),
-            ("Head", nt, hc + Vector((0, 0, self.head_r)), "Neck", FWD),
+            ("Head", nt, hc + Vector((0, 0, self.head_r * self.head_shape.z)), "Neck", FWD),
             ("Tail1", self.tail0, self.tail1, "Hips", UP),
             ("Tail2", self.tail1, self.tail2, "Tail1", UP),
         ]
@@ -201,7 +266,7 @@ class Skeleton:
             s = ".L" if side == 1 else ".R"
             f = (lambda p: Vector(p)) if side == 1 else mx
             b += [
-                ("Ear" + s, hc + f((0.17, 0.0, self.head_r * 0.6)), hc + f((0.22, 0.0, self.head_r * 1.3)), "Head", FWD),
+                ("Ear" + s, self.on_head(f((0.17, 0.0, self.head_r * 0.6))), self.on_head(f((0.22, 0.0, self.head_r * 1.3))), "Head", FWD),
                 ("UpperArm" + s, f(self.shoulder), f(self.elbow), "Chest", FWD),
                 ("LowerArm" + s, f(self.elbow), f(self.wrist), "UpperArm" + s, FWD),
                 ("Hand" + s, f(self.wrist), f(self.wrist) + Vector((0, -0.02, -0.10)), "LowerArm" + s, FWD),
@@ -401,35 +466,449 @@ def add_features(mb, sp, skel):
                 mb.cone(b, b + Vector((0, -0.05, -0.10)), 0.018, 0.004, SLOT_HORN, "Hand" + s, segs=5)
 
 
+# ---------------------------------------------------------------- per-character looks
+# FEATURES make a lion read as a lion; LOOKS make Leo read as Leo. Proportions (head size and
+# shape, arm/leg thickness, belly, eyes) plus a personality kit: hats, hair, glasses, brows,
+# scars, jewellery, tattoos. Wardrobe colours are the fixed SLOT_DARK..SLOT_TAN palette slots;
+# SLOT_JERSEY gives team-coloured gear (caps).
+#   head / eyes / arms / legs / shoulders / arm_len : scale factors (1 = shared body)
+#   head_shape (x, y, z)  : squash/stretch of the whole head (width, depth, height)
+#   belly                 : torso width/depth factor (or (x, y))
+LOOKS = {
+    "fox": {"head_shape": (0.95, 1.0, 1.05), "arms": 0.9, "hair": "quiff", "hair_col": SLOT_ACCENT,
+            "brows": "smug", "wristbands": SLOT_TEAL},
+    "bear": {"head_shape": (1.12, 1.0, 0.94), "arms": 1.4, "shoulders": 1.1, "belly": 1.15, "eyes": 0.85,
+             "hat": "cap_back", "hat_col": SLOT_JERSEY, "scar": 1},
+    "meerkat": {"head": 1.15, "eyes": 1.2, "arms": 0.8, "legs": 0.85, "hair": "tuft", "hair_col": SLOT_MARK,
+                "neck": "binoculars"},
+    "zebra": {"head_shape": (0.92, 1.0, 1.06), "legs": 0.9, "glasses": "visor", "glasses_col": SLOT_DARK,
+              "wristbands": SLOT_RED},
+    "warthog": {"head_shape": (1.18, 1.0, 0.9), "arms": 1.2, "belly": 1.1, "eyes": 0.9, "glasses": "sun",
+                "nose_ring": True},
+    "giraffe": {"eyes": 1.1, "lashes": True, "flower": 1, "blush": True},
+    "lion": {"shoulders": 1.1, "arms": 1.15, "hat": "crown", "neck": "medallion"},
+    "rhino": {"head_shape": (1.15, 1.05, 0.95), "arms": 1.35, "shoulders": 1.12, "belly": 1.12, "eyes": 0.8,
+              "hat": "cap", "hat_col": SLOT_JERSEY, "brows": "angry"},
+    "capybara": {"head_shape": (1.05, 1.12, 0.9), "belly": 1.12, "arms": 0.9, "lids": True, "yuzu": True},
+    "toucan": {"head": 1.05, "eyes": 1.1, "hair": "tuft", "hair_col": SLOT_ACCENT, "neck": "beads",
+               "neck_col": SLOT_RED},
+    "sloth": {"head": 1.05, "arm_len": 1.2, "arms": 0.85, "lids": True, "lid_col": SLOT_MARK, "flower": -1},
+    "jaguar": {"head_shape": (1.05, 1.0, 0.95), "arms": 1.1, "brows": "angry", "tattoo": "bands", "earring": 1},
+    "wombat": {"head_shape": (1.18, 1.0, 0.86), "belly": 1.2, "arms": 1.25, "legs": 1.2, "arm_len": 0.85,
+               "hat": "headband", "hat_col": SLOT_RED, "kneepads": SLOT_DARK},
+    "dingo": {"head_shape": (0.95, 1.05, 1.0), "neck": "bandana", "neck_col": SLOT_RED, "freckles": True},
+    "emu": {"eyes": 1.3, "legs": 0.8, "arms": 0.8, "hair": "spiky", "hair_col": SLOT_DARK, "brows": "worried"},
+    "kangaroo": {"gloves": True, "arms": 1.15, "shoulders": 1.05, "hat": "headband", "hat_col": SLOT_TRIM},
+    "redpanda": {"head": 1.12, "eyes": 1.1, "blush": True, "neck": "scarf", "neck_col": SLOT_TEAL},
+    "yak": {"arms": 1.3, "belly": 1.15, "shoulders": 1.08, "neck": "bell", "earring": 1},
+    "markhor": {"head_shape": (0.92, 1.05, 1.05), "hat": "headband", "hat_col": SLOT_TEAL, "earring": -1},
+    "snowleopard": {"arms": 0.95, "scar": -1, "earring": 1, "lashes": True},
+    "hare": {"buck_teeth": True, "freckles": True, "hat": "headband", "hat_col": SLOT_PINK, "legs": 0.9},
+    "badger": {"head_shape": (1.1, 1.0, 0.92), "arms": 1.2, "belly": 1.1, "hat": "hard_hat",
+               "kneepads": SLOT_DARK},
+    "boar": {"head_shape": (1.12, 1.0, 0.94), "arms": 1.2, "brows": "angry", "bandaid": True,
+             "wristbands": SLOT_DARK},
+    "stag": {"shoulders": 1.05, "glasses": "monocle", "neck": "bowtie", "neck_col": SLOT_DARK},
+    "jerboa": {"head": 1.25, "eyes": 1.3, "arms": 0.75, "legs": 0.85, "bow": True},
+    "fennec": {"head": 1.1, "glasses": "round_sun", "glasses_col": SLOT_GOLD, "blush": True},
+    "oryx": {"head_shape": (0.92, 1.05, 1.05), "shoulders": 1.08, "neck": "scarf", "neck_col": SLOT_TAN},
+    "camel": {"head_shape": (0.95, 1.1, 1.0), "lashes": True, "neck": "beads", "neck_col": SLOT_RED},
+    "raccoon": {"arms": 0.95, "hat": "beanie", "hat_col": SLOT_DARK, "brows": "smug"},
+    "moose": {"head_shape": (1.0, 1.12, 1.02), "eyes": 0.85, "brows": "worried", "neck": "scarf",
+              "neck_col": SLOT_RED},
+    "buffalo": {"head_shape": (1.1, 1.0, 0.95), "arms": 1.4, "shoulders": 1.15, "belly": 1.1, "brows": "angry",
+                "nose_ring": True},
+    "cougar": {"hair": "ponytail", "hair_col": SLOT_MARK, "wristbands": SLOT_PINK, "lashes": True},
+    "penguin": {"head": 1.1, "eyes": 1.1, "neck": "bowtie", "neck_col": SLOT_RED},
+    "snowyowl": {"eyes": 1.15, "glasses": "round", "glasses_col": SLOT_DARK},
+    "walrus": {"head_shape": (1.1, 1.0, 0.95), "belly": 1.3, "arms": 1.2, "tattoo": "heart", "brows": "bushy",
+               "brow_col": SLOT_TRIM},
+    "polarbear": {"head": 0.9, "head_shape": (0.95, 1.1, 0.95), "arms": 1.35, "shoulders": 1.1, "belly": 1.15,
+                  "eyes": 0.85, "hat": "beanie_pom", "hat_col": SLOT_TEAL},
+}
+
+# hats that would fight the species' own headgear are skipped (antlers)
+HAT_BLOCKERS = ("Antlers",)
+
+
+def look(sp):
+    return LOOKS.get(sp["id"], {})
+
+
+def add_look(mb, sp, skel):
+    lk = look(sp)
+    if not lk:
+        return
+    hc, hr = skel.head_c, skel.head_r
+    es = lk.get("eyes", 1.0)
+    head = sp["head"]
+    A, B, C = hr * 1.05, hr * 0.95, hr  # head ellipsoid radii (before the reshape)
+    face_y = -hr * 0.88
+
+    def surf(x, z, lift=0.01):
+        """Front-of-head surface point at (x, z) head-local, and its normal."""
+        y = -B * math.sqrt(max(0.02, 1 - (x / A) ** 2 - (z / C) ** 2))
+        n = Vector((x / A ** 2, y / B ** 2, z / C ** 2)).normalized()
+        return hc + Vector((x, y, z)) + n * lift, n
+
+    def on_dir(d, lift=0.0):
+        """Point on the head surface along direction d (hats, hair)."""
+        n = Vector(d).normalized()
+        r = 1.0 / math.sqrt((n.x / A) ** 2 + (n.y / B) ** 2 + (n.z / C) ** 2)
+        g = Vector((n.x * r / A ** 2, n.y * r / B ** 2, n.z * r / C ** 2)).normalized()
+        return hc + n * r + g * lift, g
+
+    def band(z0, z1, slot, grow=1.07):
+        """A strip hugging the head between heights z0..z1 (headbands, hat cuffs)."""
+        s0 = math.sqrt(max(0.05, 1 - (z0 / C) ** 2))
+        s1 = math.sqrt(max(0.05, 1 - (z1 / C) ** 2))
+        mb.tube(hc + Vector((0, 0, (z0 + z1) / 2)), A * s0 * grow, B * s0 * grow, z1 - z0, slot, "Head",
+                caps=False, segs=20, taper=s1 / s0)
+
+    def patch_along(pos, n, along, su, sv, slot, bone="Head", thick=0.012):
+        n = Vector(n).normalized()
+        x = Vector(along) - n * Vector(along).dot(n)
+        x.normalize()
+        y = n.cross(x)
+        rot = Matrix((x, y, n)).transposed()
+        mb.ellipsoid(pos, (su, sv, thick), slot, bone, rot=rot, segs=(10, 6))
+
+    def eye(side):
+        return hc + Vector((side * hr * 0.38, face_y, hr * 0.18))
+
+    # snout / nose anchors per head template (matches build_body)
+    ns = feats(sp).get("nose_scale", 1.0)
+    snout_c, snout_r, nose = {
+        "Muzzle": (Vector((0, -hr * 0.78, -hr * 0.28)), Vector((0.14, 0.12, 0.10)), Vector((0, -hr * 1.18, -hr * 0.16))),
+        "LongMuzzle": (Vector((0, -hr * 0.85, -hr * 0.38)), Vector((0.15, 0.21, 0.12)), Vector((0, -hr * 1.48, -hr * 0.30))),
+        "Round": (Vector((0, -hr * 0.86, -hr * 0.22)), Vector((0.11, 0.06, 0.08)), Vector((0, -hr * (1.0 + 0.1 * (ns - 1)), -hr * 0.10))),
+    }.get(head, (Vector((0, -hr * 0.72, -hr * 0.15)), Vector((0.1, 0.1, 0.1)), Vector((0, -hr * 1.2, -hr * 0.2))))
+    snout_c, nose = hc + snout_c, hc + nose
+
+    # --------------------------------------------------------------- eyes: lids, lashes, brows
+    for side in (1, -1):
+        e = eye(side)
+        if lk.get("lids"):  # sleepy half-closed lids
+            mb.ellipsoid(e + Vector((0, -0.012 * es, 0.045 * es)), (0.076 * es, 0.048 * es, 0.062 * es),
+                         lk.get("lid_col", SLOT_FUR), "Head", segs=(10, 7))
+        if lk.get("lashes"):
+            for a in (25, 50, 75):
+                r = math.radians(a)
+                base = e + Vector((side * math.cos(r) * 0.066 * es, -0.022 * es, math.sin(r) * 0.078 * es))
+                tip = base + Vector((side * math.cos(r) * 0.05, -0.012, math.sin(r) * 0.045))
+                mb.cone(base, tip, 0.011, 0.003, SLOT_DARK, "Head", segs=4)
+
+    brows = lk.get("brows")
+    if brows:
+        top = hr * 0.18 + 0.08 * es + 0.035
+        thick = 0.03 if brows == "bushy" else 0.018
+        for side in (1, -1):
+            xi, xo = side * (hr * 0.38 - 0.055), side * (hr * 0.38 + 0.065)
+            zi, zo = {"angry": (top - 0.03, top + 0.012), "worried": (top + 0.02, top - 0.02),
+                      "bushy": (top, top - 0.005)}.get(brows, (top, top))
+            if brows == "smug":
+                zi, zo = (top + 0.03, top + 0.025) if side == 1 else (top - 0.02, top + 0.005)
+            a, _ = surf(xi, zi, 0.018)
+            b, _ = surf(xo, zo, 0.018)
+            mb.capsule(a, b, thick, lk.get("brow_col", SLOT_DARK), "Head", segs=(8, 6))
+
+    # --------------------------------------------------------------- face marks
+    if lk.get("scar"):
+        side = lk["scar"]
+        pts = [surf(side * hr * (0.58 - 0.34 * t), hr * (0.78 - 1.05 * t), 0.006) for t in [k / 6 for k in range(7)]]
+        for (p0, _), (p1, _) in zip(pts, pts[1:]):
+            mb.cone(p0, p1, 0.017, 0.017, SLOT_PINK, "Head", segs=5)
+        for k in (1, 5):  # stitches across it (skip the eye in the middle)
+            p, n = pts[k]
+            d = (pts[k + 1][0] - pts[k - 1][0]).normalized()
+            perp = n.cross(d).normalized()
+            mb.cone(p - perp * 0.028 + n * 0.004, p + perp * 0.028 + n * 0.004, 0.006, 0.006, SLOT_DARK, "Head", segs=4)
+
+    if lk.get("blush"):
+        for side in (1, -1):
+            p, n = surf(side * hr * 0.68, -hr * 0.08, 0.004)
+            mb.patch(p, n, 0.055, 0.035, SLOT_PINK, "Head", thick=0.01)
+
+    if lk.get("freckles"):
+        for side in (1, -1):
+            for x, z in ((0.52, -0.02), (0.64, -0.10), (0.56, -0.20), (0.70, 0.02)):
+                p, n = surf(side * hr * x, hr * z, 0.004)
+                mb.sphere(p, 0.011, SLOT_DARK, "Head", segs=(6, 4))
+
+    if lk.get("bandaid"):  # crossed plasters on the forehead
+        p, n = surf(-hr * 0.30, hr * 0.62, 0.008)
+        for ang in (40, -40):
+            r = math.radians(ang)
+            patch_along(p, n, Vector((math.cos(r), 0, math.sin(r))), 0.075, 0.024, SLOT_TAN)
+
+    if lk.get("buck_teeth"):
+        for side in (1, -1):
+            mb.ellipsoid(snout_c + Vector((side * 0.021, -snout_r.y * 0.82, -snout_r.z * 0.9)),
+                         (0.019, 0.011, 0.03), SLOT_TRIM, "Head", segs=(8, 5))
+
+    if lk.get("nose_ring"):
+        mb.hoop(nose + Vector((0, -0.01, -0.045)), 0.036, 0.009, (1, 0, 0), SLOT_GOLD, "Head")
+
+    # --------------------------------------------------------------- glasses
+    g = lk.get("glasses")
+    gcol = lk.get("glasses_col", SLOT_DARK)
+    if g in ("sun", "round", "round_sun"):
+        for side in (1, -1):
+            e = eye(side) + Vector((0, -0.045 * es, 0.0))
+            if g == "sun":
+                mb.ellipsoid(e + Vector((0, 0.004, 0)), (0.086 * es, 0.02, 0.068 * es), SLOT_DARK, "Head", segs=(12, 7))
+            else:
+                mb.hoop(e, 0.085 * es, 0.011, (0, 1, 0), gcol, "Head", n=16)
+                if g == "round_sun":
+                    mb.ellipsoid(e + Vector((0, 0.006, 0)), (0.082 * es, 0.012, 0.082 * es), SLOT_DARK, "Head", segs=(12, 7))
+            # temple arm back to the side of the head
+            back, _ = on_dir((side * 1.0, 0.05, 0.25), 0.01)
+            mb.capsule(e + Vector((side * 0.08 * es, 0.01, 0.02)), back, 0.011, gcol, "Head", segs=(6, 4))
+        l, r = eye(1) + Vector((-0.07 * es, -0.05 * es, 0.03)), eye(-1) + Vector((0.07 * es, -0.05 * es, 0.03))
+        mb.capsule(l, r, 0.012, gcol, "Head", segs=(6, 4))
+    elif g == "visor":  # wraparound sports shades
+        # a thin curved band across both eyes, wrapped to the head
+        mb.ellipsoid(hc + Vector((0, face_y + hr * 0.18, hr * 0.2)), (hr * 1.0, hr * 0.46, 0.06 * es + 0.01),
+                     gcol, "Head", segs=(20, 7))
+        mb.ellipsoid(hc + Vector((0, face_y + hr * 0.18, hr * 0.2 + 0.05 * es + 0.012)), (hr * 1.0, hr * 0.47, 0.012),
+                     SLOT_TEAL, "Head", segs=(20, 5))
+        for side in (1, -1):
+            back, _ = on_dir((side * 1.0, 0.1, 0.25), 0.012)
+            mb.capsule(hc + Vector((side * hr * 0.85, face_y * 0.7, hr * 0.2)), back, 0.013, SLOT_DARK, "Head", segs=(6, 4))
+    elif g == "monocle":
+        e = eye(-1) + Vector((0, -0.05 * es, 0))
+        mb.hoop(e, 0.088 * es, 0.011, (0, 1, 0), SLOT_GOLD, "Head", n=16)
+        prev = e + Vector((-0.06, 0, -0.065))
+        for k in range(1, 5):  # little chain dangling to the cheek
+            p = prev + Vector((-0.012, 0.018, -0.03))
+            mb.sphere(p, 0.009, SLOT_GOLD, "Head", segs=(5, 4))
+            prev = p
+
+    # --------------------------------------------------------------- mustache
+    if lk.get("mustache"):
+        for side in (1, -1):
+            a = nose + Vector((0, 0.02, -0.05))
+            pts = [a, a + Vector((side * 0.07, 0.01, -0.02)), a + Vector((side * 0.13, 0.03, 0.0)),
+                   a + Vector((side * 0.155, 0.04, 0.035))]
+            chain(mb, pts, 0.03, 0.01, lk["mustache"], "Head")
+
+    # --------------------------------------------------------------- hats
+    hat, hcol = lk.get("hat"), lk.get("hat_col", SLOT_RED)
+    if hat and sp["horns"] in HAT_BLOCKERS:
+        hat = None
+    if hat in ("cap", "cap_back"):
+        mb.dome(hc + Vector((0, 0.01, hr * 0.42)), (hr * 1.12, hr * 1.05, hr * 0.8), hcol, "Head")
+        mb.sphere(hc + Vector((0, 0.01, hr * 1.22)), 0.024, hcol, "Head", segs=(6, 4))
+        fwd = -1 if hat == "cap" else 1
+        mb.ellipsoid(hc + Vector((0, fwd * hr * 1.02, hr * 0.46)), (hr * 0.72, hr * 0.58, 0.018), hcol, "Head",
+                     rot=Matrix.Rotation(math.radians(-fwd * 12), 3, "X"), segs=(14, 6))
+    elif hat in ("beanie", "beanie_pom"):
+        mb.dome(hc + Vector((0, 0.01, hr * 0.36)), (hr * 1.12, hr * 1.06, hr * 0.94), hcol, "Head")
+        band(hr * 0.30, hr * 0.56, hcol, grow=1.12)
+        if hat == "beanie_pom":
+            mb.sphere(hc + Vector((0, 0.01, hr * 1.36)), 0.075, SLOT_TRIM, "Head", segs=(10, 7))
+    elif hat == "headband":
+        band(hr * 0.42, hr * 0.64, hcol)
+        # tie tails at the back
+        k, _ = on_dir((0.15, 1.0, 0.55), 0.01)
+        mb.capsule(k, k + Vector((0.05, 0.1, -0.14)), 0.025, hcol, "Head", segs=(6, 4))
+        mb.capsule(k, k + Vector((-0.03, 0.12, -0.10)), 0.025, hcol, "Head", segs=(6, 4))
+    elif hat == "crown":
+        c = hc + Vector((0, -hr * 0.28, hr * 1.0))
+        tilt = Matrix.Rotation(math.radians(14), 3, "X")
+        up = tilt @ Vector((0, 0, 1))
+        mb.tube(c, hr * 0.55, hr * 0.55, hr * 0.3, SLOT_GOLD, "Head", rot=tilt, caps=False, segs=18)
+        mb.sphere(c, hr * 0.47, SLOT_RED, "Head", segs=(10, 7))
+        for k in range(6):
+            a = k / 6 * math.tau
+            rim = c + tilt @ Vector((math.cos(a) * hr * 0.55, math.sin(a) * hr * 0.55, hr * 0.15))
+            mb.cone(rim - up * 0.01, rim + up * 0.09, 0.035, 0.006, SLOT_GOLD, "Head", segs=5)
+            mb.sphere(rim + up * 0.1, 0.014, SLOT_GOLD, "Head", segs=(5, 4))
+        mb.sphere(c + tilt @ Vector((0, -hr * 0.57, 0)), 0.024, SLOT_TEAL, "Head", segs=(6, 5))
+    elif hat == "hard_hat":
+        mb.dome(hc + Vector((0, 0, hr * 0.45)), (hr * 1.12, hr * 1.08, hr * 0.88), SLOT_GOLD, "Head")
+        mb.tube(hc + Vector((0, -hr * 0.06, hr * 0.47)), hr * 1.3, hr * 1.28, 0.03, SLOT_GOLD, "Head", segs=20)
+        mb.ellipsoid(hc + Vector((0, 0, hr * 1.3)), (0.05, hr * 0.95, 0.04), SLOT_GOLD, "Head", segs=(8, 6))
+        lamp = hc + Vector((0, -hr * 1.05, hr * 0.78))
+        mb.tube(lamp, 0.055, 0.055, 0.06, SLOT_DARK, "Head", rot=Matrix.Rotation(math.radians(90), 3, "X"), segs=10)
+        mb.ellipsoid(lamp + Vector((0, -0.032, 0)), (0.045, 0.012, 0.045), SLOT_TRIM, "Head", segs=(8, 5))
+
+    if lk.get("yuzu"):  # capybara + citrus, the internet's favourite combo
+        top = hc + Vector((0, hr * 0.05, hr * 1.0 + 0.07))
+        mb.sphere(top, 0.085, SLOT_GOLD, "Head", segs=(12, 8))
+        mb.ellipsoid(top + Vector((0.03, 0.0, 0.085)), (0.035, 0.018, 0.012), SLOT_TEAL, "Head",
+                     rot=Matrix.Rotation(math.radians(-20), 3, "Y"), segs=(6, 4))
+
+    if lk.get("bow"):
+        k, n = on_dir((0.35, -0.25, 0.9), 0.02)
+        mb.sphere(k, 0.026, SLOT_PINK, "Head", segs=(8, 5))
+        for side in (1, -1):
+            mb.cone(k, k + Vector((side * 0.095, 0.0, 0.025)), 0.012, 0.055, SLOT_PINK, "Head", segs=4)
+
+    if lk.get("flower"):
+        side = lk["flower"]
+        if sp["ears"] == "None":
+            c, n = on_dir((side * 0.85, -0.15, 0.45), 0.02)
+        else:
+            c, n = on_dir((side * 0.75, -0.35, 0.55), 0.03)
+        u = n.orthogonal().normalized()
+        v = n.cross(u)
+        for k in range(5):
+            a = k / 5 * math.tau
+            mb.sphere(c + (u * math.cos(a) + v * math.sin(a)) * 0.042, 0.034, SLOT_PINK, "Head", segs=(8, 5))
+        mb.sphere(c + n * 0.012, 0.028, SLOT_GOLD, "Head", segs=(8, 5))
+
+    # --------------------------------------------------------------- hair
+    hair, hcol2 = lk.get("hair"), lk.get("hair_col", SLOT_MARK)
+    if hair == "quiff":
+        pts = [hc + Vector((0, hr * 0.35, hr * 0.85)), hc + Vector((0, -hr * 0.15, hr * 1.12)),
+               hc + Vector((0, -hr * 0.62, hr * 1.14)), hc + Vector((0, -hr * 0.86, hr * 0.92))]
+        chain(mb, pts, 0.13, 0.05, hcol2, "Head", segs=10)
+    elif hair == "spiky":
+        for dx, dy in ((0, 0), (0.4, 0.15), (-0.4, 0.15), (0.2, -0.35), (-0.2, -0.35), (0.22, 0.45), (-0.22, 0.45),
+                       (0, 0.6)):
+            base, n = on_dir((dx, dy, 1.0))
+            tip = base + (n + Vector((dx, dy, 0)) * 0.9).normalized() * 0.17
+            mb.cone(base - n * 0.03, tip, 0.05, 0.008, hcol2, "Head", segs=5)
+    elif hair == "tuft":
+        base, n = on_dir((0, -0.1, 1.0))
+        for tip in ((0, -0.06, 0.2), (0.06, 0.02, 0.16), (-0.06, 0.02, 0.15)):
+            mid = base + Vector(tip) * 0.55 + Vector((0, -0.02, 0))
+            chain(mb, [base - n * 0.02, mid, base + Vector(tip)], 0.03, 0.006, hcol2, "Head", segs=5)
+    elif hair == "ponytail":
+        base, _ = on_dir((0, 0.85, 0.6), 0.01)
+        pts = [base, base + Vector((0, 0.12, 0.02)), base + Vector((0, 0.2, -0.1)), base + Vector((0, 0.2, -0.3))]
+        chain(mb, pts, 0.08, 0.025, hcol2, "Head", segs=8)
+        mb.sphere(base + Vector((0, 0.05, 0.01)), 0.05, SLOT_PINK, "Head", segs=(8, 5))
+
+    # --------------------------------------------------------------- ears
+    er = lk.get("earring")
+    if er and sp["ears"] != "None":
+        for side in ((1, -1) if er == 2 else (er,)):
+            s = ".L" if side == 1 else ".R"
+            if sp["ears"] == "Pointed":
+                p = hc + Vector((side * (hr * 0.55 + 0.07), -0.02, hr * 0.62))
+            elif sp["ears"] == "Round":
+                p = hc + Vector((side * (hr * 0.66 + 0.075), 0.0, hr * 0.74 - 0.045))
+            elif sp["ears"] == "Droopy":
+                p = hc + Vector((side * (hr * 1.02 - 0.03), -0.02, hr * 0.05 - 0.13))  # droopy tip swings inward
+            else:
+                p = hc + Vector((side * (hr * 0.45), 0.0, hr * 0.95))
+            mb.hoop(p + Vector((0, 0, -0.03)), 0.03, 0.007, (0, 1, 0), SLOT_GOLD, "Ear" + s, n=10)
+
+    # --------------------------------------------------------------- neck & chest
+    lk_by = lk.get("belly", 1.0)
+    bx, by = lk_by if isinstance(lk_by, tuple) else (lk_by, lk_by)
+
+    def torso_pt(a, z, lift=0.0):
+        """Torso-surface point at angle a (0 = +X, -90 deg = front) and height z."""
+        s = math.sqrt(max(0.05, 1 - ((z - 0.84) / 0.30) ** 2))
+        x, y = 0.31 * bx * s * math.cos(a), 0.25 * by * s * math.sin(a)
+        n = Vector((x / (0.31 * bx) ** 2, y / (0.25 * by) ** 2, (z - 0.84) / 0.09)).normalized()
+        return Vector((x, y - 0.02 * (by - 1), z)) + n * lift, n
+
+    FRONT = -math.pi / 2
+    neck, ncol = lk.get("neck"), lk.get("neck_col", SLOT_GOLD)
+    if neck in ("beads", "medallion", "bell", "binoculars"):
+        strap = {"beads": ncol, "medallion": SLOT_GOLD, "bell": SLOT_RED, "binoculars": SLOT_DARK}[neck]
+        n_beads = 18
+        for k in range(n_beads):
+            a = k / n_beads * math.tau
+            front = max(0.0, -math.sin(a))
+            p, _ = torso_pt(a, 1.07 - 0.10 * front ** 2, 0.015)
+            mb.sphere(p, 0.026 if neck == "beads" else 0.016, strap, "Chest", segs=(6, 4))
+        p, n = torso_pt(FRONT, 0.94, 0.02)
+        if neck == "medallion":
+            mb.patch(p, n, 0.06, 0.06, SLOT_GOLD, "Chest", thick=0.018)
+            mb.patch(p + n * 0.015, n, 0.03, 0.03, SLOT_RED, "Chest", thick=0.008)
+        elif neck == "bell":
+            mb.cone(p + Vector((0, -0.02, 0.02)), p + Vector((0, -0.05, -0.08)), 0.03, 0.065, SLOT_GOLD, "Chest", segs=10)
+            mb.sphere(p + Vector((0, -0.05, -0.09)), 0.02, SLOT_DARK, "Chest", segs=(6, 4))
+        elif neck == "binoculars":
+            for side in (1, -1):
+                q = p + Vector((side * 0.045, -0.04, 0))
+                mb.tube(q, 0.035, 0.035, 0.1, SLOT_DARK, "Chest", rot=Matrix.Rotation(math.radians(90), 3, "X"), segs=10)
+                mb.ellipsoid(q + Vector((0, -0.052, 0)), (0.028, 0.006, 0.028), SLOT_TEAL, "Chest", segs=(8, 5))
+    elif neck == "scarf":
+        mb.ellipsoid((0, -0.01, 1.09), (0.21 * max(1, bx * 0.95), 0.2, 0.075), ncol, "Chest", segs=(16, 8))
+        a, b = Vector((0.1, -0.17 * by, 1.07)), Vector((0.14, -0.23 * by, 0.84))
+        mb.capsule(a, b, 0.05, ncol, "Chest", squash=0.45)
+        mb.ring(a, b, 0.72, 0.052, 0.03, SLOT_TRIM, "Chest")
+    elif neck == "bandana":
+        mb.tube((0, -0.005, 1.085), 0.18, 0.175, 0.05, ncol, "Chest", caps=False, segs=16, taper=0.92)
+        p, n = torso_pt(FRONT, 0.99, 0.012)
+        patch_along(p, n, Vector((1, 0, 0)), 0.11, 0.08, ncol, "Chest", thick=0.018)
+        mb.sphere(p + Vector((0, -0.01, 0.07)), 0.03, ncol, "Chest", segs=(8, 5))
+    elif neck == "bowtie":
+        k, _ = torso_pt(FRONT, 1.05, 0.03)
+        mb.sphere(k, 0.028, ncol, "Chest", segs=(8, 5))
+        for side in (1, -1):
+            mb.cone(k, k + Vector((side * 0.1, 0.0, 0.0)), 0.014, 0.058, ncol, "Chest", segs=4)
+
+    # --------------------------------------------------------------- arms & legs
+    ar = lk.get("arms", 1.0)
+    for side in (1, -1):
+        s = ".L" if side == 1 else ".R"
+        f = (lambda p: Vector(p)) if side == 1 else mx
+        if lk.get("wristbands") is not None and not lk.get("gloves"):
+            mb.ring(f(skel.elbow), f(skel.wrist), 0.8, 0.07 * ar * 1.22, 0.06, lk["wristbands"], "LowerArm" + s)
+        if lk.get("kneepads") is not None:
+            mb.ellipsoid(f(skel.knee) + Vector((0, -0.075 * lk.get("legs", 1.0), -0.03)), (0.085, 0.045, 0.075),
+                         lk["kneepads"], "LowerLeg" + s, segs=(10, 6))
+    tat = lk.get("tattoo")
+    if tat == "bands":
+        for t in (0.42, 0.56):
+            mb.ring(skel.shoulder, skel.elbow, t, 0.075 * ar * 1.08, 0.016, SLOT_DARK, "UpperArm.L")
+        mb.ring(skel.elbow, skel.wrist, 0.35, 0.07 * ar * 1.08, 0.016, SLOT_DARK, "LowerArm.L")
+    elif tat == "heart":
+        c = skel.shoulder.lerp(skel.elbow, 0.55)
+        n = Vector((0.85, -0.5, 0.1)).normalized()
+        r = 0.075 * ar * 0.95
+        base = c + n * r
+        up = Vector((0, 0, 1))
+        side_v = n.cross(up).normalized()
+        for k in (1, -1):
+            mb.patch(base + side_v * k * 0.018 + up * 0.012, n, 0.024, 0.024, SLOT_RED, "UpperArm.L", thick=0.01)
+        patch_along(base - up * 0.014, n, up, 0.03, 0.02, SLOT_RED, "UpperArm.L", thick=0.01)
+
+
 # ---------------------------------------------------------------- body parts
 
 def build_body(sp, skel):
     mb = MeshBuilder()
     hc = skel.head_c
     hr = skel.head_r
+    lk = look(sp)
+    ar, lr, es_ = lk.get("arms", 1.0), lk.get("legs", 1.0), lk.get("eyes", 1.0)
+    bx, by = lk.get("belly", (1.0, 1.0)) if isinstance(lk.get("belly"), tuple) else (lk.get("belly", 1.0),) * 2
 
     # --- legs, feet, shorts
     for side in (1, -1):
         s = ".L" if side == 1 else ".R"
         f = (lambda p: Vector(p)) if side == 1 else mx
-        mb.capsule(f(skel.hip) + Vector((0, 0, -0.04)), f(skel.knee), 0.105, SLOT_FUR, "UpperLeg" + s)
-        mb.capsule(f(skel.knee), f(skel.ankle) + Vector((0, 0, 0.02)), 0.09, SLOT_FUR, "LowerLeg" + s)
+        mb.capsule(f(skel.hip) + Vector((0, 0, -0.04)), f(skel.knee), 0.105 * lr, SLOT_FUR, "UpperLeg" + s)
+        mb.capsule(f(skel.knee), f(skel.ankle) + Vector((0, 0, 0.02)), 0.09 * lr, SLOT_FUR, "LowerLeg" + s)
         fs = feats(sp).get("foot_scale", 1.0)
         mb.ellipsoid(f(skel.ankle) + Vector((0, -0.07 * fs, -0.025)), (0.095, 0.14 * fs, 0.06), SLOT_ACCENT, "Foot" + s)
-    mb.ellipsoid((0, 0, 0.60), (0.29, 0.23, 0.15), SLOT_SHORTS, "Hips")
+    mb.ellipsoid((0, 0, 0.60), (0.29 * bx, 0.23 * by, 0.15), SLOT_SHORTS, "Hips")
 
     # --- torso (jersey) + collar trim
-    mb.ellipsoid((0, 0, 0.84), (0.31, 0.25, 0.30), SLOT_JERSEY, "Spine", segs=(16, 10))
+    mb.ellipsoid((0, -0.02 * (by - 1), 0.84), (0.31 * bx, 0.25 * by, 0.30), SLOT_JERSEY, "Spine", segs=(16, 10))
     mb.cone((0, 0, 1.06), (0, 0, 1.10), 0.16, 0.13, SLOT_TRIM, "Chest", segs=14, caps=False)
 
     # --- arms: jersey sleeve cap, fur arm, paw
     for side in (1, -1):
         s = ".L" if side == 1 else ".R"
         f = (lambda p: Vector(p)) if side == 1 else mx
-        mb.ellipsoid(f(skel.shoulder) + Vector((0, 0, -0.03)), (0.11, 0.11, 0.10), SLOT_JERSEY, "UpperArm" + s, segs=(10, 7))
-        mb.capsule(f(skel.shoulder), f(skel.elbow), 0.075, SLOT_FUR, "UpperArm" + s)
-        mb.capsule(f(skel.elbow), f(skel.wrist), 0.07, SLOT_FUR, "LowerArm" + s)
-        mb.sphere(f(skel.wrist) + Vector((0, -0.01, -0.05)), 0.085, SLOT_FUR, "Hand" + s)
+        sc = max(1.0, ar * 0.9)
+        mb.ellipsoid(f(skel.shoulder) + Vector((0, 0, -0.03)), (0.11 * sc, 0.11 * sc, 0.10 * sc), SLOT_JERSEY, "UpperArm" + s, segs=(10, 7))
+        mb.capsule(f(skel.shoulder), f(skel.elbow), 0.075 * ar, SLOT_FUR, "UpperArm" + s)
+        mb.capsule(f(skel.elbow), f(skel.wrist), 0.07 * ar, SLOT_FUR, "LowerArm" + s)
+        if lk.get("gloves"):  # boxing gloves replace the paws
+            mb.ellipsoid(f(skel.wrist) + Vector((0, -0.03, -0.08)), (0.13, 0.14, 0.14), SLOT_RED, "Hand" + s)
+            mb.ring(f(skel.elbow), f(skel.wrist), 0.92, 0.09, 0.06, SLOT_TRIM, "LowerArm" + s)
+        else:
+            mb.sphere(f(skel.wrist) + Vector((0, -0.01, -0.05)), 0.085 * max(ar, 0.85), SLOT_FUR, "Hand" + s)
 
     # --- neck
     if sp["neck"] > 0.05:
@@ -470,9 +949,10 @@ def build_body(sp, skel):
     # big cute eyes
     for side in (1, -1):
         e = hc + Vector((side * hr * 0.38, face_y, hr * 0.18))
-        mb.ellipsoid(e, (0.068, 0.035, 0.08), SLOT_EYE_WHITE, "Head", segs=(10, 7))
-        mb.ellipsoid(e + Vector((side * 0.004, -0.028, 0.004)), (0.042, 0.02, 0.055), SLOT_EYE_DARK, "Head", segs=(10, 6))
-        mb.sphere(e + Vector((side * 0.012, -0.045, 0.03)), 0.012, SLOT_EYE_WHITE, "Head", segs=(6, 4))
+        mb.ellipsoid(e, (0.068 * es_, 0.035 * es_, 0.08 * es_), SLOT_EYE_WHITE, "Head", segs=(10, 7))
+        mb.ellipsoid(e + Vector((side * 0.004, -0.028 * es_, 0.004)),
+                     (0.042 * es_, 0.02 * es_, 0.055 * es_), SLOT_EYE_DARK, "Head", segs=(10, 6))
+        mb.sphere(e + Vector((side * 0.012, -0.045 * es_, 0.03 * es_)), 0.012 * es_, SLOT_EYE_WHITE, "Head", segs=(6, 4))
 
     # --- ears
     ears = sp["ears"]
@@ -538,9 +1018,9 @@ def build_body(sp, skel):
     for side in (1, -1):
         s = ".L" if side == 1 else ".R"
         f = (lambda p: Vector(p)) if side == 1 else mx
-        limbs += [(f(skel.hip), f(skel.knee), 0.105, "UpperLeg" + s),
-                  (f(skel.knee), f(skel.ankle), 0.09, "LowerLeg" + s),
-                  (f(skel.elbow), f(skel.wrist), 0.07, "LowerArm" + s)]
+        limbs += [(f(skel.hip), f(skel.knee), 0.105 * lr, "UpperLeg" + s),
+                  (f(skel.knee), f(skel.ankle), 0.09 * lr, "LowerLeg" + s),
+                  (f(skel.elbow), f(skel.wrist), 0.07 * ar, "LowerArm" + s)]
     if sp["neck"] > 0.05:
         limbs.append((skel.neck_base, skel.head_c - Vector((0, 0, hr * 0.6)), 0.10 + 0.02 * sp["neck"], "Neck"))
     if mk == "Stripes":
@@ -563,6 +1043,8 @@ def build_body(sp, skel):
             mb.ellipsoid(hc + n * hr * 0.97, (0.05, 0.04, 0.012), SLOT_MARK, "Head", rot=rot, segs=(8, 5))
 
     add_features(mb, sp, skel)
+    add_look(mb, sp, skel)
+    mb.reshape(("Head", "Ear.L", "Ear.R"), hc, skel.head_shape)
     return mb
 
 
@@ -754,7 +1236,7 @@ def build_animal(sp, offset=(0, 0, 0)):
     mesh.name = sp["id"] + "_Body"
 
     # fit to target height: top of the head (ears/horns excluded) -> BASE_HEIGHT * height
-    natural = skel.head_c.z + skel.head_r
+    natural = skel.head_c.z + skel.head_r * skel.head_shape.z
     scale = BASE_HEIGHT * sp["height"] / natural
     arm.scale = (scale, scale, scale)
     bpy.context.view_layer.update()
@@ -806,6 +1288,8 @@ def palette_colors(sp, jersey=JERSEY_PREVIEW):
     pal[SLOT_SHORTS] = [c * 0.35 + 0.05 for c in jersey]
     pal[SLOT_HORN] = [0.62, 0.50, 0.36] if sp["horns"] == "Antlers" else [0.92, 0.87, 0.74]
     pal[SLOT_TRIM] = [0.97, 0.97, 0.95]
+    for k, c in WARDROBE.items():
+        pal[k] = c
     return pal
 
 
@@ -855,6 +1339,13 @@ def preview(out_path, specs):
     scene.display.shading.show_object_outline = True
     scene.render.resolution_x = 360 * n
     scene.render.resolution_y = 640
+    scene.render.resolution_percentage = int(os.environ.get("VB_PREVIEW_PCT", "100"))
+    band = os.environ.get("VB_PREVIEW_BAND")  # "ymin,ymax" (0..1, from the bottom): crop to a strip
+    if band:
+        lo, hi = (float(v) for v in band.split(","))
+        scene.render.use_border = scene.render.use_crop_to_border = True
+        scene.render.border_min_x, scene.render.border_max_x = 0.0, 1.0
+        scene.render.border_min_y, scene.render.border_max_y = lo, hi
     scene.render.film_transparent = False
     scene.world = scene.world or bpy.data.worlds.new("World")
 

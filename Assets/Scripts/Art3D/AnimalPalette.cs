@@ -14,6 +14,8 @@ namespace Volleyball
         public const int Slots = 16;
         public const int Fur = 0, Accent = 1, Jersey = 2, Marking = 3, Nose = 4, EyeWhite = 5,
                          EyeDark = 6, Shorts = 7, Horn = 8, Trim = 9;
+        // fixed wardrobe colours for per-character looks (glasses, hats, jewellery, scars...)
+        public const int Dark = 10, Gold = 11, Red = 12, Teal = 13, Pink = 14, Tan = 15;
 
         static readonly Dictionary<string, Texture2D> Cache = new Dictionary<string, Texture2D>();
 
@@ -23,8 +25,7 @@ namespace Volleyball
             if (Cache.TryGetValue(key, out var tex) && tex != null) return tex;
 
             var px = new Color[Slots];
-            for (int i = 0; i < Slots; i++) px[i] = Color.magenta; // unused slots stand out
-            px[Fur] = ch.fur;
+                        px[Fur] = ch.fur;
             px[Accent] = ch.furAccent;
             px[Jersey] = jersey;
             px[Marking] = ch.art.markingColor;
@@ -34,6 +35,12 @@ namespace Volleyball
             px[Shorts] = new Color(jersey.r * 0.35f + 0.05f, jersey.g * 0.35f + 0.05f, jersey.b * 0.35f + 0.05f);
             px[Horn] = ch.art.horns == HornStyle.Antlers ? new Color(0.62f, 0.50f, 0.36f) : new Color(0.92f, 0.87f, 0.74f);
             px[Trim] = new Color(0.97f, 0.97f, 0.95f);
+            px[Dark] = new Color(0.13f, 0.12f, 0.15f);
+            px[Gold] = new Color(0.98f, 0.76f, 0.18f);
+            px[Red] = new Color(0.86f, 0.18f, 0.20f);
+            px[Teal] = new Color(0.10f, 0.68f, 0.66f);
+            px[Pink] = new Color(0.98f, 0.56f, 0.70f);
+            px[Tan] = new Color(0.93f, 0.78f, 0.58f);
 
             // sRGB texture: palette values are authored gamma-space, like every Color in CharacterDef
             tex = new Texture2D(Slots, 1, TextureFormat.RGBA32, false, false)
