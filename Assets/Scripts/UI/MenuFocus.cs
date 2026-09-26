@@ -30,17 +30,27 @@ namespace Volleyball
         {
             var es = EventSystem.current;
             if (es == null) return;
-            var gp = Gamepad.current;
 
-            // nothing focused (e.g. opened with the mouse) and the pad starts navigating: pick up
-            bool padNav = gp != null && (gp.leftStick.ReadValue().sqrMagnitude > 0.25f
-                                         || gp.dpad.ReadValue() != Vector2.zero
-                                         || gp.buttonSouth.wasPressedThisFrame);
+            // any connected pad counts (not just Gamepad.current — some setups expose two)
+            bool padNav = false, padBack = false;
+            foreach (var gp in Gamepad.all)
+            {
+                padNav |= gp.leftStick.ReadValue().sqrMagnitude > 0.25f || gp.dpad.ReadValue() != Vector2.zero
+                          || gp.buttonSouth.wasPressedThisFrame;
+                padBack |= gp.buttonEast.wasPressedThisFrame;
+            }
+            if (padNav || padBack) GameInput.UsingGamepad = true;
+
+            // Lost focus (screen just opened/closed, or opened with the mouse): with a pad in use,
+            // land on this screen's first control straight away. Only when focus is truly gone —
+            // focus on ANOTHER live screen is left alone, or two screens would fight over it
+            // mid-transition (the old screen stole focus back just as it hid, stranding it on an
+            // invisible button).
             GameObject sel = es.currentSelectedGameObject;
-            if (padNav && (sel == null || !sel.activeInHierarchy || !sel.transform.IsChildOf(transform)))
+            if ((GameInput.UsingGamepad || padNav) && (sel == null || !sel.activeInHierarchy))
                 FocusFirst(force: true);
 
-            bool backPressed = (gp != null && gp.buttonEast.wasPressedThisFrame)
+            bool backPressed = padBack
                                || (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame);
             if (backPressed && back != null && back.gameObject.activeInHierarchy && back.interactable)
                 back.onClick.Invoke();

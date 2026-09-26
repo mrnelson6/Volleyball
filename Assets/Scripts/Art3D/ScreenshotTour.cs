@@ -35,6 +35,7 @@ namespace Volleyball
             runner.menu = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-vbshotmenu") >= 0;
             runner.knock = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-vbshotknock") >= 0;
             runner.human = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-vbshothuman") >= 0;
+            runner.padNav = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-vbshotpadnav") >= 0;
             if (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-vbshotpad") >= 0)
                 GameInput.UsingGamepad = true; // show controller prompts / menu focus
         }
@@ -55,11 +56,18 @@ namespace Volleyball
         public bool menu;
         public bool knock;
         public bool human; // keep the human slot human (aim marker, serve prompt) — nobody presses anything
+        public bool padNav; // drive the main menu with a simulated gamepad (menu navigation check)
 
         IEnumerator Start()
         {
             Directory.CreateDirectory(outputDir);
             Debug.Log($"[Volleyball] SCREENSHOT TOUR -> {outputDir} ({count} shots)");
+            if (padNav)
+            {
+                yield return PadNavTour();
+                Application.Quit(0);
+                yield break;
+            }
             if (menu)
             {
                 yield return MenuTour();
@@ -94,6 +102,40 @@ namespace Volleyball
             yield return new WaitForSeconds(0.5f); // last capture flushes at end of frame
             Debug.Log("[Volleyball] SCREENSHOT TOUR done");
             Application.Quit(0);
+        }
+
+        /// <summary>
+        /// Menu navigation smoke test: a virtual gamepad (the same Input System path a real pad
+        /// takes) presses down/right/A on the main menu, logging the focused control after each
+        /// step and capturing a screenshot.
+        /// </summary>
+        IEnumerator PadNavTour()
+        {
+            SceneManager.LoadScene(SceneFlow.MainMenu);
+            yield return new WaitForSeconds(1.5f);
+            var pad = UnityEngine.InputSystem.InputSystem.AddDevice<UnityEngine.InputSystem.Gamepad>("VBSimPad");
+            var steps = new (string name, UnityEngine.InputSystem.LowLevel.GamepadState state)[]
+            {
+                ("stick_down", new UnityEngine.InputSystem.LowLevel.GamepadState { leftStick = new Vector2(0f, -1f) }),
+                ("dpad_down", new UnityEngine.InputSystem.LowLevel.GamepadState().WithButton(UnityEngine.InputSystem.LowLevel.GamepadButton.DpadDown)),
+                ("dpad_up", new UnityEngine.InputSystem.LowLevel.GamepadState().WithButton(UnityEngine.InputSystem.LowLevel.GamepadButton.DpadUp)),
+                ("a", new UnityEngine.InputSystem.LowLevel.GamepadState().WithButton(UnityEngine.InputSystem.LowLevel.GamepadButton.South)),
+                ("dpad_right", new UnityEngine.InputSystem.LowLevel.GamepadState().WithButton(UnityEngine.InputSystem.LowLevel.GamepadButton.DpadRight)),
+                ("b", new UnityEngine.InputSystem.LowLevel.GamepadState().WithButton(UnityEngine.InputSystem.LowLevel.GamepadButton.East)),
+            };
+            for (int i = 0; i < steps.Length; i++)
+            {
+                UnityEngine.InputSystem.InputSystem.QueueStateEvent(pad, steps[i].state);
+                yield return new WaitForSecondsRealtime(0.15f);
+                UnityEngine.InputSystem.InputSystem.QueueStateEvent(pad, new UnityEngine.InputSystem.LowLevel.GamepadState());
+                yield return new WaitForSecondsRealtime(0.5f);
+                var sel = UnityEngine.EventSystems.EventSystem.current != null
+                    ? UnityEngine.EventSystems.EventSystem.current.currentSelectedGameObject : null;
+                Debug.Log($"[Volleyball] PADNAV {steps[i].name} -> selected={(sel != null ? sel.name : "<none>")}");
+                ScreenCapture.CaptureScreenshot(Path.Combine(outputDir, $"padnav_{i}_{steps[i].name}.png"));
+                yield return null;
+            }
+            yield return new WaitForSeconds(0.5f);
         }
 
         IEnumerator MenuTour()

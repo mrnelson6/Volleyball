@@ -52,6 +52,12 @@ namespace Volleyball
             if (Instance != null) return;
             var go = new GameObject("GameInput");
             go.AddComponent<GameInput>();
+
+            // controller diagnostics in Player.log: what the Input System actually sees
+            foreach (var d in InputSystem.devices)
+                Debug.Log($"[Volleyball] input device: {d.layout} '{d.displayName}' ({d.GetType().Name})");
+            InputSystem.onDeviceChange += (d, change) =>
+                Debug.Log($"[Volleyball] input device {change}: {d.layout} '{d.displayName}' ({d.GetType().Name})");
         }
 
         void Awake()
