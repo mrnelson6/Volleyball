@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace Volleyball
@@ -38,6 +39,7 @@ namespace Volleyball
         public Text previewBlurb;
         public StatBar heightBar, speedBar, powerBar, controlBar, jumpBar;
 
+        public ScrollRect scroll; // roster grid — kept scrolled to the focused tile
         public Button playButton;
         public Button backButton;
         public Button venueButton;  // cycles through SceneFlow.Arenas
@@ -72,6 +74,46 @@ namespace Volleyball
                                       0, SceneFlow.Arenas.Length - 1);
             UpdateVenueLabel();
             Select(PlayerPrefs.GetString(PrefKey, CharacterRoster.DefaultId));
+
+            // a controller starts on the animal you last played
+            if (GameInput.UsingGamepad && EventSystem.current != null)
+                foreach (var e in entries)
+                    if (e.characterId == _selectedId && e.button != null)
+                        EventSystem.current.SetSelectedGameObject(e.button.gameObject);
+        }
+
+        GameObject _lastFocus;
+
+        /// <summary>Controller browsing: moving focus onto a tile previews that animal (no
+        /// press needed), and the grid scrolls to keep it in view.</summary>
+        void Update()
+        {
+            var es = EventSystem.current;
+            GameObject focus = es != null ? es.currentSelectedGameObject : null;
+            if (focus == _lastFocus) return;
+            _lastFocus = focus;
+            if (focus == null) return;
+            foreach (var e in entries)
+                if (e.button != null && e.button.gameObject == focus)
+                {
+                    if (e.characterId != _selectedId) Select(e.characterId);
+                    ScrollTo(e.button.transform as RectTransform);
+                    break;
+                }
+        }
+
+        void ScrollTo(RectTransform tile)
+        {
+            if (scroll == null || tile == null || scroll.content == null) return;
+            RectTransform content = scroll.content, view = scroll.viewport != null ? scroll.viewport : (RectTransform)scroll.transform;
+            float contentH = content.rect.height, viewH = view.rect.height;
+            if (contentH <= viewH) return;
+            float tileTop = -tile.anchoredPosition.y - tile.rect.height * (1f - tile.pivot.y); // distance from content top
+            float tileBottom = tileTop + tile.rect.height;
+            float scrolled = (1f - scroll.verticalNormalizedPosition) * (contentH - viewH);
+            if (tileTop < scrolled) scrolled = tileTop - 10f;
+            else if (tileBottom > scrolled + viewH) scrolled = tileBottom - viewH + 10f;
+            scroll.verticalNormalizedPosition = 1f - Mathf.Clamp01(scrolled / (contentH - viewH));
         }
 
         void CycleVenue()

@@ -95,6 +95,14 @@ namespace Volleyball
             bg.a = 0.85f;
 
             GameObject go = MakeButton(parent, def.call + "Button", label, size, pos, bg, 22);
+            string pad = GameInput.PadChatHint(def.call);
+            if (ShowKeyHints && pad != "")
+            {
+                // follows the device: keyboard hotkey or the LB + D-pad chord
+                var dh = go.GetComponentInChildren<Text>().gameObject.AddComponent<DeviceHintLabel>();
+                dh.keyboardText = label;
+                dh.gamepadText = $"{def.buttonLabel}  ({pad})";
+            }
             var cb = go.AddComponent<ChatButton>();
             cb.call = def.call;
             cb.bar = this;

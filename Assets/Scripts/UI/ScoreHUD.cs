@@ -23,8 +23,13 @@ namespace Volleyball
 
         // The serve instructions carry keybindings, so their text belongs to the client,
         // not to the (eventually server-side) match state.
-        const string ServeHintText = "Your serve —  J: underhand    K: toss, then Space + L: jump serve";
-        const string TossHintText = "Run in — Jump (Space) and Spike (L) at the peak!";
+        // serve prompts follow the device you're holding; the stick/WASD aims the serve
+        static string ServeHintText => GameInput.UsingGamepad
+            ? "Your serve —  X: underhand    Y: toss, then A + B: jump serve    (aim with the stick)"
+            : "Your serve —  J: underhand    K: toss, then Space + L: jump serve    (aim with WASD)";
+        static string TossHintText => GameInput.UsingGamepad
+            ? "Run in — Jump (A) and Spike (B) at the peak!"
+            : "Run in — Jump (Space) and Spike (L) at the peak!";
 
         VolleyPlayer _viewer; // the human this machine controls (null on an all-AI scene)
 

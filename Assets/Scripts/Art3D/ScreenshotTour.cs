@@ -34,6 +34,9 @@ namespace Volleyball
             runner.arena = Arg("-vbshotarena") ?? SceneFlow.BeachArena;
             runner.menu = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-vbshotmenu") >= 0;
             runner.knock = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-vbshotknock") >= 0;
+            runner.human = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-vbshothuman") >= 0;
+            if (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-vbshotpad") >= 0)
+                GameInput.UsingGamepad = true; // show controller prompts / menu focus
         }
 
         static string Arg(string name)
@@ -51,6 +54,7 @@ namespace Volleyball
         public string arena = SceneFlow.BeachArena;
         public bool menu;
         public bool knock;
+        public bool human; // keep the human slot human (aim marker, serve prompt) — nobody presses anything
 
         IEnumerator Start()
         {
@@ -65,7 +69,7 @@ namespace Volleyball
 
             // all four slots AI, so rallies play out with nobody at the keyboard
             var cfg = MatchConfig.Solo("fox", "bear", "penguin", "giraffe");
-            for (int i = 0; i < cfg.slots.Length; i++) cfg.slots[i].occupant = SlotOccupant.AI;
+            for (int i = human ? 1 : 0; i < cfg.slots.Length; i++) cfg.slots[i].occupant = SlotOccupant.AI;
             MatchSetup.Current = cfg;
             SceneManager.LoadScene(arena);
             yield return null; // scene objects Awake/Start

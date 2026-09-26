@@ -36,8 +36,11 @@ namespace Volleyball
         void Update()
         {
             var k = Keyboard.current;
-            if (k != null && k.escapeKey.wasPressedThisFrame)
+            var gp = Gamepad.current;
+            if ((k != null && k.escapeKey.wasPressedThisFrame) || (gp != null && gp.startButton.wasPressedThisFrame))
                 SetPaused(!_paused);
+            else if (_paused && gp != null && gp.buttonEast.wasPressedThisFrame)
+                SetPaused(false); // B backs out of the pause menu too
         }
 
         void Pause() => SetPaused(true);
@@ -47,6 +50,12 @@ namespace Volleyball
         {
             _paused = paused;
             if (panel != null) panel.SetActive(paused);
+            if (paused) RefreshControlsCard();
+            // a controller needs a focused button to navigate from
+            var es = UnityEngine.EventSystems.EventSystem.current;
+            if (es != null)
+                es.SetSelectedGameObject(paused && GameInput.UsingGamepad && resumeButton != null
+                                         ? resumeButton.gameObject : null);
             // The open affordance hides while the menu is up to avoid overlap.
             if (openButton != null) openButton.gameObject.SetActive(!paused);
             // Online, the match belongs to everyone: Esc is a local overlay while play
@@ -95,8 +104,22 @@ namespace Volleyball
             Label(card.transform, "Team", string.Join("\n", ControlsHelp.TeamLines()),
                   24, TextAnchor.UpperLeft, new Vector2(470f, 196f), new Vector2(247f, 10f));
 
-            Label(card.transform, "Footer", ControlsHelp.Footer, 20, TextAnchor.LowerCenter,
-                  new Vector2(940f, 26f), new Vector2(0f, -145f)).color = new Color(1f, 1f, 1f, 0.7f);
+            var footer = Label(card.transform, "Footer", ControlsHelp.Footer, 19, TextAnchor.LowerCenter,
+                               new Vector2(940f, 48f), new Vector2(0f, -134f));
+            footer.color = new Color(1f, 1f, 1f, 0.7f);
+            footer.horizontalOverflow = HorizontalWrapMode.Wrap;
+        }
+
+        /// <summary>Re-read the control lists (keyboard / gamepad / touch) — the player may have
+        /// picked up a controller since the card was built.</summary>
+        void RefreshControlsCard()
+        {
+            Transform card = panel != null ? panel.transform.Find(CardName) : null;
+            if (card == null) return;
+            var playing = card.Find("Playing")?.GetComponent<Text>();
+            var team = card.Find("Team")?.GetComponent<Text>();
+            if (playing != null) playing.text = string.Join("\n", ControlsHelp.PlayingLines());
+            if (team != null) team.text = string.Join("\n", ControlsHelp.TeamLines());
         }
 
         const string CardName = "Controls Card";

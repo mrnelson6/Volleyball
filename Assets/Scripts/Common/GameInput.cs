@@ -5,8 +5,8 @@ using UnityEngine.InputSystem;
 namespace Volleyball
 {
     /// <summary>
-    /// Unified input for the single human player. Aggregates keyboard/mouse (read via the
-    /// Input System) with "virtual" input pushed in by the on-screen touch controls, so
+    /// Unified input for the single human player. Aggregates keyboard/mouse and gamepad (read
+    /// via the Input System) with "virtual" input pushed in by the on-screen touch controls, so
     /// gameplay code reads one source regardless of platform. The three hit types are
     /// separate inputs so the player explicitly chooses bump / set / spike each contact.
     /// Runs early (DefaultExecutionOrder) so the edge flags are fresh for readers.
@@ -34,6 +34,14 @@ namespace Volleyball
         /// <summary>A team callout requested this frame — hotkey or on-screen button
         /// (<see cref="ChatCall.None"/> when nothing was said).</summary>
         public ChatCall ChatPressed { get; private set; }
+
+        /// <summary>The last input came from a gamepad (vs keyboard/mouse/touch) — hints and
+        /// menus follow it. Static so UI can ask without holding the instance.</summary>
+        public static bool UsingGamepad { get; internal set; }
+
+        /// <summary>Radial deadzone for the left stick, rescaled so movement starts smoothly.</summary>
+        const float StickDeadzone = 0.2f;
+        ChatCall _padChatPrev;
 
         /// <summary>Any hit input this frame — used to trigger the serve / restart.</summary>
         public bool AnyHitPressed => BumpPressed || SetPressed || SpikePressed;
@@ -76,6 +84,7 @@ namespace Volleyball
                  power = _vPower;
 
             var k = Keyboard.current;
+            if (k != null && k.anyKey.isPressed) UsingGamepad = false;
             if (k != null)
             {
                 if (k.wKey.isPressed || k.upArrowKey.isPressed) kb.y += 1f;
@@ -94,11 +103,36 @@ namespace Volleyball
             // otherwise tapping "I GOT IT" also bumps, which can wreck a real contact.
             bool overUI = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
             var m = Mouse.current;
+            if (m != null && (m.delta.ReadValue().sqrMagnitude > 16f || m.leftButton.isPressed))
+                UsingGamepad = false; // back on the mouse: hints and menus follow
+            if (_virtualMove != Vector2.zero) UsingGamepad = false; // touch controls
             if (m != null && !overUI)
             {
                 if (m.leftButton.isPressed) bump = true;
                 if (m.rightButton.isPressed) spike = true;
                 if (m.middleButton.isPressed) power = true;
+            }
+
+            // Gamepad: left stick (or D-pad) moves; A jump, X bump, Y set, B spike, RT/RB dive,
+            // LT power. Holding LB turns the D-pad into callouts (see ReadChat).
+            var gp = Gamepad.current;
+            if (gp != null)
+            {
+                Vector2 stick = gp.leftStick.ReadValue();
+                float mag = stick.magnitude;
+                stick = mag < StickDeadzone ? Vector2.zero
+                      : stick / mag * Mathf.InverseLerp(StickDeadzone, 1f, Mathf.Min(mag, 1f));
+                Vector2 dpad = gp.leftShoulder.isPressed ? Vector2.zero : gp.dpad.ReadValue();
+                kb += stick + dpad;
+                if (gp.buttonSouth.isPressed) jump = true;
+                if (gp.buttonWest.isPressed) bump = true;
+                if (gp.buttonNorth.isPressed) set = true;
+                if (gp.buttonEast.isPressed) spike = true;
+                if (gp.rightTrigger.ReadValue() > 0.5f || gp.rightShoulder.isPressed) dive = true;
+                if (gp.leftTrigger.ReadValue() > 0.5f) power = true;
+                if (stick != Vector2.zero || dpad != Vector2.zero || jump || bump || set || spike || dive || power
+                    || gp.leftShoulder.isPressed || gp.startButton.isPressed)
+                    UsingGamepad = true;
             }
 
             Vector2 mv = kb + _virtualMove;
@@ -120,21 +154,47 @@ namespace Volleyball
             _divePrev = dive;
             _powerPrev = power;
 
-            ReadChat(k);
+            ReadChat(k, gp);
         }
 
         /// <summary>Resolve this frame's callout: a freshly-pressed chat hotkey wins, otherwise
         /// whatever an on-screen button queued. Held keys don't repeat.</summary>
-        void ReadChat(Keyboard k)
+        void ReadChat(Keyboard k, Gamepad gp)
         {
             ChatCall held = ChatCall.None;
             if (k != null)
                 foreach (var def in ChatCalls.All)
                     if (def.hotkey != Key.None && k[def.hotkey].isPressed) { held = def.call; break; }
 
-            ChatPressed = held != ChatCall.None && held != _chatKeyPrev ? held : _chatRequest;
+            // LB + D-pad: up "I got it", down "You got it", left "Nice!", right "Let's go!"
+            ChatCall pad = ChatCall.None;
+            if (gp != null && gp.leftShoulder.isPressed)
+            {
+                if (gp.dpad.up.isPressed) pad = ChatCall.IGotIt;
+                else if (gp.dpad.down.isPressed) pad = ChatCall.YouGotIt;
+                else if (gp.dpad.left.isPressed) pad = ChatCall.Nice;
+                else if (gp.dpad.right.isPressed) pad = ChatCall.LetsGo;
+            }
+
+            if (held != ChatCall.None && held != _chatKeyPrev) ChatPressed = held;
+            else if (pad != ChatCall.None && pad != _padChatPrev) ChatPressed = pad;
+            else ChatPressed = _chatRequest;
             _chatKeyPrev = held;
+            _padChatPrev = pad;
             _chatRequest = ChatCall.None;
+        }
+
+        /// <summary>Gamepad label for a callout ("LB↑" = hold LB, press D-pad up), or "" if unbound.</summary>
+        public static string PadChatHint(ChatCall call)
+        {
+            switch (call)
+            {
+                case ChatCall.IGotIt: return "LB↑";
+                case ChatCall.YouGotIt: return "LB↓";
+                case ChatCall.Nice: return "LB←";
+                case ChatCall.LetsGo: return "LB→";
+                default: return "";
+            }
         }
     }
 }

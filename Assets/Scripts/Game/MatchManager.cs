@@ -240,6 +240,7 @@ namespace Volleyball
 
         void BeginServe(TeamSide t)
         {
+            _serveSteer = Vector2.zero; // AI serves (no stick) go to the middle
             ServingTeam = t;
             Possession = t;
             Touches = 0;
@@ -294,9 +295,10 @@ namespace Volleyball
         /// server. The strike is judged on the server's CURRENT tick state (their vertical
         /// speed at the press) — the timing skill stays with the player who timed it.
         /// </summary>
-        public void OnServeIntent(VolleyPlayer p, ServeIntent intent)
+        public void OnServeIntent(VolleyPlayer p, ServeIntent intent, Vector2 steerWorld = default)
         {
             if (State != MatchState.Serving || p == null || p != _server) return;
+            _serveSteer = steerWorld; // the stick at the serve press aims it (see ServeTarget)
 
             if (!_serveTossed)
             {
@@ -491,7 +493,14 @@ namespace Volleyball
         /// Serves carry deep on normal air — and simply land shorter through heavy jungle air
         /// (the environment moves the landing spot; the launch never changes per region).</summary>
         Vector3 ServeTarget(float depthFrac = 0.75f)
-            => new Vector3(0f, 0f, CourtGeometry.SideSign(ServingTeam.Other()) * CourtGeometry.HalfDepth * depthFrac);
+            => VolleyPlayer.CourtAimPoint(ServingTeam, _serveSteer, depthFrac, 0.2f, 0f);
+
+        /// <summary>The human server's stick at their serve press (zero for the AI = centre).</summary>
+        Vector2 _serveSteer;
+
+        /// <summary>Where an underhand serve would go with this stick — the aim marker's preview.</summary>
+        public Vector3 PreviewServeTarget(Vector2 steerWorld)
+            => VolleyPlayer.CourtAimPoint(ServingTeam, steerWorld, 0.75f, 0.2f, 0f);
 
         /// <summary>Where the jump-serve toss wants to be struck — the sweet spot the toss
         /// descends through above the baseline, and the top of the contact-quality ramp.

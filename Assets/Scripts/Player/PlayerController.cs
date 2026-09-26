@@ -22,6 +22,26 @@ namespace Volleyball
             set { _input = value; }
         }
 
+        protected override void Start()
+        {
+            base.Start();
+            // the shot-aim ring on the sand (shows only while this player is locally controlled)
+            var marker = new GameObject("Aim Marker", typeof(LineRenderer)).AddComponent<AimMarker>();
+            marker.player = this;
+        }
+
+        /// <summary>The stick right now as a world XZ direction — what a hit pressed this instant
+        /// would aim with. Local view only (the aim marker); the sim uses the command's copy.</summary>
+        public Vector2 SteerPreview
+        {
+            get
+            {
+                if (!IsLocallyControlled) return Vector2.zero;
+                Vector3 w = CamRelativeDir(Input.Move);
+                return new Vector2(w.x, w.z);
+            }
+        }
+
         protected override void Update()
         {
             // latch this render frame's presses so the fixed tick never drops one

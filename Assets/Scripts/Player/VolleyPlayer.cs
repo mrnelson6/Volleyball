@@ -459,7 +459,7 @@ namespace Volleyball
             // Serve actions route to the match AFTER integration, so a jump-serve strike is
             // judged on this tick's vertical speed — exactly what the player's view shows.
             if (authority && cmd.serve != ServeIntent.None && match != null)
-                match.OnServeIntent(this, cmd.serve);
+                match.OnServeIntent(this, cmd.serve, cmd.moveWorld);
 
             if (IsDiving || knockedDown)
             {
@@ -923,48 +923,72 @@ namespace Volleyball
             return true;
         }
 
+        /// <summary>Stick deflection below this counts as neutral (straight up / default shot).</summary>
+        public const float AimDeadzone = 0.25f;
+
         /// <summary>
-        /// Where a steering (human) hit goes: the held world-space direction shapes a bump,
-        /// set, or spike target. Pure function of simulated state — runs identically on the
-        /// aiming client and on the server replaying its commands.
+        /// Where a steering (human) hit goes — the stick (already camera-relative, world-space)
+        /// at the moment of contact is the aim, the model most sports games use:
+        /// <list type="bullet">
+        /// <item><b>Set / bump</b> — relative to YOU. Neutral goes straight up; a direction sends
+        /// it that way, further the harder you push (up to ~4m), kept on your side of the net.
+        /// Pushing a bump firmly toward the opponents plays it over instead.</item>
+        /// <item><b>Spike</b> (and an over-the-net bump) — the stick maps onto the OPPONENTS'
+        /// court (<see cref="CourtAimPoint"/>): toward them = deep, back toward the net = short,
+        /// sideways = the lines. Neutral is a solid middle-deep shot.</item>
+        /// </list>
+        /// Pure function of simulated state + the ball — identical on the aiming client (preview)
+        /// and the server executing its command.
         /// </summary>
         protected Vector3 SteerAim(HitType type, Vector2 steerWorld)
         {
-            Vector3 steer = new Vector3(steerWorld.x, 0f, steerWorld.y);
+            float mag = Mathf.Min(steerWorld.magnitude, 1f);
+            Vector2 dir = mag > 1e-4f ? steerWorld / steerWorld.magnitude : Vector2.zero;
+            bool neutral = mag < AimDeadzone;
+            float toward = dir.y * CourtGeometry.SideSign(team.Other()); // + = toward the opponents
 
-            if (type == HitType.Set)
-            {
-                // keep it on our own side, up near the net, to set up a spike
-                float sx = Mathf.Clamp(_sim.position.x + steer.x * 3f,
-                                       -CourtGeometry.HalfWidth + 0.3f, CourtGeometry.HalfWidth - 0.3f);
-                float sz = CourtGeometry.SideSign(team) * CourtGeometry.HalfDepth * 0.2f;
-                return new Vector3(sx, 0.6f, sz);
-            }
+            if (type == HitType.Spike || (type == HitType.Bump && !neutral && toward > 0.6f && mag > 0.6f))
+                return CourtAimPoint(team, neutral ? Vector2.zero : steerWorld,
+                                     type == HitType.Spike ? 0.62f : 0.55f, 0.3f, 0.6f);
 
-            // A bump only goes over the net if you aim toward the opponents' side; otherwise
-            // it's a controlled pass that stays on your own court (up toward the net).
-            if (type == HitType.Bump)
-            {
-                float towardOpponent = steer.z * CourtGeometry.SideSign(team.Other());
-                if (towardOpponent <= 0.3f)
-                {
-                    float px = Mathf.Clamp(_sim.position.x + steer.x * 3f,
-                                           -CourtGeometry.HalfWidth + 0.3f, CourtGeometry.HalfWidth - 0.3f);
-                    float pz = CourtGeometry.SideSign(team) * CourtGeometry.HalfDepth * 0.25f;
-                    return new Vector3(px, 0.6f, pz);
-                }
-            }
-
-            // Spike (or a bump aimed over): send it to the opponents' court
-            TeamSide opp = team.Other();
-            float osign = CourtGeometry.SideSign(opp);
-            float depthFrac = type == HitType.Spike ? 0.7f : 0.6f;
-
-            float x = Mathf.Clamp(steer.x * CourtGeometry.HalfWidth * 0.9f,
-                                  -CourtGeometry.HalfWidth + 0.3f, CourtGeometry.HalfWidth - 0.3f);
-            float z = osign * Mathf.Clamp(
-                CourtGeometry.HalfDepth * depthFrac + steer.z * 3f, 1f, CourtGeometry.HalfDepth);
+            // set / controlled pass: straight up, or pushed toward a spot on our own side
+            Vector3 origin = ball != null ? ball.transform.position : _sim.position;
+            float reach = neutral ? 0f : Mathf.InverseLerp(AimDeadzone, 1f, mag) * 4f;
+            float x = origin.x + dir.x * reach;
+            float z = origin.z + dir.y * reach;
+            float own = CourtGeometry.SideSign(team);
+            x = Mathf.Clamp(x, -CourtGeometry.HalfWidth + 0.3f, CourtGeometry.HalfWidth - 0.3f);
+            z = own * Mathf.Clamp(z * own, 0.8f, CourtGeometry.HalfDepth - 0.3f); // stay our side, off the tape
             return new Vector3(x, 0.6f, z);
         }
+
+        /// <summary>
+        /// Map a stick direction onto the court <paramref name="attacker"/> is attacking. The
+        /// stick component toward the opponents moves the target deeper (away = shorter, toward
+        /// the net), the sideways component moves it across the width. Neutral = center at
+        /// <paramref name="baseDepth"/> of their court depth. Shared by spikes, over-the-net
+        /// bumps and serves, so every attack aims the same way.
+        /// </summary>
+        public static Vector3 CourtAimPoint(TeamSide attacker, Vector2 steerWorld, float baseDepth,
+                                            float depthRange, float y)
+        {
+            float mag = steerWorld.magnitude;
+            if (mag < AimDeadzone) steerWorld = Vector2.zero;
+            else if (mag > 1f) steerWorld /= mag;
+
+            float osign = CourtGeometry.SideSign(attacker.Other());
+            float toward = steerWorld.y * osign;
+            float depth = Mathf.Clamp(baseDepth + toward * depthRange, 0.15f, 0.95f);
+            float x = Mathf.Clamp(steerWorld.x, -1f, 1f) * (CourtGeometry.HalfWidth - 0.5f);
+            return new Vector3(x, y, osign * CourtGeometry.HalfDepth * depth);
+        }
+
+        /// <summary>Where a hit of <paramref name="type"/> would be aimed right now with this
+        /// stick (no contact error) — the aim marker's preview.</summary>
+        public Vector3 PreviewAim(HitType type, Vector2 steerWorld) => SteerAim(type, steerWorld);
+
+        /// <summary>A hit press is buffered, waiting for the ball to come into reach.</summary>
+        public bool HitBuffered => _sim.bufferTime > 0f && !IsDiving && !IsKnockedDown;
+        public HitType BufferedHit => _sim.bufferedHit;
     }
 }

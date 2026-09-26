@@ -72,6 +72,9 @@ namespace Volleyball.EditorTools
             GameObject lobbyPanel = BuildOnlineLobbyPanel(ui, font);
             GameObject onlinePanel = BuildOnlinePanel(ui, font, lobbyPanel);
 
+            var homeFocus = homeRoot.AddComponent<MenuFocus>();
+            homeFocus.first = quickPlay;
+
             var ctrl = canvasGO.AddComponent<MainMenuController>();
             ctrl.quickPlayButton = quickPlay;
             ctrl.campaignButton = campaign;
@@ -250,6 +253,9 @@ namespace Volleyball.EditorTools
 
             sp.backButton = MakeButton(panel.transform, font, "BackButton", "Back",
                 new Vector2(0.5f, 0.5f), new Vector2(0f, y - 30f), new Vector2(300f, 80f), MenuRed);
+            var spFocus = panel.AddComponent<MenuFocus>();
+            spFocus.first = rows.Count > 0 ? (Selectable)rows[0].slider : sp.backButton;
+            spFocus.back = sp.backButton;
 
             panel.SetActive(false);
             return panel;
@@ -463,6 +469,9 @@ namespace Volleyball.EditorTools
             cp.newGameButtonLabel = cp.newGameButton.GetComponentInChildren<Text>();
             cp.backButton = MakeButton(panel.transform, font, "BackButton", "Back",
                 new Vector2(0.5f, 0.5f), new Vector2(-790f, -400f), new Vector2(240f, 72f), MenuRed, anchorPivot: false);
+            var cpFocus = panel.AddComponent<MenuFocus>();
+            cpFocus.first = cp.playButton;
+            cpFocus.back = cp.backButton;
 
             panel.SetActive(false);
             return panel;
@@ -662,6 +671,10 @@ namespace Volleyball.EditorTools
                 new Color(0.30f, 0.80f, 0.40f, 0.95f));
             cs.backButton = MakeButton(panel.transform, font, "BackButton", "Back",
                 new Vector2(0.5f, 0.5f), new Vector2(-790f, -474f), new Vector2(240f, 70f), MenuRed);
+            var csFocus = panel.AddComponent<MenuFocus>();
+            csFocus.first = cs.entries.Length > 0 ? cs.entries[0].button : cs.playButton;
+            csFocus.back = cs.backButton;
+            cs.scroll = scroll;
 
             panel.SetActive(false);
             return panel;
@@ -821,6 +834,9 @@ namespace Volleyball.EditorTools
             op.hostButton = host;
             op.joinButton = join;
             op.backButton = back;
+            var opFocus = panel.AddComponent<MenuFocus>();
+            opFocus.first = serverMatch;
+            opFocus.back = back;
             op.codeInput = codeInput;
             op.statusText = status;
             op.lobbyPanel = lobbyPanel;
@@ -1063,7 +1079,25 @@ namespace Volleyball.EditorTools
             t.raycastTarget = false;
             UIStyle.Pop(t, 2f, new Color(color.r * 0.35f, color.g * 0.35f, color.b * 0.35f, 0.9f));
 
-            go.AddComponent<MenuButtonJuice>();
+            // focus ring for controller/keyboard navigation (MenuButtonJuice toggles it)
+            var ring = new GameObject("FocusRing", typeof(RectTransform), typeof(Image));
+            ring.transform.SetParent(go.transform, false);
+            ring.transform.SetAsFirstSibling(); // behind the lip and face
+            var rrt = ring.GetComponent<RectTransform>();
+            Stretch(rrt);
+            rrt.offsetMin = new Vector2(-14f, -14f - lip);
+            rrt.offsetMax = new Vector2(14f, 14f);
+            var ringImg = ring.GetComponent<Image>();
+            ringImg.sprite = UISprite();
+            ringImg.type = Image.Type.Sliced;
+            ringImg.color = new Color(1f, 0.93f, 0.25f, 1f); // bold yellow: unmissable on every panel
+            ringImg.raycastTarget = false;
+            ring.SetActive(false);
+            var colorsSel = button.colors;
+            colorsSel.selectedColor = colorsSel.highlightedColor;
+            button.colors = colorsSel;
+
+            go.AddComponent<MenuButtonJuice>().focusRing = ring;
             return button;
         }
 

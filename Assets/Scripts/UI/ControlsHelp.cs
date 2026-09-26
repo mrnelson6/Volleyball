@@ -16,6 +16,19 @@ namespace Volleyball
         /// <summary>Movement and the four contacts.</summary>
         public static string[] PlayingLines()
         {
+            if (GameInput.UsingGamepad)
+                return new[]
+                {
+                    "Move — Left stick / D-pad",
+                    "Jump — A",
+                    "Bump — X",
+                    "Set — Y",
+                    "Spike — B",
+                    "Block — X at the net, mid-jump,",
+                    "    as the attack reaches your hands",
+                    "Dive — RT (or RB)",
+                    "Power-up — LT",
+                };
             if (Touch)
                 return new[]
                 {
@@ -50,6 +63,18 @@ namespace Volleyball
             string claim = ChatCalls.KeyHint(ChatCall.IGotIt);
             string cede = ChatCalls.KeyHint(ChatCall.YouGotIt);
 
+            if (GameInput.UsingGamepad)
+                return new[]
+                {
+                    "\"I got it!\" — LB + Up",
+                    "\"You got it!\" — LB + Down",
+                    "Emotes — LB + Left / Right",
+                    "Pause — Start",
+                    "Serve — X underhand",
+                    "Jump serve — Y to toss,",
+                    "    then A + B at the peak",
+                };
+
             if (Touch)
                 return new[]
                 {
@@ -76,7 +101,7 @@ namespace Volleyball
 
         /// <summary>The one-line rules reminder under the two columns.</summary>
         public const string Footer =
-            "Three touches a side, and never twice in a row — bump, set, spike.  " +
-            "Aim by holding a direction as you hit.";
+            "Three touches a side, never twice in a row.  Aim with the stick/WASD as you hit: " +
+            "nothing held sets or bumps straight up; spikes and serves go where you point in their court.";
     }
 }
