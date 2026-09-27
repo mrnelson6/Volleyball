@@ -7,8 +7,8 @@ namespace Volleyball
     /// <summary>
     /// Plays the pre-match cinematic (<see cref="MatchIntro"/>) on this machine's screen: the
     /// camera sweeps over the court, cuts to an anime-style close-up of each player's eyes,
-    /// counts down 3-2-1 while gliding back into the broadcast view, and hands the camera back
-    /// a breath before the whistle.
+    /// then all of them at once in a team-vs-team split screen, counts down 3-2-1 while gliding
+    /// back into the broadcast view, and hands the camera back a breath before the whistle.
     ///
     /// Pure view, like the character views: it never touches match state (apart from the
     /// offline skip press, which the match itself vets). The authority holds the match in
@@ -28,6 +28,9 @@ namespace Volleyball
         Vector3 _homePos;
         Quaternion _homeRot;
         float _homeFov;
+        int _homeMask;
+        CameraClearFlags _homeClear;
+        Color _homeBackground;
         int _beat = int.MinValue; // which beat played last frame — sounds fire on beat changes
 
         // eye framing, measured once per player (the idle bob must not breathe the lens)
@@ -42,6 +45,20 @@ namespace Volleyball
         Text _name, _tag, _count, _title, _skip;
         CanvasGroup _hud;
         PauseMenu _pause;
+
+        // versus split screen: one extra camera per player, drawn over a team-coloured backdrop
+        // canvas that the main camera renders alone (a screen-space-overlay canvas would paint
+        // over the strip cameras; one bound to the main camera draws beneath them)
+        readonly List<Camera> _stripCams = new List<Camera>();
+        bool _versusOn;
+        Canvas _backdrop;
+        Image _sideA, _sideB;
+        RawImage _backLines;
+        Text _headA, _headB, _vs;
+        RectTransform _divider;
+        readonly List<Text> _stripNames = new List<Text>();
+        readonly List<Image> _shutters = new List<Image>();
+        readonly List<Image> _nameTabs = new List<Image>();
 
         struct EyeRig
         {
@@ -88,12 +105,14 @@ namespace Volleyball
 
             if (t < MatchIntro.EyesStart)
                 FlyOver(t / MatchIntro.FlyLength);
-            else if (t < MatchIntro.CountStart(shots))
+            else if (t < MatchIntro.VersusStart(shots))
             {
                 float local = t - MatchIntro.EyesStart;
                 int i = Mathf.Min(shots - 1, (int)(local / MatchIntro.EyeShotLength));
                 EyeShot(i, local / MatchIntro.EyeShotLength - i);
             }
+            else if (t < MatchIntro.CountStart(shots))
+                Versus((t - MatchIntro.VersusStart(shots)) / MatchIntro.VersusLength);
             else if (t < MatchIntro.SettleStart(shots))
             {
                 float local = t - MatchIntro.CountStart(shots);
@@ -119,6 +138,9 @@ namespace Volleyball
                 _homePos = _cam.transform.position;
                 _homeRot = _cam.transform.rotation;
                 _homeFov = _cam.fieldOfView;
+                _homeMask = _cam.cullingMask;
+                _homeClear = _cam.clearFlags;
+                _homeBackground = _cam.backgroundColor;
                 _haveHome = true;
             }
             EnsureOverlay();
@@ -140,6 +162,7 @@ namespace Volleyball
         void Finish()
         {
             _active = false;
+            ShowVersus(false);
             _cam.transform.SetPositionAndRotation(_homePos, _homeRot);
             _cam.fieldOfView = _homeFov;
             if (_canvas != null) _canvas.gameObject.SetActive(false);
@@ -185,6 +208,7 @@ namespace Volleyball
         /// </summary>
         void FlyOver(float u)
         {
+            ShowVersus(false);
             if (Enter(-1))
             {
                 GameAudio.PlayIntroWhoosh();
@@ -224,30 +248,13 @@ namespace Volleyball
         {
             if (i < 0 || i >= _cast.Count || _cast[i] == null) return;
             VolleyPlayer p = _cast[i];
+            ShowVersus(false);
             bool enter = Enter(i);
             if (enter) GameAudio.PlayEyeSting(1f + 0.05f * i);
 
-            EyeRig rig = RigFor(p);
-            EyeFrame(p, rig, out Vector3 eye, out Vector3 fwd);
-            float hr = rig.headRadius;
-
-            // Band of the screen left between the bars, and the world height it must hold: the
-            // eyes plus a little brow. A long lens from a few head-widths out flattens the face
-            // like a telephoto anime cut; the frame widens on narrow screens so both eyes fit.
-            const float band = 0.32f;
-            float aspect = Mathf.Max(0.3f, _cam.aspect);
-            float frameH = Mathf.Max(0.7f * hr / band, 2.6f * hr / aspect);
-            const float lensFov = 14f;
-            float dist = frameH / (2f * Mathf.Tan(lensFov * 0.5f * Mathf.Deg2Rad));
-
-            // the camera looks along -fwd, so this is screen-right
-            Vector3 screenRight = Vector3.Cross(Vector3.up, -fwd).normalized;
+            const float band = 0.32f; // the screen band left between the bars
             float dir = p.team == TeamSide.A ? 1f : -1f; // team A rushes left→right, team B back
-            // a slow sideways drift: the camera slides against the rush so the face rides with it
-            Vector3 camPos = eye + fwd * dist - screenRight * (dir * (u - 0.5f) * 0.2f * hr);
-            float push = Mathf.Lerp(1f, 0.9f, Smooth(u));              // slow push in
-            float fov = 2f * Mathf.Atan(frameH * push / (2f * dist)) * Mathf.Rad2Deg;
-            Place(camPos, eye, 0f, fov);
+            AimAtEyes(_cam, p, band, u, dir, out Vector3 eye, out Vector3 screenRight, out float hr);
 
             // bars slam in on the cut
             float slam = Smooth(Mathf.Clamp01(u * MatchIntro.EyeShotLength / 0.12f));
@@ -287,6 +294,7 @@ namespace Volleyball
         void Countdown(int k, float beatU, float u)
         {
             int number = MatchIntro.CountFrom - k;
+            ShowVersus(false);
             if (Enter(100 + k)) GameAudio.PlayCountdown(number);
 
             // start pushed in toward the court and swung round a little, then ease out home
@@ -321,6 +329,7 @@ namespace Volleyball
         /// <summary>Back in the game view with the HUD fading up — the whistle ends it.</summary>
         void Settle(float u)
         {
+            ShowVersus(false);
             Enter(200);
             _cam.transform.SetPositionAndRotation(_homePos, _homeRot);
             _cam.fieldOfView = _homeFov;
@@ -336,15 +345,340 @@ namespace Volleyball
             _hudAlpha = Mathf.Clamp01(u * 2f);
         }
 
+        /// <summary>
+        /// Everyone at once, and who's with whom: every player's eyes in a full-width strip,
+        /// stacked — team A's pair on top over their team colour, team B's pair below over
+        /// theirs — with a gap across the middle where a slanted rule and a big VS slam down.
+        /// The strips wipe in one after another (team A from the left, team B from the right),
+        /// then the whole line-up holds.
+        /// </summary>
+        void Versus(float u)
+        {
+            ShowVersus(true);
+            float s = u * MatchIntro.VersusLength; // seconds into the shot
+            const float slamAt = 0.95f;
+            int beat = s < slamAt ? 50 : 51;
+            if (Enter(beat))
+            {
+                if (beat == 50) GameAudio.PlayIntroWhoosh();
+                else { GameAudio.PlayEyeSting(0.78f); GameAudio.PlayCrowd(0.5f); }
+            }
+
+            var teamA = new List<VolleyPlayer>();
+            var teamB = new List<VolleyPlayer>();
+            foreach (var p in _cast)
+                (p.team == TeamSide.A ? teamA : teamB).Add(p);
+            Color colA = TeamColor(teamA, new Color(0.2f, 0.5f, 1f));
+            Color colB = TeamColor(teamB, new Color(1f, 0.35f, 0.3f));
+
+            // backdrop: top half team A's colour, bottom half team B's, streaks rushing through
+            _sideA.color = Color.Lerp(colA, Color.black, 0.5f);
+            _sideB.color = Color.Lerp(colB, Color.black, 0.5f);
+            _backLines.uvRect = new Rect(Time.time * 1.1f, 0f, 2.2f, 1f);
+
+            // team headings in the middle gap: A's just above the rule, B's just below it
+            string mine = ViewerTeamLabel(out TeamSide viewerTeam);
+            _headA.text = mine != null ? (viewerTeam == TeamSide.A ? "YOUR TEAM" : "RIVALS") : "TEAM 1";
+            _headB.text = mine != null ? (viewerTeam == TeamSide.B ? "YOUR TEAM" : "RIVALS") : "TEAM 2";
+            _headA.color = Color.Lerp(colA, Color.white, 0.5f);
+            _headB.color = Color.Lerp(colB, Color.white, 0.5f);
+            float headIn = Smooth(Mathf.Clamp01((s - 0.1f) / 0.3f));
+            _headA.rectTransform.anchoredPosition = new Vector2((1f - headIn) * -400f, 0f);
+            _headB.rectTransform.anchoredPosition = new Vector2((1f - headIn) * 400f, 0f);
+
+            int slot = 0;
+            for (int side = 0; side < 2; side++)
+            {
+                List<VolleyPlayer> team = side == 0 ? teamA : teamB;
+                float dir = side == 0 ? 1f : -1f; // A sweeps in from the left, B from the right
+                for (int k = 0; k < team.Count; k++, slot++)
+                {
+                    VolleyPlayer p = team[k];
+                    Rect strip = StripRect(side, k, team.Count);
+                    Camera sc = StripCam(slot);
+                    sc.enabled = true;
+                    sc.rect = strip;
+                    AimAtEyes(sc, p, 1f, u, dir, out _, out _, out _, 0.62f);
+
+                    // a team-coloured shutter wipes off the strip toward the far side
+                    float reveal = Smooth(Mathf.Clamp01((s - 0.05f - 0.16f * slot) / 0.28f));
+                    Image sh = Shutter(slot);
+                    sh.enabled = reveal < 1f;
+                    sh.color = Color.Lerp(side == 0 ? colA : colB, Color.white, 0.3f);
+                    float left = strip.xMin, right = strip.xMax;
+                    if (side == 0) left = Mathf.Lerp(strip.xMin, strip.xMax, reveal);
+                    else right = Mathf.Lerp(strip.xMax, strip.xMin, reveal);
+                    sh.rectTransform.anchorMin = new Vector2(left, strip.yMin);
+                    sh.rectTransform.anchorMax = new Vector2(right, strip.yMax);
+
+                    // the name rides on a team-coloured tab at the strip's open side, clear of the
+                    // face in the middle (bare lettering washes out against sand and sky)
+                    Image tab = NameTab(slot);
+                    tab.enabled = reveal > 0f;
+                    float tabW = 0.3f * reveal;
+                    tab.rectTransform.anchorMin = new Vector2(side == 0 ? strip.xMin : strip.xMax - tabW, strip.yMin);
+                    tab.rectTransform.anchorMax = new Vector2(side == 0 ? strip.xMin + tabW : strip.xMax, strip.yMax);
+                    Color tc = Color.Lerp(side == 0 ? colA : colB, Color.black, 0.35f);
+                    tc.a = 0.82f;
+                    tab.color = tc;
+
+                    Text nm = StripName(slot);
+                    nm.enabled = reveal > 0f;
+                    var nrt = nm.rectTransform;
+                    nrt.anchorMin = new Vector2(strip.xMin + 0.025f, strip.yMin);
+                    nrt.anchorMax = new Vector2(strip.xMax - 0.025f, strip.yMax);
+                    nrt.anchoredPosition = new Vector2((1f - reveal) * -60f * dir, 0f);
+                    string who = p.Character != null ? p.Character.displayName.ToUpperInvariant() : p.name;
+                    nm.text = TagFor(p) == "YOU" ? who + "\n(YOU)" : who;
+                    nm.alignment = side == 0 ? TextAnchor.MiddleLeft : TextAnchor.MiddleRight;
+                    nm.color = new Color(1f, 1f, 1f, reveal);
+                }
+            }
+            for (int i = slot; i < _stripCams.Count; i++) _stripCams[i].enabled = false;
+            for (int i = slot; i < _shutters.Count; i++) _shutters[i].enabled = false;
+            for (int i = slot; i < _stripNames.Count; i++) _stripNames[i].enabled = false;
+            for (int i = slot; i < _nameTabs.Count; i++) _nameTabs[i].enabled = false;
+
+            // the rule sweeps across the gap, then the VS slams onto it
+            float slam = Mathf.Clamp01((s - slamAt) / 0.14f);
+            _divider.gameObject.SetActive(s > slamAt - 0.15f);
+            _divider.localScale = new Vector3(Smooth(Mathf.Clamp01((s - slamAt + 0.15f) / 0.15f)), 1f, 1f);
+            _vs.enabled = s >= slamAt;
+            _vs.rectTransform.localScale = Vector3.one * (1f + 1.4f * (1f - Smooth(slam)));
+            _vs.color = new Color(1f, 0.85f, 0.2f, Smooth(slam));
+
+            SetBars(0f);
+            SetEdges(0f, Color.clear);
+            SetLines(0f, 0f);
+            SetFlash(s >= slamAt ? Mathf.Clamp01(1f - (s - slamAt) / 0.14f) * 0.85f
+                                 : Mathf.Clamp01(1f - s / 0.1f) * 0.6f);
+            SetGlint(0f, Vector2.zero, 0f);
+            SetText(_title, 0f, Vector2.zero);
+            SetText(_name, 0f, Vector2.zero);
+            SetText(_tag, 0f, Vector2.zero);
+            SetText(_count, 0f, Vector2.zero);
+            _hudAlpha = 0f;
+        }
+
+        /// <summary>
+        /// Hand the screen to the split-screen setup (the main camera draws only the backdrop,
+        /// the strip cameras draw the eyes over it), or give it back.
+        /// </summary>
+        void ShowVersus(bool on)
+        {
+            if (on == _versusOn) return;
+            _versusOn = on;
+            if (on)
+            {
+                EnsureBackdrop();
+                _backdrop.gameObject.SetActive(true);
+                _cam.cullingMask = 1 << UILayer;
+                _cam.clearFlags = CameraClearFlags.SolidColor;
+                _cam.backgroundColor = Color.black;
+                return;
+            }
+            if (_haveHome && _cam != null)
+            {
+                _cam.cullingMask = _homeMask;
+                _cam.clearFlags = _homeClear;
+                _cam.backgroundColor = _homeBackground;
+            }
+            foreach (var c in _stripCams) if (c != null) c.enabled = false;
+            foreach (var s in _shutters) if (s != null) s.enabled = false;
+            if (_backdrop != null) _backdrop.gameObject.SetActive(false);
+            if (_divider != null) _divider.gameObject.SetActive(false);
+            if (_vs != null) _vs.enabled = false;
+            foreach (var n in _stripNames) if (n != null) n.enabled = false;
+            foreach (var t in _nameTabs) if (t != null) t.enabled = false;
+        }
+
+        const int UILayer = 5; // Unity's built-in "UI" layer
+
+        /// <summary>
+        /// Where strip <paramref name="k"/> of <paramref name="count"/> sits: full screen width,
+        /// team A's strips stacked in the top block (0), team B's in the bottom block (1), with
+        /// the VS gap between the blocks.
+        /// </summary>
+        static Rect StripRect(int side, int k, int count)
+        {
+            const float margin = 0.03f, vsGap = 0.16f, pairGap = 0.018f;
+            float blockH = (1f - 2f * margin - vsGap) * 0.5f;
+            float blockTop = side == 0 ? 1f - margin : margin + blockH;
+            count = Mathf.Max(1, count);
+            float stripH = (blockH - (count - 1) * pairGap) / count;
+            float yTop = blockTop - k * (stripH + pairGap);
+            return new Rect(0f, yTop - stripH, 1f, stripH);
+        }
+
+        static Color TeamColor(List<VolleyPlayer> team, Color fallback)
+        {
+            if (team.Count == 0) return fallback;
+            Color c = team[0].jerseyColor;
+            c.a = 1f;
+            return c;
+        }
+
+        /// <summary>Non-null when this machine has a local human (whose team is "YOUR TEAM").</summary>
+        string ViewerTeamLabel(out TeamSide team)
+        {
+            team = TeamSide.A;
+            foreach (var q in _cast)
+                if (q != null && q.IsHuman && q.IsLocallyControlled) { team = q.team; return "you"; }
+            return null;
+        }
+
+        Camera StripCam(int i)
+        {
+            while (_stripCams.Count <= i)
+            {
+                var go = new GameObject("IntroStripCam" + _stripCams.Count);
+                go.transform.SetParent(transform, false);
+                var c = go.AddComponent<Camera>();
+                c.CopyFrom(_cam);
+                // copy the GAME look, not the backdrop-only state the main camera is in now
+                c.cullingMask = _homeMask;
+                c.clearFlags = _homeClear;
+                c.backgroundColor = _homeBackground;
+                c.depth = _cam.depth + 1 + _stripCams.Count;
+                c.enabled = false;
+                _stripCams.Add(c);
+            }
+            return _stripCams[i];
+        }
+
+        Image Shutter(int i)
+        {
+            while (_shutters.Count <= i)
+            {
+                var rt = Rect(_canvas.transform, "Shutter" + _shutters.Count, Vector2.zero, Vector2.zero);
+                rt.SetSiblingIndex(_flash.transform.GetSiblingIndex()); // under the VS and the flash
+                var img = AddImage(rt, Color.white);
+                img.enabled = false;
+                _shutters.Add(img);
+            }
+            return _shutters[i];
+        }
+
+        Image NameTab(int i)
+        {
+            while (_nameTabs.Count <= i)
+            {
+                var rt = Rect(_canvas.transform, "NameTab" + _nameTabs.Count, Vector2.zero, Vector2.zero);
+                rt.SetSiblingIndex(_flash.transform.GetSiblingIndex()); // under the names and flash
+                var img = AddImage(rt, Color.clear);
+                img.enabled = false;
+                _nameTabs.Add(img);
+            }
+            return _nameTabs[i];
+        }
+
+        Text StripName(int i)
+        {
+            while (_stripNames.Count <= i)
+            {
+                var t = MakeText(_canvas.transform, "StripName" + _stripNames.Count, 46, FontStyle.BoldAndItalic,
+                                 Vector2.zero, Vector2.zero);
+                t.transform.SetSiblingIndex(_flash.transform.GetSiblingIndex()); // under the flash
+                _stripNames.Add(t);
+            }
+            return _stripNames[i];
+        }
+
+        void EnsureBackdrop()
+        {
+            if (_backdrop != null) return;
+
+            var go = new GameObject("MatchIntroBackdrop");
+            go.transform.SetParent(transform, false);
+            _backdrop = go.AddComponent<Canvas>();
+            _backdrop.renderMode = RenderMode.ScreenSpaceCamera;
+            _backdrop.worldCamera = _cam;
+            _backdrop.planeDistance = _cam.nearClipPlane + 0.2f;
+            var scaler = go.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.matchWidthOrHeight = 0.5f;
+
+            _sideA = AddImage(Rect(go.transform, "SideA", new Vector2(0f, 0.5f), Vector2.one), Color.black);
+            _sideB = AddImage(Rect(go.transform, "SideB", Vector2.zero, new Vector2(1f, 0.5f)), Color.black);
+            var lines = Rect(go.transform, "Streaks", Vector2.zero, Vector2.one);
+            _backLines = lines.gameObject.AddComponent<RawImage>();
+            _backLines.texture = MakeStreakTexture();
+            _backLines.color = new Color(1f, 1f, 1f, 0.13f);
+            _backLines.raycastTarget = false;
+
+            _headA = MakeText(go.transform, "HeadA", 52, FontStyle.BoldAndItalic,
+                              new Vector2(0.04f, 0.5f), new Vector2(0.42f, 0.58f));
+            _headA.alignment = TextAnchor.MiddleLeft;
+            _headB = MakeText(go.transform, "HeadB", 52, FontStyle.BoldAndItalic,
+                              new Vector2(0.58f, 0.42f), new Vector2(0.96f, 0.5f));
+            _headB.alignment = TextAnchor.MiddleRight;
+            SetLayer(go, UILayer);
+
+            // the divider and the VS badge go on the overlay: they sit over the strip seams
+            _divider = Rect(_canvas.transform, "Divider", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f));
+            _divider.sizeDelta = new Vector2(2400f, 10f);
+            _divider.localRotation = Quaternion.Euler(0f, 0f, 4f);
+            _divider.SetSiblingIndex(_flash.transform.GetSiblingIndex());
+            AddImage(_divider, Color.white);
+            _divider.gameObject.SetActive(false);
+
+            _vs = MakeText(_canvas.transform, "VS", 160, FontStyle.BoldAndItalic,
+                           new Vector2(0.4f, 0.4f), new Vector2(0.6f, 0.6f));
+            _vs.alignment = TextAnchor.MiddleCenter;
+            _vs.text = "VS";
+            _vs.transform.SetSiblingIndex(_flash.transform.GetSiblingIndex());
+            var outline = _vs.GetComponent<Outline>();
+            outline.effectDistance = new Vector2(7f, -7f);
+            outline.effectColor = Color.black;
+            _vs.enabled = false;
+        }
+
+        static void SetLayer(GameObject go, int layer)
+        {
+            go.layer = layer;
+            foreach (Transform c in go.transform) SetLayer(c.gameObject, layer);
+        }
+
         // ------------------------------------------------------------------ framing helpers
 
-        void Place(Vector3 pos, Vector3 look, float roll, float fov)
+        /// <summary>
+        /// Point <paramref name="cam"/> straight into <paramref name="p"/>'s eyes with a long
+        /// lens. <paramref name="band"/> is the fraction of the camera's height that will show
+        /// (the rest hidden under bars; 1 = its whole viewport): that visible band holds the eyes
+        /// plus a little brow, widening on narrow frames so both eyes fit. A slow push-in over
+        /// <paramref name="u"/>, and a sideways drift against the team's rush direction
+        /// <paramref name="dir"/> so the face rides with the speed lines.
+        /// </summary>
+        void AimAtEyes(Camera cam, VolleyPlayer p, float band, float u, float dir,
+                       out Vector3 eye, out Vector3 screenRight, out float hr, float content = 0.7f)
+        {
+            EyeRig rig = RigFor(p);
+            EyeFrame(p, rig, out eye, out Vector3 fwd);
+            hr = rig.headRadius;
+
+            float aspect = Mathf.Max(0.3f, cam.aspect);
+            float frameH = Mathf.Max(content * hr / band, 2.6f * hr / aspect);
+            const float lensFov = 14f;
+            float dist = frameH / (2f * Mathf.Tan(lensFov * 0.5f * Mathf.Deg2Rad));
+
+            // the camera looks along -fwd, so this is screen-right
+            screenRight = Vector3.Cross(Vector3.up, -fwd).normalized;
+            Vector3 camPos = eye + fwd * dist - screenRight * (dir * (u - 0.5f) * 0.2f * hr);
+            float push = Mathf.Lerp(1f, 0.9f, Smooth(u));
+            float fov = 2f * Mathf.Atan(frameH * push / (2f * dist)) * Mathf.Rad2Deg;
+            PlaceCam(cam, camPos, eye, 0f, fov);
+        }
+
+        void Place(Vector3 pos, Vector3 look, float roll, float fov) => PlaceCam(_cam, pos, look, roll, fov);
+
+        static void PlaceCam(Camera cam, Vector3 pos, Vector3 look, float roll, float fov)
         {
             Vector3 d = look - pos;
             if (d.sqrMagnitude < 1e-6f) d = Vector3.forward;
             Quaternion rot = Quaternion.LookRotation(d, Vector3.up) * Quaternion.Euler(0f, 0f, roll);
-            _cam.transform.SetPositionAndRotation(pos, rot);
-            _cam.fieldOfView = fov;
+            cam.transform.SetPositionAndRotation(pos, rot);
+            cam.fieldOfView = fov;
         }
 
         /// <summary>Where the broadcast camera looks: its forward ray meeting chest height.</summary>

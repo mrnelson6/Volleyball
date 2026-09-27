@@ -8,7 +8,7 @@ namespace Volleyball
     /// players on court, so server and clients agree on it without sending it.
     ///
     /// <code>
-    /// | fly-over | eyes × shots | 3 · 2 · 1 | settle | whistle
+    /// | fly-over | eyes × shots | versus | 3 · 2 · 1 | settle | whistle
     /// </code>
     /// </summary>
     public static class MatchIntro
@@ -23,6 +23,9 @@ namespace Volleyball
         /// <summary>Each player's anime eye close-up.</summary>
         public const float EyeShotLength = 1.05f;
 
+        /// <summary>Everyone at once: a team-vs-team split screen of every player's eyes.</summary>
+        public const float VersusLength = 3f;
+
         /// <summary>One number of the countdown, and how many there are (3, 2, 1).</summary>
         public const float CountBeat = 0.8f;
         public const int CountFrom = 3;
@@ -31,7 +34,8 @@ namespace Volleyball
         public const float SettleLength = 0.6f;
 
         public static float EyesStart => FlyLength;
-        public static float CountStart(int shots) => EyesStart + shots * EyeShotLength;
+        public static float VersusStart(int shots) => EyesStart + shots * EyeShotLength;
+        public static float CountStart(int shots) => VersusStart(shots) + VersusLength;
         public static float SettleStart(int shots) => CountStart(shots) + CountFrom * CountBeat;
         public static float Length(int shots) => SettleStart(shots) + SettleLength;
     }
