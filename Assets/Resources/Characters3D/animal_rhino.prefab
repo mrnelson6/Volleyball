@@ -71,6 +71,7 @@ MonoBehaviour:
   dive: {fileID: -3625496161102880836, guid: 8eae4d6bf6f85df4f9b13242db2c50c4, type: 3}
   cheer: {fileID: 2606927044688373672, guid: 8eae4d6bf6f85df4f9b13242db2c50c4, type: 3}
   knockdown: {fileID: 1732356465712476239, guid: 8eae4d6bf6f85df4f9b13242db2c50c4, type: 3}
+  serveHold: {fileID: -4253764025573246243, guid: 8eae4d6bf6f85df4f9b13242db2c50c4, type: 3}
   runThreshold: 0.4
   runReferenceSpeed: 5
   swingHold: 0.45

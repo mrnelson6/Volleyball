@@ -15,7 +15,7 @@ namespace Volleyball.EditorTools
         const string CharRoot = "Assets/Art/Characters/";
         const string PortraitRoot = "Assets/Resources/" + CharacterPortraits.ResourceDir + "/";
 
-        static readonly string[] LoopingClips = { "Idle", "Run", "Cheer" };
+        static readonly string[] LoopingClips = { "Idle", "Run", "Cheer", "ServeHold" };
 
         void OnPreprocessModel()
         {

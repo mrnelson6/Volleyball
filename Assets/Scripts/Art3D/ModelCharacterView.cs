@@ -23,6 +23,8 @@ namespace Volleyball
         [Header("Wiring (set by CharacterPrefabBuilder)")]
         public Animator animator;
         public AnimationClip idle, run, jump, spike, bump, set, block, dive, cheer, knockdown;
+        [Tooltip("Standing with the ball on the left paw, waiting to serve.")]
+        public AnimationClip serveHold;
 
         [Header("Tuning")]
         [Tooltip("Ground speed (units/sec) above which the run cycle plays.")]
@@ -51,6 +53,9 @@ namespace Volleyball
         Renderer[] _renderers;
         MaterialPropertyBlock _mpb;
         Color _glow = Color.clear;
+        MatchManager _match;
+        Transform _hand, _forearm; // Hand.L / LowerArm.L — the paw the serve is held on
+        bool _holdingServe;
 
         /// <summary>Dress this model as <paramref name="ch"/> in <paramref name="jersey"/> and
         /// start reading <paramref name="player"/>.</summary>
@@ -85,6 +90,8 @@ namespace Volleyball
             if (animator == null) return;
             animator.applyRootMotion = false;
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+            _hand = FindDeep(animator.transform, "Hand.L");
+            _forearm = FindDeep(animator.transform, "LowerArm.L");
 
             _graph = PlayableGraph.Create(name + "_View");
             _graph.SetTimeUpdateMode(DirectorUpdateMode.Manual);
@@ -228,7 +235,9 @@ namespace Volleyball
             }
             else if (!_player.IsGrounded) Play(jump, restart: false, fade: crossfade);
             else if (speed > runThreshold) Play(run, restart: false, fade: crossfade);
+            else if (HoldingServe() && serveHold != null) Play(serveHold, restart: false, fade: crossfade * 1.5f);
             else Play(idle, restart: false, fade: crossfade * 1.5f);
+            _holdingServe = HoldingServe();
             _wasDiving = diving;
             _wasKnocked = knocked;
 
@@ -254,6 +263,45 @@ namespace Volleyball
                 ApplyWeights();
             }
             _graph.Evaluate(dt);
+        }
+
+        /// <summary>This player is the server and hasn't tossed or struck the ball yet.</summary>
+        bool HoldingServe()
+        {
+            if (_match == null) _match = FindAnyObjectByType<MatchManager>();
+            return _match != null && _match.State == MatchState.Serving && !_match.ServeTossed
+                   && _match.CurrentServer == _player;
+        }
+
+        /// <summary>
+        /// Where a held ball of <paramref name="ballRadius"/> sits this frame: cradled on the left
+        /// paw. False when this player isn't holding the serve (or the rig has no paw bones).
+        /// Mirror of held_ball_point in Tools/blender/animal_gen.py — the paw is half a paw past
+        /// the wrist, and paw size scales with forearm length (the generator's 0.085 / 0.222).
+        /// </summary>
+        public bool TryGetHeldBallPoint(float ballRadius, out Vector3 point)
+        {
+            point = default;
+            if (!_holdingServe || _hand == null || _forearm == null) return false;
+            Vector3 fore = _hand.position - _forearm.position;
+            float len = fore.magnitude;
+            if (len < 1e-4f) return false;
+            Vector3 paw = _hand.position + fore / len * (0.05f / 0.222f * len);
+            Vector3 flat = new Vector3(fore.x, 0f, fore.z);
+            Vector3 fwd = flat.sqrMagnitude > 1e-8f ? flat.normalized : transform.forward;
+            point = paw + Vector3.up * (0.085f / 0.222f * len * 0.5f + ballRadius * 0.55f) + fwd * (ballRadius * 0.4f);
+            return true;
+        }
+
+        static Transform FindDeep(Transform t, string name)
+        {
+            if (t.name == name) return t;
+            foreach (Transform c in t)
+            {
+                var r = FindDeep(c, name);
+                if (r != null) return r;
+            }
+            return null;
         }
     }
 }

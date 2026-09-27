@@ -1156,7 +1156,21 @@ def actions():
     knock_sit = pose({"Hips": (0, -0.32, 0)}, Hips=(-35, 0, 0), Spine=(30, 0, 0), Head=(5, 0, -8),
                      UpperArm_=(20, 0, 30), LowerArm_=(30, 0, 0), UpperLeg_=(85, 0, 10), LowerLeg_=(-70, 0, 0))
 
+    # holding the ball before a serve: left paw out in front at chest height (ball rests on it),
+    # right arm drawn back ready to swing, left foot forward, a small breath
+    serve_a = pose(Spine=(6, 0, 0), Head=(-4, 0, 0),
+                   UpperArm_L=(56, 0, 12), LowerArm_L=(14, 0, 0), Hand_L=(-10, 0, 0),
+                   UpperArm_R=(-38, 0, -14), LowerArm_R=(28, 0, 0),
+                   UpperLeg_L=(14, 0, 0), LowerLeg_L=(-10, 0, 0), UpperLeg_R=(-6, 0, 0), LowerLeg_R=(-6, 0, 0),
+                   Tail1=(15, 0, 12), Tail2=(10, 0, 8))
+    serve_b = pose({"Hips": (0, -0.012, 0)}, Spine=(8, 0, 0), Chest=(2, 0, 0), Head=(-6, 0, 0),
+                   UpperArm_L=(56, 0, 12), LowerArm_L=(14, 0, 0), Hand_L=(-10, 0, 0),
+                   UpperArm_R=(-44, 0, -14), LowerArm_R=(32, 0, 0),
+                   UpperLeg_L=(14, 0, 0), LowerLeg_L=(-12, 0, 0), UpperLeg_R=(-6, 0, 0), LowerLeg_R=(-8, 0, 0),
+                   Ear_=(0, 0, 6), Tail1=(22, 0, -12), Tail2=(14, 0, -8))
+
     return {
+        "ServeHold": (40, True, [(0, serve_a), (20, serve_b), (40, serve_a)]),
         "Knockdown": (34, False, [(0, knock_hit), (4, knock_fall), (8, knock_flat), (18, knock_dizzy),
                                   (26, knock_sit), (34, idle_a)]),
         "Idle": (40, True, [(0, idle_a), (20, idle_b), (40, idle_a)]),
@@ -1309,6 +1323,20 @@ def palette_material(sp):
     return mat
 
 
+BALL_RADIUS = 0.3  # the in-game beach ball
+
+
+def held_ball_point(hand, forearm):
+    """Mirror of ModelCharacterView.HeldBallPoint: the paw sits half a paw past the wrist along
+    the forearm; the ball is cradled on top of it. Paw size scales with forearm length (0.085/0.222)."""
+    L = forearm.length
+    paw = hand + forearm.normalized() * (0.05 / 0.222 * L)
+    flat = Vector((forearm.x, forearm.y, 0))
+    fwd = flat.normalized() if flat.length > 1e-4 else Vector((0, -1, 0))
+    # cradled: resting on top of the paw and a little past it, so the ball clears the body
+    return paw + Vector((0, 0, 0.085 / 0.222 * L * 0.5 + BALL_RADIUS * 0.55)) + fwd * (BALL_RADIUS * 0.4)
+
+
 def preview(out_path, specs):
     clear_scene()
     species = load_species()
@@ -1329,6 +1357,13 @@ def preview(out_path, specs):
         frame = int(frame)
         best = min(keys, key=lambda k: abs(k[0] - frame))
         apply_pose(arm, best[1], 1.0)
+        if action == "ServeHold":  # show the ball where the game puts it (ModelCharacterView.HeldBallPoint)
+            bpy.context.view_layer.update()
+            hb, lb = arm.pose.bones["Hand.L"], arm.pose.bones["LowerArm.L"]
+            head = arm.matrix_world @ hb.head
+            fore = (head - arm.matrix_world @ lb.head)
+            c = held_ball_point(head, fore)
+            bpy.ops.mesh.primitive_uv_sphere_add(radius=BALL_RADIUS, location=c)
 
     scene = bpy.context.scene
     scene.render.engine = "BLENDER_WORKBENCH"

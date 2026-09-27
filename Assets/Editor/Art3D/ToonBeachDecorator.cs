@@ -49,6 +49,7 @@ namespace Volleyball.EditorTools
                 var mesh = ToonArtKit.Prop("beach_ball", Vector3.zero, 0f, 0.3f, ToonArtKit.PropsMaterial(), ball.transform);
                 mesh.name = "Model";
                 mesh.AddComponent<BallSpin>().radius = 0.3f;
+                mesh.AddComponent<HeldBallView>().radius = 0.3f;
             }
         }
 
