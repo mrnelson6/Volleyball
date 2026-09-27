@@ -234,9 +234,9 @@ namespace Volleyball
             // Band of the screen left between the bars, and the world height it must hold: the
             // eyes plus a little brow. A long lens from a few head-widths out flattens the face
             // like a telephoto anime cut; the frame widens on narrow screens so both eyes fit.
-            const float band = 0.30f;
+            const float band = 0.32f;
             float aspect = Mathf.Max(0.3f, _cam.aspect);
-            float frameH = Mathf.Max(0.62f * hr / band, 2.6f * hr / aspect);
+            float frameH = Mathf.Max(0.7f * hr / band, 2.6f * hr / aspect);
             const float lensFov = 14f;
             float dist = frameH / (2f * Mathf.Tan(lensFov * 0.5f * Mathf.Deg2Rad));
 
@@ -256,7 +256,7 @@ namespace Volleyball
             Color team = p.jerseyColor;
             team.a = 1f;
             SetEdges(bar, team);
-            SetLines(0.35f, -dir * Time.time * 3.2f); // uv scrolling back = streaks rushing forward
+            SetLines(0.22f, -dir * Time.time * 3.2f); // uv scrolling back = streaks rushing forward
             _hudAlpha = 0f;
 
             // name card: slides in along the streaks, holds, snaps off before the next cut
