@@ -157,6 +157,9 @@ namespace Volleyball
                     }
                     cmd.tick = tick;
                     _heldCmd = cmd;
+                    // the owner already sends idle commands through the intro — this is the
+                    // authority's word on it, whatever the stream says
+                    if (Player.Match != null && Player.Match.InIntro) cmd = InputCommand.Empty(tick);
                 }
                 else
                 {

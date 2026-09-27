@@ -14,6 +14,8 @@ namespace Volleyball
     /// Optional <c>-vbshotcount N</c> and <c>-vbshotarena &lt;SceneName&gt;</c> (default BeachArena).
     /// <c>-vbshotmenu</c> instead captures the character-select screen with a few animals picked;
     /// <c>-vbshotknock</c> bowls a player over mid-match and captures the knockdown sequence.
+    /// <c>-vbshotintro</c> keeps the pre-match cinematic on (the tour otherwise turns it off)
+    /// and captures it from its first frame.
     /// </summary>
     public static class ScreenshotTour
     {
@@ -36,6 +38,8 @@ namespace Volleyball
             runner.knock = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-vbshotknock") >= 0;
             runner.human = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-vbshothuman") >= 0;
             runner.padNav = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-vbshotpadnav") >= 0;
+            runner.intro = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-vbshotintro") >= 0;
+            MatchIntro.Enabled = runner.intro; // the art tour films gameplay unless asked for the intro
             if (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-vbshotpad") >= 0)
                 GameInput.UsingGamepad = true; // show controller prompts / menu focus
         }
@@ -57,6 +61,7 @@ namespace Volleyball
         public bool knock;
         public bool human; // keep the human slot human (aim marker, serve prompt) — nobody presses anything
         public bool padNav; // drive the main menu with a simulated gamepad (menu navigation check)
+        public bool intro;  // film the pre-match cinematic from its first frame (pair with -vbshotcount ~26)
 
         IEnumerator Start()
         {
@@ -82,7 +87,8 @@ namespace Volleyball
             SceneManager.LoadScene(arena);
             yield return null; // scene objects Awake/Start
             NetSlotBinder.BindAll(FindAnyObjectByType<MatchManager>(), cfg);
-            yield return new WaitForSeconds(2.5f); // serve toss, first rally moving
+            // serve toss, first rally moving — or, filming the intro, straight away
+            yield return new WaitForSeconds(intro ? 0.2f : 2.5f);
 
             if (knock)
             {

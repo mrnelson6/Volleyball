@@ -58,6 +58,12 @@ namespace Volleyball
 
             Input.ConsumeTick(out bool jump, out bool dive, out bool power,
                               out bool hitPressed, out HitType hitType);
+            ChatCall chat = Input.ConsumeChat();
+
+            // Intro cinematic: everyone holds their mark until the whistle. The latched presses
+            // are drained above so none of them fires the moment the intro ends.
+            if (match != null && match.InIntro) return InputCommand.Empty(tick);
+
             Vector3 w = CamRelativeDir(Input.Move);
 
             // While holding the serve, the three hit keys mean serve actions instead:
@@ -79,7 +85,7 @@ namespace Volleyball
                 hitType = hitType,
                 aimMode = AimMode.Steer, // humans aim by steering — see VolleyPlayer.SteerAim
                 serve = serve,
-                chat = Input.ConsumeChat(),
+                chat = chat,
             };
         }
 

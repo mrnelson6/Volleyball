@@ -28,6 +28,7 @@ namespace Volleyball
         AudioClip _whistleClip, _thudClip, _outClip, _pointUpClip, _pointDownClip, _winClip;
         AudioClip _powerReadyClip, _powerFireClip;
         AudioClip _chatClaimClip, _chatCedeClip, _chatEmoteClip;
+        AudioClip _whooshClip, _eyeStingClip, _countClip; // the pre-match intro cinematic
         AudioClip _windAmb, _jungleAmb, _rainAmb, _snowAmb; // regional beds, synthesised on demand
         readonly Dictionary<HitType, AudioClip> _hitClips = new Dictionary<HitType, AudioClip>();
 
@@ -181,6 +182,19 @@ namespace Volleyball
             inst.OneShot(clip, 0.6f, Random.Range(0.97f, 1.05f), pos);
         }
 
+        /// <summary>Intro cinematic: the camera swooping over the court.</summary>
+        public static void PlayIntroWhoosh()
+            => Instance?.OneShot(Instance._whooshClip, 0.55f, Random.Range(0.96f, 1.04f), Vector3.zero);
+
+        /// <summary>Intro cinematic: the anime "shing" of a cut to a player's eyes.</summary>
+        public static void PlayEyeSting(float pitch = 1f)
+            => Instance?.OneShot(Instance._eyeStingClip, 0.5f, pitch, Vector3.zero);
+
+        /// <summary>Intro cinematic: one countdown number (3, 2, 1) — each a step higher.</summary>
+        public static void PlayCountdown(int number)
+            => Instance?.OneShot(Instance._countClip, 0.55f, number <= 1 ? 1.26f : number == 2 ? 1.12f : 1f,
+                                 Vector3.zero);
+
         /// <summary>A swell of applause/cheering; intensity 0–1. Uses its own crowd volume.</summary>
         public static void PlayCrowd(float intensity)
         {
@@ -283,6 +297,11 @@ namespace Volleyball
             _chatCedeClip = MakeChime("chat_cede",
                 new[] { N(1050f, 0f, 0.13f), N(700f, 0.07f, 0.18f) }, 0.3f);
             _chatEmoteClip = MakeChime("chat_emote", new[] { N(880f, 0f, 0.14f) }, 0.22f);
+
+            // intro cinematic: the fly-over swoosh, the eye-cut "shing", the countdown beep
+            _whooshClip = MakeWhoosh();
+            _eyeStingClip = MakeEyeSting();
+            _countClip = MakeChime("countdown", new[] { N(784f, 0f, 0.3f) }, 0.34f);
 
             _crowdClip = MakeCrowd();
             _sandClip = MakeSandLoop();
@@ -448,6 +467,58 @@ namespace Volleyball
             }
             Normalize(d, 0.7f);
             return MakeClip("out", d);
+        }
+
+        // A camera swoosh: noise through a resonant band-pass whose centre sweeps up then down,
+        // swelling in and fading out — air rushing past.
+        AudioClip MakeWhoosh()
+        {
+            float dur = 1.1f;
+            int n = (int)(SR * dur);
+            var d = new float[n];
+            float low = 0f, band = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                float t = (float)i / SR;
+                float frac = t / dur;
+                float centre = Mathf.Lerp(300f, 2200f, Mathf.Sin(frac * Mathf.PI)); // up, then down
+                float f = 2f * Mathf.Sin(Mathf.PI * centre / SR);                    // state-variable filter
+                float w = Random.value * 2f - 1f;
+                low += f * band;
+                float high = w - low - 0.35f * band;
+                band += f * high;
+                float env = Mathf.Pow(Mathf.Sin(frac * Mathf.PI), 1.6f);
+                d[i] = band * env;
+            }
+            Normalize(d, 0.75f);
+            return MakeClip("whoosh", d);
+        }
+
+        // The anime eye-cut "shing": a bright metallic ring (inharmonic partials, instant attack,
+        // long shimmering tail) riding a short airy swish.
+        AudioClip MakeEyeSting()
+        {
+            float dur = 0.9f;
+            int n = (int)(SR * dur);
+            var d = new float[n];
+            float[] partials = { 2637f, 3951f, 5274f, 6645f };
+            float[] amps = { 0.5f, 0.3f, 0.2f, 0.12f };
+            float hp = 0f, prevW = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                float t = (float)i / SR;
+                float ring = 0f;
+                for (int k = 0; k < partials.Length; k++)
+                    ring += Mathf.Sin(2f * Mathf.PI * partials[k] * t) * amps[k] * Mathf.Exp(-t * (4f + k * 2.5f));
+                ring *= 1f + 0.15f * Mathf.Sin(2f * Mathf.PI * 9f * t); // shimmer
+                float w = Random.value * 2f - 1f;
+                hp = 0.9f * (hp + w - prevW); // bright, thin swish
+                prevW = w;
+                float swish = hp * Mathf.Clamp01(t / 0.01f) * Mathf.Exp(-t * 22f) * 0.6f;
+                d[i] = (ring + swish) * Mathf.Clamp01(t / 0.002f);
+            }
+            Normalize(d, 0.7f);
+            return MakeClip("eye_sting", d);
         }
 
         // (freq, startTime, duration) note descriptor for chimes.

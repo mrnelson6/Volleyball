@@ -83,6 +83,9 @@ namespace Volleyball
         protected MatchManager match;
         protected BallController ball;
 
+        /// <summary>The match this player is playing in (null on a scene without one).</summary>
+        public MatchManager Match => match;
+
         /// <summary>Standing on something — the sand, or a prop we've landed on top of. The
         /// vertical-speed half matters now that ground is not always y=0: rising past the lip
         /// of a bleacher tread puts a standable surface above our feet, and that must not read

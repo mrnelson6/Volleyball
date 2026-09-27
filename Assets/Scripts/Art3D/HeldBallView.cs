@@ -31,7 +31,7 @@ namespace Volleyball
 
             if (_match == null) _match = FindAnyObjectByType<MatchManager>();
             bool held = false;
-            if (_match != null && _match.State == MatchState.Serving && !_match.ServeTossed)
+            if (_match != null && _match.BallInServerHands)
             {
                 var view = CharacterView.Of(_match.CurrentServer) as ModelCharacterView;
                 if (view != null && view.TryGetHeldBallPoint(radius, out Vector3 p))

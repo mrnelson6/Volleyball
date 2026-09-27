@@ -81,6 +81,13 @@ You choose each contact explicitly:
   **Don't press at all and there's no block** — the ball goes straight past you.
   **You may not block a serve.**
 
+**Match intro:** every freshly loaded match opens with a short cinematic. The camera sweeps
+over the court, cuts to an anime-style close-up of each player's eyes, counts down 3-2-1 while
+gliding back into the game view, and then the whistle opens the first serve. Everyone is
+frozen on their spot until the whistle. Offline, press any hit key or Jump to skip it. Online,
+the server runs it on the shared network clock, so everyone sees it together and nobody can
+skip it. A rematch doesn't replay the intro.
+
 **Serving** (when it's your serve, from behind the back line):
 - **Underhand serve** — press **Bump (J)** to send it straight over.
 - **Jump serve** — press **Set (K)** to toss the ball up, then **Jump (Space)** and

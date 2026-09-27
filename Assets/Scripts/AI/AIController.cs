@@ -61,6 +61,7 @@ namespace Volleyball
 
         public override InputCommand GetCommand(int tick)
         {
+            if (match != null && match.InIntro) return InputCommand.Empty(tick); // posing for the intro
             Decide();
             return new InputCommand
             {

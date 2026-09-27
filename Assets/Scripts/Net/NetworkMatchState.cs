@@ -36,6 +36,7 @@ namespace Volleyball
             public byte bannerKind, bannerTeam;
             public FixedString128Bytes bannerText;
             public NetworkObjectReference server;
+            public double introStart; // server network time the intro began (MatchIntro)
 
             public void NetworkSerialize<T>(BufferSerializer<T> s) where T : IReaderWriter
             {
@@ -51,6 +52,7 @@ namespace Volleyball
                 s.SerializeValue(ref bannerTeam);
                 s.SerializeValue(ref bannerText);
                 s.SerializeValue(ref server);
+                s.SerializeValue(ref introStart);
             }
 
             public bool Equals(MatchSnap o)
@@ -59,7 +61,8 @@ namespace Volleyball
                    && touches == o.touches && serveInFlight == o.serveInFlight
                    && serveTossed == o.serveTossed && bannerKind == o.bannerKind
                    && bannerTeam == o.bannerTeam && bannerText.Equals(o.bannerText)
-                   && server.NetworkObjectId == o.server.NetworkObjectId;
+                   && server.NetworkObjectId == o.server.NetworkObjectId
+                   && introStart == o.introStart;
         }
 
         readonly NetworkVariable<MatchSnap> _snap = new NetworkVariable<MatchSnap>();
@@ -286,6 +289,7 @@ namespace Volleyball
                     bannerTeam = (byte)b.team,
                     bannerText = new FixedString128Bytes(Truncate(b.text, 120)),
                     server = ServerPlayerRef(),
+                    introStart = _match.IntroStartTime,
                 };
                 if (!snap.Equals(_snap.Value)) _snap.Value = snap;
             }
@@ -362,7 +366,8 @@ namespace Volleyball
         {
             ApplySnap(cur);
 
-            // audio the local viewer should hear, keyed off state TRANSITIONS
+            // audio the local viewer should hear, keyed off state TRANSITIONS — including
+            // Intro -> Serving, the whistle that ends the intro cinematic
             if (prev.state != cur.state)
             {
                 if ((MatchState)cur.state == MatchState.Serving) GameAudio.PlayWhistle();
@@ -387,7 +392,8 @@ namespace Volleyball
             };
             _match.MirrorNetworkState(s.scoreA, s.scoreB, (MatchState)s.state,
                                       (TeamSide)s.servingTeam, (TeamSide)s.possession, s.touches,
-                                      s.serveInFlight, s.serveTossed, banner, server);
+                                      s.serveInFlight, s.serveTossed, banner, server,
+                                      s.introStart);
         }
 
         [Rpc(SendTo.NotServer)]

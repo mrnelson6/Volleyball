@@ -4,7 +4,8 @@ using UnityEngine.InputSystem;
 
 namespace Volleyball
 {
-    public enum MatchState { Serving, Rallying, PointScored, MatchOver }
+    // Intro is appended (not inserted) so the other values keep their wire bytes.
+    public enum MatchState { Serving, Rallying, PointScored, MatchOver, Intro }
 
     /// <summary>
     /// The match "brain": owns score, serve flow, rally state, the 3-touch rule and
@@ -57,6 +58,35 @@ namespace Volleyball
         /// <summary>The player currently holding the serve (mirrored to clients online).</summary>
         public VolleyPlayer CurrentServer => _server;
 
+        /// <summary>The pre-match cinematic is running (<see cref="MatchIntro"/>): the court is
+        /// staged for the first serve, but nobody may act until the whistle.</summary>
+        public bool InIntro => State == MatchState.Intro;
+
+        /// <summary>When the intro began, on <see cref="NetworkSession.SharedTime"/> — the
+        /// server's clock online, so every machine plays the same beat at the same moment.</summary>
+        public double IntroStartTime { get; private set; }
+
+        /// <summary>Seconds into the intro on the shared clock (0 when not in the intro).</summary>
+        public float IntroElapsed
+            => InIntro ? Mathf.Max(0f, (float)(NetworkSession.SharedTime - IntroStartTime)) : 0f;
+
+        /// <summary>How many eye close-ups the intro cuts through — one per player on court.
+        /// A pure function of the scene's roster, so server and clients agree on the length.</summary>
+        public int IntroShots
+        {
+            get
+            {
+                int n = 0;
+                foreach (var p in players) if (p != null) n++;
+                return n;
+            }
+        }
+
+        /// <summary>The server is holding the ball in their paw: waiting to serve (or staged
+        /// for the first serve during the intro) and not yet tossed.</summary>
+        public bool BallInServerHands
+            => (State == MatchState.Serving || State == MatchState.Intro) && !_serveTossed;
+
         /// <summary>Raised whenever a rally reset teleported everyone into formation — the
         /// network layer relays the new spots so clients snap instead of interpolating.</summary>
         public event System.Action PositionsReset;
@@ -77,6 +107,9 @@ namespace Volleyball
             // knockdowns after them (added at runtime — no scene rebuild needed)
             gameObject.AddComponent<BodyTick>().match = this;
             gameObject.AddComponent<BodyReferee>().match = this;
+            // the pre-match cinematic's camera + overlay — view only, so not on a headless server
+            if (SystemInfo.graphicsDeviceType != UnityEngine.Rendering.GraphicsDeviceType.Null)
+                gameObject.AddComponent<MatchIntroDirector>().match = this;
 
             if (ball != null) ball.OnGroundHit += HandleGroundHit;
             ChatDirector.Bind(this); // callouts are judged against this court's roster and ball
@@ -95,11 +128,19 @@ namespace Volleyball
             // every human slot to be claimed (BeginMatchServer), and clients never run the
             // state machine at all — they mirror it.
             if (NetworkSession.IsOnline) return;
-            BeginServe(TeamSide.A);
+            BeginMatch();
         }
 
         /// <summary>Server-side kick-off once every human slot is filled.</summary>
-        internal void BeginMatchServer() => BeginServe(TeamSide.A);
+        internal void BeginMatchServer() => BeginMatch();
+
+        /// <summary>First serve of a freshly loaded match: through the intro cinematic when
+        /// it's on, straight to the whistle otherwise. (A rematch skips the intro.)</summary>
+        void BeginMatch()
+        {
+            if (MatchIntro.Enabled) BeginIntro(TeamSide.A);
+            else BeginServe(TeamSide.A);
+        }
 
         /// <summary>Re-dress the court after the network config (with its slot casting)
         /// arrives on a client.</summary>
@@ -240,25 +281,51 @@ namespace Volleyball
 
         void BeginServe(TeamSide t)
         {
+            State = MatchState.Serving;
+            StageServe(t);
+            OpenServe();
+        }
+
+        /// <summary>
+        /// Start of a match: stage the first serve exactly as the whistle will find it —
+        /// formation, server behind the line, ball in their paw — then hold everyone there
+        /// while the intro cinematic plays. Update opens the serve once the shared clock says
+        /// the intro is over; clients render the same timeline from the mirrored start time.
+        /// </summary>
+        void BeginIntro(TeamSide t)
+        {
+            State = MatchState.Intro;
+            IntroStartTime = NetworkSession.SharedTime;
+            StageServe(t);
+            VBLog.Event($"BEGIN INTRO shots={IntroShots} length={MatchIntro.Length(IntroShots):F1}s");
+        }
+
+        /// <summary>Offline only (the view's skip press): jump the intro to its last beat —
+        /// back in the game view, a moment before the whistle. Online nobody skips it for
+        /// everyone else.</summary>
+        internal void SkipIntro()
+        {
+            if (!InIntro || NetworkSession.IsOnline) return;
+            float skipTo = MatchIntro.SettleStart(IntroShots);
+            if (IntroElapsed < skipTo) IntroStartTime = NetworkSession.SharedTime - skipTo;
+        }
+
+        /// <summary>Everyone to their spots, the serving team's next server behind the back
+        /// line with the ball in hand. No whistle yet — see <see cref="OpenServe"/>.</summary>
+        void StageServe(TeamSide t)
+        {
             _serveSteer = Vector2.zero; // AI serves (no stick) go to the middle
             ServingTeam = t;
             Possession = t;
             Touches = 0;
             _lastToucher = null;
-            State = MatchState.Serving;
             Banner = BannerMessage.None;
             _serveTossed = false;
             ServeInFlight = false;
-            _lastContactTime = Time.time;
             ChatDirector.ClearCalls(); // nobody is calling for a ball that hasn't been served
 
             ResetPositions();
             _server = NextServerOf(t);
-
-            // the local human isn't always the server — announce whose serve it is when an
-            // AI steps up (each HUD decides whether its viewer cares)
-            if (_server != null && !_server.IsHuman)
-                Banner = BannerMessage.Of(BannerKind.AiServing, t, _server.Character.displayName);
 
             // server stands behind their own back line to serve
             if (_server != null)
@@ -269,11 +336,24 @@ namespace Volleyball
             }
 
             ball.Hold(ServePosition());
+            PositionsReset?.Invoke();
+        }
+
+        /// <summary>The referee's whistle: the staged serve is live.</summary>
+        void OpenServe()
+        {
+            State = MatchState.Serving;
+            Banner = BannerMessage.None;
+            _lastContactTime = Time.time;
             _timer = aiServeDelay;
 
+            // the local human isn't always the server — announce whose serve it is when an
+            // AI steps up (each HUD decides whether its viewer cares)
+            if (_server != null && !_server.IsHuman)
+                Banner = BannerMessage.Of(BannerKind.AiServing, ServingTeam, _server.Character.displayName);
+
             GameAudio.PlayWhistle(); // referee authorises the serve
-            VBLog.Event($"BEGIN SERVE team={t} server='{(_server != null ? _server.name : "?")}' score A={ScoreA} B={ScoreB}");
-            PositionsReset?.Invoke();
+            VBLog.Event($"BEGIN SERVE team={ServingTeam} server='{(_server != null ? _server.name : "?")}' score A={ScoreA} B={ScoreB}");
         }
 
         string _powerBanner;      // the activation shout currently on the banner, if any
@@ -339,8 +419,9 @@ namespace Volleyball
         internal void MirrorNetworkState(int scoreA, int scoreB, MatchState state,
                                          TeamSide servingTeam, TeamSide possession, int touches,
                                          bool serveInFlight, bool serveTossed, BannerMessage banner,
-                                         VolleyPlayer server)
+                                         VolleyPlayer server, double introStartTime)
         {
+            IntroStartTime = introStartTime;
             ScoreA = scoreA;
             ScoreB = scoreB;
             State = state;
@@ -379,6 +460,13 @@ namespace Volleyball
 
             switch (State)
             {
+                case MatchState.Intro:
+                    // staged and frozen: keep the ball in the server's paw until the shared
+                    // clock reaches the whistle
+                    if (_server != null) ball.Hold(ServePosition());
+                    if (IntroElapsed >= MatchIntro.Length(IntroShots)) OpenServe();
+                    break;
+
                 case MatchState.Serving:
                     // No server assigned means the match hasn't actually begun (online: still
                     // waiting for players — BeginServe hasn't run). Without this guard the

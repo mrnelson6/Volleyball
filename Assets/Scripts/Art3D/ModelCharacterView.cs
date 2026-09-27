@@ -269,8 +269,7 @@ namespace Volleyball
         bool HoldingServe()
         {
             if (_match == null) _match = FindAnyObjectByType<MatchManager>();
-            return _match != null && _match.State == MatchState.Serving && !_match.ServeTossed
-                   && _match.CurrentServer == _player;
+            return _match != null && _match.BallInServerHands && _match.CurrentServer == _player;
         }
 
         /// <summary>

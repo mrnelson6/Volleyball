@@ -20,5 +20,11 @@ namespace Volleyball
         /// <summary>True only on a connected client that is NOT the server — the machines
         /// that mirror match state instead of computing it.</summary>
         public static bool IsRemoteClient => IsOnline && !NetworkManager.Singleton.IsServer;
+
+        /// <summary>A clock every machine in the session agrees on, for scheduling shared
+        /// presentation beats (the match intro): the server's network time online — clients
+        /// estimate it — and scaled game time offline, so the pause menu holds it too.</summary>
+        public static double SharedTime
+            => IsOnline ? NetworkManager.Singleton.ServerTime.Time : UnityEngine.Time.timeAsDouble;
     }
 }

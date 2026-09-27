@@ -51,7 +51,8 @@ Check no editor is running first (`Temp/UnityLockfile` absent).
   build wraps animals into `Resources/Characters3D` prefabs. Character portraits
   (`...PortraitBaker.BakeAll`) need a GPU — batch WITHOUT `-nographics`; PNGs are committed.
   `-vbshots <dir>` (+ `-vbshotarena <Scene>` / `-vbshotmenu`) on a player build = all-AI
-  screenshot tour for eyeballing art changes. `-vbshotpadnav` drives the main menu with a
+  screenshot tour for eyeballing art changes (the tour disables the pre-match intro;
+  `-vbshotintro -vbshotcount 26` films it instead). `-vbshotpadnav` drives the main menu with a
   simulated gamepad and logs focus after each press (`PADNAV` lines in the player log).
 - Player builds: `...BuildKit.BuildWindows` / `.BuildWebGL` / `.BuildLinuxServer`
   → `Builds/`. Env var `VB_VERSION` stamps `PlayerSettings.bundleVersion`; the
