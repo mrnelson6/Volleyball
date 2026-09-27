@@ -52,8 +52,17 @@ namespace Volleyball
 
             bool backPressed = padBack
                                || (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame);
+            if (backPressed && TryGetComponent(out IMenuBackHandler handler) && handler.HandleBack())
+                backPressed = false; // the screen handled it (e.g. step back within the screen)
             if (backPressed && back != null && back.gameObject.activeInHierarchy && back.interactable)
                 back.onClick.Invoke();
         }
+    }
+
+    /// <summary>A screen that wants B / Esc to step back within itself before leaving.</summary>
+    public interface IMenuBackHandler
+    {
+        /// <returns>true if the press was consumed (don't press the screen's Back button).</returns>
+        bool HandleBack();
     }
 }

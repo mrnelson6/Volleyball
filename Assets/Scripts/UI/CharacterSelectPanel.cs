@@ -10,8 +10,12 @@ namespace Volleyball
     /// with name, blurb and stat bars, and Play/Back. Play
     /// launches Quick Play as the selected character with the AI players randomised. The last
     /// pick is remembered in PlayerPrefs. References are wired by MainMenuSceneBuilder.
+    ///
+    /// Controller flow: the stick browses (previewing whoever is focused, without changing the
+    /// pick), A locks the focused animal in and jumps to Play, A again starts. B from Play goes
+    /// back to your locked tile rather than leaving the screen; Start plays from anywhere.
     /// </summary>
-    public class CharacterSelectPanel : MonoBehaviour
+    public class CharacterSelectPanel : MonoBehaviour, IMenuBackHandler
     {
         [System.Serializable]
         public class Entry
@@ -53,6 +57,7 @@ namespace Volleyball
         int _venueIndex;
 
         static readonly Color FrameSelected = new Color(1f, 0.85f, 0.30f, 0.95f);
+        static readonly Color FrameFocused = new Color(1f, 1f, 1f, 0.85f); // controller cursor
 
         string _selectedId;
 
@@ -61,7 +66,7 @@ namespace Volleyball
             foreach (var e in entries)
             {
                 string id = e.characterId; // capture per-iteration for the closure
-                if (e.button != null) e.button.onClick.AddListener(() => Select(id));
+                if (e.button != null) e.button.onClick.AddListener(() => Pick(id));
             }
             if (playButton != null) playButton.onClick.AddListener(Play);
             if (backButton != null) backButton.onClick.AddListener(Close);
@@ -83,23 +88,67 @@ namespace Volleyball
         }
 
         GameObject _lastFocus;
+        string _previewId;
 
-        /// <summary>Controller browsing: moving focus onto a tile previews that animal (no
-        /// press needed), and the grid scrolls to keep it in view.</summary>
+        /// <summary>A tile was pressed (click, tap or A): lock that animal in. With a controller,
+        /// focus jumps to Play so the next A starts the match.</summary>
+        void Pick(string id)
+        {
+            Select(id);
+            if (GameInput.UsingGamepad && playButton != null && EventSystem.current != null)
+                EventSystem.current.SetSelectedGameObject(playButton.gameObject);
+        }
+
+        /// <summary>Controller browsing: moving focus onto a tile previews that animal (the
+        /// pick only changes on A), and the grid scrolls to keep it in view. Focus off the grid
+        /// shows the locked pick again.</summary>
         void Update()
         {
+            foreach (var gp in UnityEngine.InputSystem.Gamepad.all)
+                if (gp.startButton.wasPressedThisFrame) { Play(); return; }
+
             var es = EventSystem.current;
             GameObject focus = es != null ? es.currentSelectedGameObject : null;
             if (focus == _lastFocus) return;
             _lastFocus = focus;
-            if (focus == null) return;
+            Entry tile = TileFor(focus);
+            if (tile != null) ScrollTo(tile.button.transform as RectTransform);
+            PaintFrames(tile);
+            string show = tile != null ? tile.characterId : _selectedId;
+            if (show != _previewId) Preview(show);
+        }
+
+        /// <summary>Gold = your pick; white = where the controller cursor is.</summary>
+        void PaintFrames(Entry focused)
+        {
             foreach (var e in entries)
-                if (e.button != null && e.button.gameObject == focus)
+                if (e.frame != null)
+                    e.frame.color = e.characterId == _selectedId ? FrameSelected
+                                  : e == focused ? FrameFocused : e.baseColor;
+        }
+
+        Entry TileFor(GameObject go)
+        {
+            if (go == null) return null;
+            foreach (var e in entries)
+                if (e.button != null && e.button.gameObject == go) return e;
+            return null;
+        }
+
+        /// <summary>B while on Play / Venue: back to your locked animal instead of leaving.</summary>
+        public bool HandleBack()
+        {
+            var es = EventSystem.current;
+            GameObject focus = es != null ? es.currentSelectedGameObject : null;
+            if (focus == null || TileFor(focus) != null || (backButton != null && focus == backButton.gameObject))
+                return false;
+            foreach (var e in entries)
+                if (e.characterId == _selectedId && e.button != null)
                 {
-                    if (e.characterId != _selectedId) Select(e.characterId);
-                    ScrollTo(e.button.transform as RectTransform);
-                    break;
+                    es.SetSelectedGameObject(e.button.gameObject);
+                    return true;
                 }
+            return false;
         }
 
         void ScrollTo(RectTransform tile)
@@ -129,14 +178,20 @@ namespace Volleyball
                 venueLabel.text = $"Venue:  {SceneFlow.ArenaNames[_venueIndex]}  ▶";
         }
 
+        /// <summary>Lock in an animal: gold frame, preview, and what Play launches.</summary>
         public void Select(string id)
         {
-            _selectedId = id;
             CharacterDef ch = CharacterRoster.Get(id);
+            _selectedId = ch.id;
+            PaintFrames(TileFor(EventSystem.current != null ? EventSystem.current.currentSelectedGameObject : null));
+            Preview(ch.id);
+        }
 
-            foreach (var e in entries)
-                if (e.frame != null)
-                    e.frame.color = e.characterId == ch.id ? FrameSelected : e.baseColor;
+        /// <summary>Show an animal in the preview pane (3D model, name, blurb, stats).</summary>
+        void Preview(string id)
+        {
+            CharacterDef ch = CharacterRoster.Get(id);
+            _previewId = ch.id;
 
             if (previewName != null) previewName.text = ch.displayName;
             if (previewBlurb != null)
