@@ -98,6 +98,8 @@ namespace Volleyball
         /// <summary>Current vertical speed of the jump integration (+up, −falling).
         /// Zero exactly at the peak of the jump — the jump serve reads it to score timing.</summary>
         public float VerticalVelocity => _sim.vertVel;
+        /// <summary>Horizontal velocity (XZ) moved last tick — in the air, the jump's momentum.</summary>
+        public Vector2 PlanarVelocity => _sim.planarVel;
         /// <summary>True while laid out on a dive — the slide and the get-up afterwards.</summary>
         public bool IsDiving => _sim.diveTimer > 0f || _sim.diveRecover > 0f;
         /// <summary>World direction of the current/last dive (unit XZ). Read by the visuals
@@ -323,6 +325,7 @@ namespace Volleyball
         public void TeleportTo(Vector3 groundPos)
         {
             _sim.position = new Vector3(groundPos.x, 0f, groundPos.z);
+            _sim.planarVel = Vector2.zero; // no momentum carried through a reset
             SettleOnGround(); // court spots are on the sand, but never assume it
             _prevViewPos = _currViewPos = _sim.position;
             transform.position = _sim.position;
@@ -398,8 +401,15 @@ namespace Volleyball
             }
             else if (_sim.diveRecover <= 0f)
             {
-                pos.x += mv.x * moveSpeed * dt;
-                pos.z += mv.y * moveSpeed * dt;
+                // Ground: instant, full control. Air: momentum — keep the take-off velocity and
+                // let the stick bend it only a little (a running jump flies on in that direction).
+                // A released stick in the air keeps the momentum (it is not a brake).
+                Vector2 want = mv * moveSpeed;
+                Vector2 v = IsGrounded ? want
+                          : mv.sqrMagnitude < 0.01f ? _sim.planarVel
+                          : Vector2.MoveTowards(_sim.planarVel, want, Cfg.airControl * dt);
+                pos.x += v.x * dt;
+                pos.z += v.y * dt;
             }
             // (while recovering: face down in the sand — no movement)
 
@@ -454,6 +464,11 @@ namespace Volleyball
             float support = WorldCollision.GroundHeightAt(pos, bodyRadius);
             if (_sim.vertVel <= 0f && pos.y <= support) { pos.y = support; _sim.vertVel = 0f; }
             _sim.groundY = support;
+
+            // What we really moved this tick (after bodies, walls, the net) becomes the momentum
+            // carried into the air — hit a wall mid-jump and that component is gone.
+            _sim.planarVel = dt > 0f ? new Vector2(pos.x - _sim.position.x, pos.z - _sim.position.z) / dt
+                                     : Vector2.zero;
 
             _prevViewPos = _currViewPos;
             _sim.position = pos;

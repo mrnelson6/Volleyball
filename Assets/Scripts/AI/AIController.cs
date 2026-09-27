@@ -164,6 +164,20 @@ namespace Volleyball
             Vector2 dir = new Vector2(to.x, to.z);
             _desiredMove = dir.magnitude > 0.15f ? Vector2.ClampMagnitude(dir, 1f) : Vector2.zero;
 
+            // In the air we only have a nudge (GameConfig.airControl) on top of our take-off
+            // momentum, so steer on where that momentum is TAKING us: aim the predicted position
+            // at the ball's, and leave the stick neutral (= keep momentum) when already on course.
+            if (!IsGrounded && pursue)
+            {
+                float gAir = -Physics.gravity.y;
+                float tLeft = Mathf.Max(VerticalVelocity / gAir, 0.1f); // to our apex (strike time)
+                Vector2 drift = PlanarVelocity * tLeft;
+                Vector3 ballThen = bp + ball.Body.linearVelocity * tLeft;
+                Vector2 miss = new Vector2(ballThen.x - GroundPosition.x - drift.x,
+                                           ballThen.z - GroundPosition.z - drift.y);
+                _desiredMove = miss.magnitude > 0.2f ? Vector2.ClampMagnitude(miss, 1f) : Vector2.zero;
+            }
+
             // Reaction latency is a sluggish first step, not a freeze: while "reacting" we
             // still visibly start toward the ball, just too slowly to make every get — the
             // imperfection reads as a late read instead of a statue watching the spike land.
@@ -181,8 +195,12 @@ namespace Volleyball
             Vector3 ballAtApex = bp + ball.Body.linearVelocity * tApex
                                  + 0.5f * (Physics.gravity + CourtEnvironment.Active.wind)
                                         * (tApex * tApex);
-            float hDistApex = Vector2.Distance(new Vector2(GroundPosition.x, GroundPosition.z),
-                                               new Vector2(ballAtApex.x, ballAtApex.z));
+            // Jumps carry momentum, so judge the jump from where it will CARRY us by our apex —
+            // a running approach that flies into the ball is a good jump; one that sails past
+            // isn't, however close we are now. Air control can still make up a little.
+            Vector2 carried = new Vector2(GroundPosition.x, GroundPosition.z) + PlanarVelocity * tApex;
+            float airSlack = 0.5f * GameConfig.Instance.airControl * tApex * tApex * 0.6f;
+            float hDistApex = Mathf.Max(0f, Vector2.Distance(carried, new Vector2(ballAtApex.x, ballAtApex.z)) - airSlack);
             if (pursue && _attacking && IsGrounded && touchesRemain && _jumpCooldown <= 0f
                 && hDistApex < reach
                 && ballAtApex.y >= spikeHeightThreshold && ballAtApex.y <= maxReach)

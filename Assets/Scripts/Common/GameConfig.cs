@@ -14,6 +14,11 @@ namespace Volleyball
         [Header("Movement")]
         public float moveSpeed = 6f;
         public float jumpSpeed = 6.5f;
+        [Tooltip("Air control (m/s per second): how fast the stick can bend your horizontal " +
+                 "velocity while airborne. A jump keeps the speed you took off with; this is the " +
+                 "small nudge on top. For scale, running speed is moveSpeed (6) — ground control " +
+                 "stays instant.")]
+        public float airControl = 2.5f;
 
         [Header("Body / world collision")]
         [Tooltip("Radius of the collision capsule the simulation sweeps against the world — how " +

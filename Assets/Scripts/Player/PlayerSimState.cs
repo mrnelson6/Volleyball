@@ -17,6 +17,11 @@ namespace Volleyball
         public Vector3 position;
         public float vertVel;
 
+        /// <summary>Horizontal velocity (XZ) actually moved last tick. On the ground it simply
+        /// follows the stick; in the air it IS the momentum — a jump carries the take-off speed
+        /// and the stick only bends it at GameConfig.airControl.</summary>
+        public Vector2 planarVel;
+
         /// <summary>Height of the surface underfoot (sand = 0, a bleacher tread = its top).
         /// Part of the state rather than re-queried on demand so a proxy — which is fed
         /// snapshots and never simulates — still knows whether it is standing or airborne.</summary>
@@ -48,6 +53,7 @@ namespace Volleyball
         {
             serializer.SerializeValue(ref position);
             serializer.SerializeValue(ref vertVel);
+            serializer.SerializeValue(ref planarVel);
             serializer.SerializeValue(ref groundY);
             serializer.SerializeValue(ref hitCooldown);
             serializer.SerializeValue(ref bufferTime);
