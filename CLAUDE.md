@@ -98,9 +98,11 @@ DNS A: volleyball.ttnelson.com → 76.88.83.231
       Caddy :8090 (LAN-only): serves /var/www/volleyball (WebGL; .br files need
         the Content-Encoding/Content-Type headers already in its Caddyfile)
         and proxies /spawn + /status → 127.0.0.1:8765
-      vb-spawn.py (systemd user unit volleyball-spawn): POST /spawn launches
+      vb-spawn.py (hardened SYSTEM unit volleyball-spawn, User=marvin — see
+        Tools/server/volleyball-spawn.service): POST /spawn launches
         ~/volleyball/server/Volleyball.x86_64 -vbhost → returns {"code": ...};
-        max 4 concurrent; logs in ~/volleyball/logs/
+        max 4 concurrent; logs in ~/volleyball/logs/. Deploys only restart it
+        when vb-spawn.py changed (sudo -n; needs the sudoers rule in that file).
 ```
 
 - Game traffic never touches this stack — clients (browser included) connect

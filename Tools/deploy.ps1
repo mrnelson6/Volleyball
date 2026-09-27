@@ -71,9 +71,19 @@ $serverItems = Get-ChildItem "$proj\Builds\LinuxServer" | ForEach-Object { $_.Fu
 scp -r @serverItems "$dest`:$($cfg.serverPath)/"
 ssh $dest "chmod +x $($cfg.serverPath)/Volleyball.x86_64"
 
-# spawn service script (idempotent copy; restart picks up any changes)
-scp "$PSScriptRoot\server\vb-spawn.py" "$dest`:$($cfg.spawnScriptPath)"
-ssh $dest "systemctl --user restart volleyball-spawn 2>/dev/null || echo '(spawn service not installed yet - see Tools/server/volleyball-spawn.service)'"
+# spawn service script: only when it changed. The spawner is a hardened SYSTEM
+# service (see Tools/server/volleyball-spawn.service) and launches the binary on
+# disk for every match, so a normal release needs no restart at all. Restarting
+# it needs the one sudoers rule documented in that file (sudo -n never prompts).
+$localHash = (Get-FileHash "$PSScriptRoot\server\vb-spawn.py" -Algorithm SHA256).Hash
+$remoteHash = (ssh $dest "sha256sum $($cfg.spawnScriptPath) 2>/dev/null | cut -c1-64") | Out-String
+if ($localHash -ne $remoteHash.Trim()) {
+    Write-Host "vb-spawn.py changed - updating the spawn service..." -ForegroundColor Yellow
+    scp "$PSScriptRoot\server\vb-spawn.py" "$dest`:$($cfg.spawnScriptPath)"
+    ssh $dest "sudo -n systemctl restart volleyball-spawn && echo '  spawn service restarted' || echo '  !! could not restart volleyball-spawn (sudoers rule missing? see Tools/server/volleyball-spawn.service) - run: sudo systemctl restart volleyball-spawn'"
+} else {
+    Write-Host "vb-spawn.py unchanged - spawn service left running" -ForegroundColor DarkGray
+}
 
 # WebGL -> web root
 if (-not $SkipWebGL -and $cfg.webglPath) {

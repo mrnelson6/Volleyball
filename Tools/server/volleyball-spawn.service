@@ -1,20 +1,66 @@
+# /etc/systemd/system/volleyball-spawn.service
 # On-demand Volleyball match-server spawner.
-# Install (as the user that owns ~/volleyball):
-#   mkdir -p ~/.config/systemd/user
-#   cp volleyball-spawn.service ~/.config/systemd/user/
-#   systemctl --user daemon-reload
-#   systemctl --user enable --now volleyball-spawn
-#   loginctl enable-linger $USER        # keep it running after logout
-# Logs: journalctl --user -u volleyball-spawn -f
+#
+# This is a SYSTEM service on purpose. As a --user service the Protect*
+# options were silently ignored: Ubuntu sets
+# kernel.apparmor_restrict_unprivileged_userns=1, so an unprivileged manager
+# cannot create the mount namespace ProtectHome needs, and ~/.ssh stayed
+# readable. A system service sets the namespace up as root, then drops to the
+# target user.
+#
+# Install (on marvin):
+#   sudo cp volleyball-spawn.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now volleyball-spawn
+# Let deploy.ps1 restart it without a password prompt (one narrow rule; the
+# spawner itself runs with NoNewPrivileges, so it can never use this):
+#   echo 'marvin ALL=(root) NOPASSWD: /usr/bin/systemctl restart volleyball-spawn' \
+#     | sudo tee /etc/sudoers.d/volleyball-spawn && sudo chmod 440 /etc/sudoers.d/volleyball-spawn
+#
+# Logs: journalctl -u volleyball-spawn -f
 
 [Unit]
 Description=Volleyball on-demand match-server spawner
 After=network-online.target
 
 [Service]
-ExecStart=/usr/bin/python3 %h/volleyball/vb-spawn.py
+User=marvin
+Group=marvin
+ExecStart=/usr/bin/python3 /home/marvin/volleyball/vb-spawn.py
 Restart=on-failure
 RestartSec=5
 
+# --- hardening -------------------------------------------------------------
+# /spawn is unauthenticated and internet-reachable, so assume it can be made to
+# run code and bound what that code reaches. It runs as the login user, whose
+# home holds ~/.ssh and ~/.claude; ProtectHome=tmpfs replaces /home with an
+# empty tmpfs and BindPaths mounts only the game directory back in.
+ProtectHome=tmpfs
+BindPaths=/home/marvin/volleyball
+
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+NoNewPrivileges=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+# Loopback for Caddy, outbound for the game's Unity Relay session.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+# A spawn flood must not take the host down: four match servers plus the
+# Python parent live inside this slice.
+MemoryMax=3G
+TasksMax=300
+
 [Install]
-WantedBy=default.target
+WantedBy=multi-user.target
