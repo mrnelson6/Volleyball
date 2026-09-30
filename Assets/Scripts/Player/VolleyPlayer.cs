@@ -100,6 +100,8 @@ namespace Volleyball
         public float VerticalVelocity => _sim.vertVel;
         /// <summary>Horizontal velocity (XZ) moved last tick — in the air, the jump's momentum.</summary>
         public Vector2 PlanarVelocity => _sim.planarVel;
+        /// <summary>The last non-zero steer (unit-ish XZ) — which way this player means to go.</summary>
+        public Vector2 LastMoveDir => _sim.lastMoveDir;
         /// <summary>True while laid out on a dive — the slide and the get-up afterwards.</summary>
         public bool IsDiving => _sim.diveTimer > 0f || _sim.diveRecover > 0f;
         /// <summary>World direction of the current/last dive (unit XZ). Read by the visuals
@@ -145,6 +147,46 @@ namespace Volleyball
             _sim.diveRecover = 0f;
             _sim.bufferTime = 0f;
             _sim.blockArm = 0f;
+        }
+
+        /// <summary>Rooted by a stun (a roar): can't move, jump, dive or hit.</summary>
+        public bool IsStunned => _sim.stunTimer > 0f;
+        /// <summary>Carried along by a forced dash (a charge).</summary>
+        public bool IsDashing => _sim.dashTimer > 0f;
+        /// <summary>Underground (a burrow): not drawn, can't act.</summary>
+        public bool IsHidden => _sim.hideTimer > 0f;
+
+        /// <summary>Stun for <paramref name="seconds"/>. AUTHORITY-SIDE ONLY, like <see cref="KnockDown"/>.</summary>
+        public void Stun(float seconds)
+        {
+            _sim.stunTimer = Mathf.Max(_sim.stunTimer, seconds);
+            _sim.bufferTime = 0f;
+            _sim.blockArm = 0f;
+        }
+
+        /// <summary>Force a straight dash along XZ <paramref name="dir"/>. AUTHORITY-SIDE ONLY.</summary>
+        public void StartDash(Vector2 dir, float speed, float seconds)
+        {
+            _sim.dashVel = dir.sqrMagnitude > 1e-6f ? dir.normalized * speed : Vector2.zero;
+            _sim.dashTimer = seconds;
+            _sim.diveTimer = 0f;
+            _sim.diveRecover = 0f;
+        }
+
+        /// <summary>Go underground and come up at <paramref name="groundPos"/>: the body moves
+        /// there now (out of sight) and stays hidden and rooted for <paramref name="hideSeconds"/>.
+        /// AUTHORITY-SIDE ONLY — the move reaches clients through the sim state.</summary>
+        public void BurrowTo(Vector3 groundPos, float hideSeconds)
+        {
+            _sim.position = new Vector3(groundPos.x, _sim.position.y, groundPos.z);
+            _sim.vertVel = 0f;
+            _sim.planarVel = Vector2.zero;
+            _sim.diveTimer = 0f;
+            _sim.diveRecover = 0f;
+            _sim.knockdownTimer = 0f;
+            _sim.hideTimer = hideSeconds;
+            SettleOnGround();
+            _prevViewPos = _currViewPos = _sim.position;
         }
 
         /// <summary>Where other players' simulations see this body. Online proxies report the
@@ -211,10 +253,23 @@ namespace Volleyball
         /// the fanfare (banner, sound, log); the effect itself is applied by
         /// <see cref="PowerUpState.Activate"/>. Returns true if it fired.
         /// </summary>
-        public bool TryActivatePower()
+        public bool TryActivatePower(int tick = 0)
         {
             if (match != null && match.State != MatchState.Serving
                               && match.State != MatchState.Rallying) return false;
+
+            // characters with a signature ability fire it; the rest keep their legacy power-up
+            AbilityDef ability = AbilityRoster.Get(Character.ability);
+            if (ability != null)
+            {
+                if (!GameConfig.Instance.powerUpsEnabled || !Power.IsFull) return false;
+                if (!AbilityDirector.TryFire(this, tick)) return false;
+                Power.Consume();
+                match?.ShowPowerBanner($"{Character.displayName}: {ability.bannerText}");
+                GameAudio.PlayPowerUp(transform.position);
+                return true;
+            }
+
             if (!Power.Activate()) return false;
 
             PowerUpDef def = Power.Def;
@@ -283,7 +338,7 @@ namespace Volleyball
             {
                 // spike comes down hard; raise the apex just enough to clear the net when
                 // hit from a low contact point, but stay flat/fast when hit from up high
-                case HitType.Spike: return Mathf.Max(1.0f, CourtGeometry.NetHeight + 0.7f - startY);
+                case HitType.Spike: return Mathf.Max(1.0f, CourtGeometry.NetTop + 0.7f - startY);
                 case HitType.Set: return 3.4f;  // high, soft, hangs for the spiker
                 case HitType.Bump: return 2.8f; // lofted return
                 case HitType.Dive: return GameConfig.Instance.divePopApex; // desperate pop straight up
@@ -311,6 +366,9 @@ namespace Volleyball
             _sim.diveTimer = 0f;
             _sim.diveRecover = 0f;
             _sim.knockdownTimer = 0f;
+            _sim.stunTimer = 0f;
+            _sim.dashTimer = 0f;
+            _sim.hideTimer = 0f;
             _prevViewPos = _currViewPos = _sim.position;
         }
 
@@ -366,7 +424,7 @@ namespace Volleyball
 
             _sim.hitCooldown -= dt;
             if (live) Power.Tick(dt); // real-time effects must never re-tick during replay
-            if (authority && cmd.power) TryActivatePower();
+            if (authority && cmd.power) TryActivatePower(cmd.tick);
 
             // Callouts ride the command stream like power-ups: authority-only, so a predicting
             // client never double-says anything and a replay never re-says it.
@@ -379,7 +437,18 @@ namespace Volleyball
             }
             else if (_sim.diveRecover > 0f) _sim.diveRecover -= dt;
             if (_sim.knockdownTimer > 0f) _sim.knockdownTimer -= dt;
+            if (_sim.stunTimer > 0f) _sim.stunTimer = Mathf.Max(0f, _sim.stunTimer - dt);
+            if (_sim.hideTimer > 0f) _sim.hideTimer = Mathf.Max(0f, _sim.hideTimer - dt);
+            bool dashing = _sim.dashTimer > 0f;
+            if (dashing) _sim.dashTimer = Mathf.Max(0f, _sim.dashTimer - dt);
             bool knockedDown = IsKnockedDown;
+            // stunned or underground: rooted to the spot, no jumping, diving or hitting
+            bool rooted = _sim.stunTimer > 0f || _sim.hideTimer > 0f;
+
+            // ground-changing abilities (mud...) under our feet this tick — an explicit,
+            // tick-stamped input like the bodies, so replays agree with the server
+            ZoneEffect zone = FieldZones.Sample(_sim.position, cmd.tick);
+            float runSpeed = moveSpeed * zone.moveMult;
 
             // --- horizontal movement (clamped to the court, blocked by the net itself) ---
             Vector2 mv = cmd.moveWorld;
@@ -393,18 +462,28 @@ namespace Volleyball
                 pos.x += _sim.knockDir.x * slide * dt;
                 pos.z += _sim.knockDir.y * slide * dt;
             }
+            else if (dashing)
+            {
+                // forced dash (a charge): straight along the dash, whatever the stick says
+                pos.x += _sim.dashVel.x * dt;
+                pos.z += _sim.dashVel.y * dt;
+            }
+            else if (rooted)
+            {
+                // stunned / underground: nowhere to go
+            }
             else if (_sim.diveTimer > 0f)
             {
                 // mid-dive: committed to the lunge — the dive direction overrides steering
-                pos.x += _sim.diveDir.x * diveSpeed * dt;
-                pos.z += _sim.diveDir.z * diveSpeed * dt;
+                pos.x += _sim.diveDir.x * diveSpeed * zone.moveMult * dt;
+                pos.z += _sim.diveDir.z * diveSpeed * zone.moveMult * dt;
             }
             else if (_sim.diveRecover <= 0f)
             {
                 // Ground: instant, full control. Air: momentum — keep the take-off velocity and
                 // let the stick bend it only a little (a running jump flies on in that direction).
                 // A released stick in the air keeps the momentum (it is not a brake).
-                Vector2 want = mv * moveSpeed;
+                Vector2 want = mv * runSpeed;
                 Vector2 v = IsGrounded ? want
                           : mv.sqrMagnitude < 0.01f ? _sim.planarVel
                           : Vector2.MoveTowards(_sim.planarVel, want, Cfg.airControl * dt);
@@ -416,7 +495,7 @@ namespace Volleyball
             // Other players are soft obstacles: you can't walk through them, only shove slowly,
             // and walking head-on slips you round the side. A diver ploughs on regardless — the
             // BodyReferee knocks whoever they hit down instead.
-            if (_sim.diveTimer <= 0f)
+            if (_sim.diveTimer <= 0f && !dashing && _sim.hideTimer <= 0f)
                 pos = ResolveBodies(_sim.position, pos, knockedDown ? Vector2.zero : mv, in bodies, dt);
 
             // One roam box for everyone: both halves and the deep zones behind both baselines
@@ -448,12 +527,12 @@ namespace Volleyball
             }
 
             // --- diving: a grounded lunge toward the steer direction (or the ball) ---
-            if (cmd.dive && IsGrounded && !IsDiving && !knockedDown && !servePhase)
+            if (cmd.dive && IsGrounded && !IsDiving && !knockedDown && !rooted && !dashing && !servePhase)
                 StartDive(mv, live);
 
             // --- jump + gravity (you can't jump out of a dive) ---
-            if (cmd.jump && IsGrounded && !IsDiving && !knockedDown)
-                _sim.vertVel = jumpSpeed;
+            if (cmd.jump && IsGrounded && !IsDiving && !knockedDown && !rooted && !dashing)
+                _sim.vertVel = jumpSpeed * zone.jumpMult;
             _sim.vertVel += Physics.gravity.y * dt;
             pos.y = _sim.position.y + _sim.vertVel * dt;
 
@@ -479,7 +558,7 @@ namespace Volleyball
             if (authority && cmd.serve != ServeIntent.None && match != null)
                 match.OnServeIntent(this, cmd.serve, cmd.moveWorld);
 
-            if (IsDiving || knockedDown)
+            if (IsDiving || knockedDown || rooted || dashing)
             {
                 // laid out: the only possible contact is the chaotic dive dig, and only
                 // while still sliding — once recovering (or bowled over) we're out of the play

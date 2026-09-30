@@ -56,6 +56,7 @@ namespace Volleyball
         MatchManager _match;
         Transform _hand, _forearm; // Hand.L / LowerArm.L — the paw the serve is held on
         bool _holdingServe;
+        bool _shown = true;
 
         /// <summary>Dress this model as <paramref name="ch"/> in <paramref name="jersey"/> and
         /// start reading <paramref name="player"/>.</summary>
@@ -205,6 +206,14 @@ namespace Volleyball
             {
                 ShowcaseTick(Time.deltaTime);
                 return;
+            }
+
+            // underground (a burrow): not drawn at all
+            bool show = !_player.IsHidden;
+            if (show != _shown)
+            {
+                _shown = show;
+                foreach (var r in _renderers) if (r != null) r.enabled = show;
             }
 
             float dt = Time.deltaTime;

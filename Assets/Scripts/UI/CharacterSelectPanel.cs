@@ -196,8 +196,8 @@ namespace Volleyball
             if (previewName != null) previewName.text = ch.displayName;
             if (previewBlurb != null)
             {
-                PowerUpDef pu = PowerUpRoster.Get(ch.powerUp);
-                previewBlurb.text = $"{ch.blurb}\nPower-up: {pu.displayName} — {pu.blurb}";
+                var (puName, puBlurb) = PowerUpState.Describe(ch);
+                previewBlurb.text = $"{ch.blurb}\nAbility: {puName} — {puBlurb}";
                 previewBlurb.resizeTextForBestFit = true; // the second line must still fit
             }
             if (showcase != null) showcase.Show(ch.id, PlayerColors.Human);

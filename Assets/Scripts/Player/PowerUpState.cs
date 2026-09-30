@@ -44,6 +44,34 @@ namespace Volleyball
         public PowerUpDef Def => PowerUpRoster.Get(_owner != null
             ? _owner.Character.powerUp : CharacterRoster.All[0].powerUp);
 
+        /// <summary>This character's signature ability, or null while it still uses a legacy power-up.</summary>
+        public AbilityDef Ability => _owner != null ? AbilityRoster.Get(_owner.Character.ability) : null;
+
+        /// <summary>The running ability instance, if this character has one active.</summary>
+        public Ability RunningAbility => _owner != null ? AbilityDirector.ActiveFor(_owner) : null;
+
+        // ---- what the HUD / glow / select screen show, whichever system the character uses ----
+        public string DisplayName => Ability != null ? Ability.displayName : Def.displayName;
+        public Color DisplayColor => Ability != null ? Ability.color : Def.color;
+        /// <summary>Something of ours is running right now (an ability, or a legacy cast).</summary>
+        public bool IsRunning => Ability != null ? RunningAbility != null : OwnActiveDef != null;
+        /// <summary>1 → 0 while running.</summary>
+        public float RunningRemaining01 => Ability != null
+            ? (RunningAbility != null ? RunningAbility.Remaining01 : 0f)
+            : OwnActiveRemaining01;
+
+        /// <summary>Name + blurb for a roster entry (select screen), whichever system it uses.</summary>
+        public static (string name, string blurb) Describe(CharacterDef ch)
+        {
+            AbilityDef a = AbilityRoster.Get(ch.ability);
+            if (a != null) return (a.displayName, a.blurb);
+            PowerUpDef d = PowerUpRoster.Get(ch.powerUp);
+            return (d.displayName, d.blurb);
+        }
+
+        /// <summary>An ability fired: empty the meter (the ability itself runs in the director).</summary>
+        public void Consume() => Charge = 0f;
+
         /// <summary>The player's own cast currently running, or null. (Inflicted debuffs
         /// don't count — they're someone else's power-up.)</summary>
         public PowerUpDef OwnActiveDef

@@ -42,6 +42,8 @@ namespace Volleyball
         /// slowly by playing, fired with the power button for a short arcade-crazy effect.
         /// Not to be confused with the <see cref="power"/> strength stat above.</summary>
         public PowerUpType powerUp = PowerUpType.GoldenTouch;
+        /// <summary>Signature ability (see AbilityRoster). None = still on the legacy power-up.</summary>
+        public AbilityId ability = AbilityId.None;
 
         // ---- appearance (jersey colour stays per-team; these identify the animal) ----
         public Color fur;       // main fur/feather colour (head, limbs, tail)
@@ -83,7 +85,7 @@ namespace Volleyball
             // ---------------------------------------------------------------- protagonists
             new CharacterDef
             {
-                id = "fox", displayName = "Finn the Fox", powerUp = PowerUpType.GoldenTouch,
+                id = "fox", displayName = "Finn the Fox", powerUp = PowerUpType.GoldenTouch, ability = AbilityId.FoxTrick,
                 blurb = "Quick and clever — a sharp first touch and sharper instincts.",
                 height = 0.95f, speed = 1.15f, power = 0.95f, control = 1.10f, jump = 1.00f,
                 fur = new Color(0.87f, 0.45f, 0.15f),
@@ -92,7 +94,7 @@ namespace Volleyball
             },
             new CharacterDef
             {
-                id = "bear", displayName = "Bruno the Bear", powerUp = PowerUpType.ThunderSpike,
+                id = "bear", displayName = "Bruno the Bear", powerUp = PowerUpType.ThunderSpike, ability = AbilityId.BearSlam,
                 blurb = "Big paws, bigger spikes — owns the net, slow to the ball.",
                 height = 1.18f, speed = 0.85f, power = 1.25f, control = 0.90f, jump = 0.85f,
                 fur = new Color(0.45f, 0.30f, 0.18f),
@@ -104,7 +106,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "meerkat", displayName = "Pip the Meerkat", region = "savanna",
-                powerUp = PowerUpType.LongReach,
+                powerUp = PowerUpType.LongReach, ability = AbilityId.Burrow,
                 blurb = "The tiny lookout — digs everything, but the net is far away up there.",
                 height = 0.75f, speed = 1.20f, power = 0.75f, control = 1.10f, jump = 0.95f,
                 fur = new Color(0.80f, 0.68f, 0.48f),
@@ -116,7 +118,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "zebra", displayName = "Zuri the Zebra", region = "savanna",
-                powerUp = PowerUpType.WildfireSprint,
+                powerUp = PowerUpType.WildfireSprint, ability = AbilityId.Stampede,
                 blurb = "Born sprinter — covers the court in a blur of stripes.",
                 height = 1.05f, speed = 1.15f, power = 0.95f, control = 0.90f, jump = 1.00f,
                 fur = new Color(0.92f, 0.92f, 0.92f),
@@ -128,7 +130,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "warthog", displayName = "Waldo the Warthog", region = "savanna",
-                powerUp = PowerUpType.Sandstorm,
+                powerUp = PowerUpType.Sandstorm, ability = AbilityId.MudWallow,
                 blurb = "Charges straight through the ball — power first, aim later.",
                 height = 0.90f, speed = 0.95f, power = 1.15f, control = 0.85f, jump = 0.90f,
                 fur = new Color(0.55f, 0.45f, 0.38f),
@@ -139,7 +141,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "giraffe", displayName = "Gigi the Giraffe", region = "savanna",
-                powerUp = PowerUpType.LongReach,
+                powerUp = PowerUpType.LongReach, ability = AbilityId.TallOrder,
                 blurb = "Tallest animal on the tour — the net simply belongs to her.",
                 height = 1.30f, speed = 0.80f, power = 1.00f, control = 0.85f, jump = 0.80f,
                 fur = new Color(0.90f, 0.75f, 0.40f),
@@ -152,7 +154,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "lion", displayName = "Leo the Lion", region = "savanna",
-                powerUp = PowerUpType.ThunderSpike,
+                powerUp = PowerUpType.ThunderSpike, ability = AbilityId.Roar,
                 blurb = "King of the court — strong everywhere, weak nowhere.",
                 height = 1.10f, speed = 1.05f, power = 1.15f, control = 0.95f, jump = 1.00f,
                 fur = new Color(0.80f, 0.60f, 0.30f),
@@ -164,7 +166,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "rhino", displayName = "Rocco the Rhino", region = "savanna",
-                powerUp = PowerUpType.GiantGrowth,
+                powerUp = PowerUpType.GiantGrowth, ability = AbilityId.Charge,
                 blurb = "Two tonnes of forward momentum — hits like a truck, turns like one too.",
                 // height must stay 1.00: it's fixed by the hand-drawn art's 192x256 canvas.
                 // Everything else is free to tune.

@@ -127,29 +127,29 @@ namespace Volleyball
             if (!show) return;
 
             PowerUpState power = _viewer.Power;
-            PowerUpDef def = power.Def;
-            PowerUpDef active = power.OwnActiveDef;
+            bool active = power.IsRunning;
+            string name = power.DisplayName;
+            Color color = power.DisplayColor;
 
             // charging: the bar fills up; active: it drains down as the effect runs out
-            float frac = active != null ? power.OwnActiveRemaining01 : power.Charge;
+            float frac = active ? power.RunningRemaining01 : power.Charge;
             RectTransform rt = powerFill.rectTransform;
             rt.anchorMin = Vector2.zero;
             rt.anchorMax = new Vector2(Mathf.Clamp01(frac), 1f);
             rt.offsetMin = Vector2.zero;
             rt.offsetMax = Vector2.zero;
 
-            Color c = def.color;
-            if (active == null && power.IsFull)
-                c = Color.Lerp(def.color, Color.white, Mathf.PingPong(Time.time * 2.4f, 0.6f));
+            Color c = color;
+            if (!active && power.IsFull)
+                c = Color.Lerp(color, Color.white, Mathf.PingPong(Time.time * 2.4f, 0.6f));
             powerFill.color = c;
 
             if (powerLabel != null)
             {
                 string hint = _viewer is PlayerController pc ? pc.Input.PowerHintLabel : "";
-                powerLabel.text = active != null ? $"{def.displayName}!"
-                                : power.IsFull   ? (hint == "" ? $"{def.displayName} ready"
-                                                              : $"{def.displayName} ready — {hint}")
-                                                 : def.displayName;
+                powerLabel.text = active ? $"{name}!"
+                                : power.IsFull ? (hint == "" ? $"{name} ready" : $"{name} ready — {hint}")
+                                               : name;
             }
         }
     }

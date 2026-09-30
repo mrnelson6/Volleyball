@@ -20,6 +20,12 @@ namespace Volleyball
                  "stays instant.")]
         public float airControl = 2.5f;
 
+        [Header("Ability zones")]
+        [Tooltip("Run/dive speed multiplier while standing in an ability's mud (Mud Wallow).")]
+        public float mudMoveMult = 0.45f;
+        [Tooltip("Jump take-off multiplier in mud.")]
+        public float mudJumpMult = 0.7f;
+
         [Header("Body / world collision")]
         [Tooltip("Radius of the collision capsule the simulation sweeps against the world — how " +
                  "close a player can press to the net, a wall, or a prop.")]

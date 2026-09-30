@@ -248,7 +248,11 @@ namespace Volleyball
                                 || (predicted.diveTimer > 0f) != (serverState.diveTimer > 0f)
                                 // knockdowns are decided server-side only (BodyReferee): the
                                 // owner learns it was bowled over right here
-                                || (predicted.knockdownTimer > 0f) != (serverState.knockdownTimer > 0f);
+                                || (predicted.knockdownTimer > 0f) != (serverState.knockdownTimer > 0f)
+                                // so are ability states (a roar's stun, a charge, a burrow)
+                                || (predicted.stunTimer > 0f) != (serverState.stunTimer > 0f)
+                                || (predicted.dashTimer > 0f) != (serverState.dashTimer > 0f)
+                                || (predicted.hideTimer > 0f) != (serverState.hideTimer > 0f);
                 if (!mismatch) return; // prediction confirmed — the common case
                 LastCorrectionError = posErr;
             }

@@ -32,6 +32,13 @@ production stack.
   plain-MonoBehaviour game classes — `VolleyPlayer`/`MatchManager`/
   `BallController` are never NetworkBehaviours (keeps offline dormant and
   runtime controller swaps legal).
+- **Character abilities** (`Assets/Scripts/Abilities/`, one per animal, replacing the
+  legacy stat power-ups region by region — `CharacterDef.ability`, `None` = legacy): the
+  authority plans and does all gameplay (`Ability.Authority`); clients rebuild each ability
+  from its replicated `AbilityParams` (`AbilityDirector.Fired`/`Moment` → RPCs). Anything
+  the player sim reads must be tick-stamped state (`FieldZones` by `cmd.tick`) or sim state
+  (`stunTimer`/`dashTimer`/`hideTimer`, reconciled like knockdowns) — never live ability
+  objects. Everything ends at rally end (`AbilityDirector.EndAll`).
 - **Never `AddNetworkPrefab` at runtime.** `Assets/DefaultNetworkPrefabs.asset`
   (auto-generated, committed) already registers every prefab; adding again =
   duplicate-hash error.
@@ -52,7 +59,8 @@ Check no editor is running first (`Temp/UnityLockfile` absent).
   (`...PortraitBaker.BakeAll`) need a GPU — batch WITHOUT `-nographics`; PNGs are committed.
   `-vbshots <dir>` (+ `-vbshotarena <Scene>` / `-vbshotmenu`) on a player build = all-AI
   screenshot tour for eyeballing art changes (the tour disables the pre-match intro;
-  `-vbshotintro -vbshotcount 26` films it instead). `-vbshotpadnav` drives the main menu with a
+  `-vbshotintro -vbshotcount 26` films it instead; `-vbshotchars a,b,c,d` picks the four
+  animals, `-vbshotcharged` keeps every meter full so abilities fire constantly). `-vbshotpadnav` drives the main menu with a
   simulated gamepad and logs focus after each press (`PADNAV` lines in the player log).
 - Player builds: `...BuildKit.BuildWindows` / `.BuildWebGL` / `.BuildLinuxServer`
   → `Builds/`. Env var `VB_VERSION` stamps `PlayerSettings.bundleVersion`; the

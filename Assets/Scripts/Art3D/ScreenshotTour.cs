@@ -38,6 +38,9 @@ namespace Volleyball
             runner.knock = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-vbshotknock") >= 0;
             runner.human = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-vbshothuman") >= 0;
             runner.padNav = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-vbshotpadnav") >= 0;
+            runner.charged = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-vbshotcharged") >= 0;
+            string chars = Arg("-vbshotchars");
+            if (!string.IsNullOrEmpty(chars)) runner.chars = chars.Split(',');
             runner.intro = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-vbshotintro") >= 0;
             MatchIntro.Enabled = runner.intro; // the art tour films gameplay unless asked for the intro
             if (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-vbshotpad") >= 0)
@@ -61,6 +64,8 @@ namespace Volleyball
         public bool knock;
         public bool human; // keep the human slot human (aim marker, serve prompt) — nobody presses anything
         public bool padNav; // drive the main menu with a simulated gamepad (menu navigation check)
+        public bool charged; // keep every meter full, so the AI fires abilities constantly
+        public string[] chars; // the four animals (slot order), default fox bear penguin giraffe
         public bool intro;  // film the pre-match cinematic from its first frame (pair with -vbshotcount ~26)
 
         IEnumerator Start()
@@ -81,7 +86,9 @@ namespace Volleyball
             }
 
             // all four slots AI, so rallies play out with nobody at the keyboard
-            var cfg = MatchConfig.Solo("fox", "bear", "penguin", "giraffe");
+            var cfg = chars != null && chars.Length >= 4
+                ? MatchConfig.Solo(chars[0], chars[1], chars[2], chars[3])
+                : MatchConfig.Solo("fox", "bear", "penguin", "giraffe");
             for (int i = human ? 1 : 0; i < cfg.slots.Length; i++) cfg.slots[i].occupant = SlotOccupant.AI;
             MatchSetup.Current = cfg;
             SceneManager.LoadScene(arena);
@@ -99,6 +106,7 @@ namespace Volleyball
                 victim?.KnockDown(new Vector3(-1f, 0f, 0.3f));
             }
 
+            if (charged) StartCoroutine(KeepCharged());
             for (int i = 0; i < count; i++)
             {
                 string path = Path.Combine(outputDir, $"shot_{i:00}.png");
@@ -144,6 +152,16 @@ namespace Volleyball
                 yield return null;
             }
             yield return new WaitForSeconds(0.5f);
+        }
+
+        IEnumerator KeepCharged()
+        {
+            while (true)
+            {
+                foreach (var p in FindObjectsByType<VolleyPlayer>(FindObjectsSortMode.None))
+                    p.Power.AddCharge(1f);
+                yield return new WaitForSeconds(0.5f);
+            }
         }
 
         IEnumerator MenuTour()

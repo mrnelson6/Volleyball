@@ -113,7 +113,7 @@ namespace Volleyball
             }
             bool reacting = Time.time < _reactUntil;
 
-            Vector3 bp = ball.transform.position;
+            Vector3 bp = SeenBallPos;
             Vector3 landing = PredictLanding(out float tLand);
 
             bool teamInPossession = match != null && match.Possession == team;
@@ -172,7 +172,7 @@ namespace Volleyball
                 float gAir = -Physics.gravity.y;
                 float tLeft = Mathf.Max(VerticalVelocity / gAir, 0.1f); // to our apex (strike time)
                 Vector2 drift = PlanarVelocity * tLeft;
-                Vector3 ballThen = bp + ball.Body.linearVelocity * tLeft;
+                Vector3 ballThen = bp + SeenBallVel * tLeft;
                 Vector2 miss = new Vector2(ballThen.x - GroundPosition.x - drift.x,
                                            ballThen.z - GroundPosition.z - drift.y);
                 _desiredMove = miss.magnitude > 0.2f ? Vector2.ClampMagnitude(miss, 1f) : Vector2.zero;
@@ -192,7 +192,7 @@ namespace Volleyball
             float tApex = jumpSpeed / g;                          // time for us to reach our apex
             float apexHeight = jumpSpeed * jumpSpeed / (2f * g);  // how high our jump reaches
             float maxReach = apexHeight + hitReachHeight;         // highest we can contact at apex
-            Vector3 ballAtApex = bp + ball.Body.linearVelocity * tApex
+            Vector3 ballAtApex = bp + SeenBallVel * tApex
                                  + 0.5f * (Physics.gravity + CourtEnvironment.Active.wind)
                                         * (tApex * tApex);
             // Jumps carry momentum, so judge the jump from where it will CARRY us by our apex —
@@ -243,7 +243,12 @@ namespace Volleyball
             // A full power-up fires at its cue moment, so the effect lands where it matters:
             // offensive buffs as we move in to attack, defensive ones as the opponents build
             // their attack, the cyclone right before our own serve.
-            if (GameConfig.Instance.powerUpsEnabled && Power.IsFull)
+            if (GameConfig.Instance.powerUpsEnabled && Power.IsFull && Power.Ability != null)
+            {
+                _wantPower = AbilityCue(Power.Ability.id, rallyLive, pursue, teamInPossession,
+                                        landing, tLand, landsOnOurSide);
+            }
+            else if (GameConfig.Instance.powerUpsEnabled && Power.IsFull)
             {
                 bool fire;
                 switch (Power.Def.aiCue)
@@ -357,11 +362,60 @@ namespace Volleyball
             return best;
         }
 
+        /// <summary>
+        /// When to fire a signature ability — each one at the moment it actually swings a rally,
+        /// read from the same picture of the rally the rest of the AI uses.
+        /// </summary>
+        bool AbilityCue(AbilityId id, bool rallyLive, bool pursue, bool teamInPossession,
+                        Vector3 landing, float tLand, bool landsOnOurSide)
+        {
+            if (match == null) return false;
+            bool theyHaveIt = rallyLive && match.Possession == team.Other();
+            bool theyAttackNext = theyHaveIt && match.Touches >= 2;
+            float runDist = Vector2.Distance(new Vector2(GroundPosition.x, GroundPosition.z),
+                                             new Vector2(landing.x, landing.z));
+            switch (id)
+            {
+                case AbilityId.FoxTrick:   // right before our attack, or on our serve
+                    return (rallyLive && pursue && _attacking) || match.IsServePhaseFor(this);
+                case AbilityId.BearSlam:   // going up for a spike: land on their blockers
+                    return rallyLive && pursue && _attacking;
+                case AbilityId.Burrow:     // a ball dropping on our side, well out of reach
+                    return rallyLive && pursue && landsOnOurSide && tLand > 0.55f && tLand < 1.6f
+                           && runDist > reach + 1.5f;
+                case AbilityId.Charge:     // same, but a burst along the ground gets there
+                    return rallyLive && pursue && landsOnOurSide && tLand > 0.35f && tLand < 1.1f
+                           && runDist > moveSpeed * tLand * 0.8f;
+                case AbilityId.Stampede:   // they're playing it: flatten them mid-rally
+                case AbilityId.MudWallow:
+                    return theyHaveIt && CourtGeometry.SideOf(SeenBallPos) == team.Other();
+                case AbilityId.TallOrder:  // they're about to attack: raise the wall
+                case AbilityId.Roar:
+                    return theyAttackNext;
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// The ball as this AI perceives it. Normally just the ball — but while an opponent's Fox
+        /// Trick decoy is in the air and it fooled us, the decoy, until it's about to land and
+        /// the penny drops. Hits still test the REAL ball, so chasing the decoy costs us.
+        /// </summary>
+        Vector3 SeenBallPos => Decoyed(out DecoyBall d) ? d.Position : ball.transform.position;
+        Vector3 SeenBallVel => Decoyed(out DecoyBall d) ? d.Velocity : ball.Body.linearVelocity;
+
+        bool Decoyed(out DecoyBall d)
+        {
+            d = DecoyBall.Current;
+            return d != null && ball.LastTouchTeam == team.Other() && d.Fools(this) && d.TimeToLand > 0.3f;
+        }
+
         /// <summary>Horizontal point where the ball peaks (or where it lands if already falling).</summary>
         Vector3 ApexPoint()
         {
-            Vector3 p = ball.transform.position;
-            Vector3 v = ball.Body.linearVelocity;
+            Vector3 p = SeenBallPos;
+            Vector3 v = SeenBallVel;
             if (v.y > 0.1f)
             {
                 float tA = v.y / (-Physics.gravity.y);
@@ -376,8 +430,8 @@ namespace Volleyball
 
         Vector3 PredictLanding(out float t)
         {
-            Vector3 p = ball.transform.position;
-            Vector3 v = ball.Body.linearVelocity;
+            Vector3 p = SeenBallPos;
+            Vector3 v = SeenBallVel;
             float g = -Physics.gravity.y;
             const float targetY = 1f;
 

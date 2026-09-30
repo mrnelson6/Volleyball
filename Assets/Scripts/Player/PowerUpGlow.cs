@@ -24,11 +24,10 @@ namespace Volleyball
             if (_view == null || _player == null) return;
 
             PowerUpState power = _player.Power;
-            PowerUpDef active = power.OwnActiveDef;
-            if (active != null)
-                _view.SetGlow(active.color, 0.6f);
+            if (power.IsRunning)
+                _view.SetGlow(power.DisplayColor, 0.6f);
             else if (power.IsFull && GameConfig.Instance.powerUpsEnabled)
-                _view.SetGlow(power.Def.color, Mathf.PingPong(Time.time * 2.4f, 0.55f));
+                _view.SetGlow(power.DisplayColor, Mathf.PingPong(Time.time * 2.4f, 0.55f));
             else
                 _view.SetGlow(Color.white, 0f);
         }

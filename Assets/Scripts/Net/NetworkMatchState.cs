@@ -78,6 +78,8 @@ namespace Volleyball
 
         public override void OnNetworkDespawn()
         {
+            AbilityDirector.Fired -= RelayAbilityFired;
+            AbilityDirector.Moment -= RelayAbilityMoment;
             if (!IsServer || NetworkManager == null) return;
             ChatDirector.Relay = null;
             NetworkManager.OnClientConnectedCallback -= OnClientConnected;
@@ -256,6 +258,13 @@ namespace Volleyball
 
         void SubscribePowerEvents()
         {
+            // signature abilities: the server fired one / announced a moment of one — every
+            // client rebuilds it from the same params (see AbilityDirector.MirrorFire)
+            AbilityDirector.Fired -= RelayAbilityFired;
+            AbilityDirector.Fired += RelayAbilityFired;
+            AbilityDirector.Moment -= RelayAbilityMoment;
+            AbilityDirector.Moment += RelayAbilityMoment;
+
             foreach (var p in FindObjectsByType<VolleyPlayer>(FindObjectsSortMode.None))
             {
                 VolleyPlayer captured = p;
@@ -328,6 +337,19 @@ namespace Volleyball
         }
 
         void OnRallyEndedServer(TeamSide scorer, string reason) => RallyEndedRpc(scorer);
+
+        void RelayAbilityFired(VolleyPlayer p, AbilityId id, AbilityParams prm)
+        {
+            var no = p != null ? p.GetComponent<NetworkObject>() : null;
+            if (no != null) AbilityFiredRpc(no, (byte)id, prm);
+        }
+
+        void RelayAbilityMoment(VolleyPlayer p, int code, Vector3 at, Vector3 dir)
+        {
+            var no = p != null ? p.GetComponent<NetworkObject>() : null;
+            if (no != null) AbilityMomentRpc(no, code, at, dir);
+        }
+
 
         /// <summary>
         /// A callout the server accepted (from a human's command stream or an AI): tell every
@@ -414,6 +436,25 @@ namespace Volleyball
             foreach (var p in FindObjectsByType<VolleyPlayer>(FindObjectsSortMode.None))
                 p.Power.MirrorRallyEnd();
             PowerUpDirector.RevertAll();
+            AbilityDirector.EndAll();
+        }
+
+        [Rpc(SendTo.NotServer)]
+        void AbilityFiredRpc(NetworkObjectReference playerRef, byte id, AbilityParams prm)
+        {
+            if (!playerRef.TryGet(out NetworkObject no)) return;
+            var p = no.GetComponent<VolleyPlayer>();
+            if (p == null) return;
+            AbilityDirector.MirrorFire(p, (AbilityId)id, prm); // the banner rides the match snapshot
+            GameAudio.PlayPowerUp(p.transform.position);
+        }
+
+        [Rpc(SendTo.NotServer)]
+        void AbilityMomentRpc(NetworkObjectReference playerRef, int code, Vector3 at, Vector3 dir)
+        {
+            if (!playerRef.TryGet(out NetworkObject no)) return;
+            var p = no.GetComponent<VolleyPlayer>();
+            if (p != null) AbilityDirector.MirrorMoment(p, code, at, dir);
         }
 
         [Rpc(SendTo.NotServer)]

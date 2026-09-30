@@ -104,7 +104,7 @@ namespace Volleyball
 
             // A spike is struck from BEHIND the net, so it only earns the downward drive from
             // comfortably above the tape — a low contact driven down clips the net.
-            bool spikeFromHigh = type == HitType.Spike && start.y > CourtGeometry.NetHeight + 0.6f;
+            bool spikeFromHigh = type == HitType.Spike && start.y > CourtGeometry.NetTop + 0.6f;
 
             // A block is different, and used to be held to the spike's rule for no reason: its
             // contact has already been nudged PAST the net plane (see ExecuteBlockAuthoritative),
@@ -112,7 +112,7 @@ namespace Volleyball
             // away from it. Whether it earns the drive at all is the caller's call — that's the
             // difference between a stuff and a deflection.
             bool outward = CourtGeometry.SideSign(team.Other()) * (target.z - start.z) > 0f;
-            bool blockStuff = driveDown && start.y > CourtGeometry.NetHeight && outward;
+            bool blockStuff = driveDown && start.y > CourtGeometry.NetTop && outward;
 
             Vector3 velocity;
             if (spikeFromHigh || blockStuff)
@@ -123,7 +123,7 @@ namespace Volleyball
                 // puts real mass behind net contacts, so strong animals hit harder balls
                 // (and harder incoming balls are harder for the receiver to control).
                 Vector3 dir = (target - start).normalized;
-                float pace = Mathf.Clamp(16f + (start.y - CourtGeometry.NetHeight) * 4f, 16f, 28f);
+                float pace = Mathf.Clamp(16f + (start.y - CourtGeometry.NetTop) * 4f, 16f, 28f);
                 if (player != null) pace *= player.Character.power * player.Power.AttackPaceMult;
                 velocity = dir * pace;
             }

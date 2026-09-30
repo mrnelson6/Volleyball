@@ -47,6 +47,18 @@ namespace Volleyball
         public float knockdownTimer;
         public Vector2 knockDir;      // which way we were bowled over (unit XZ)
 
+        // ---- ability-driven states. Set authority-side (the ability that caused them);
+        //      predicting clients learn of them through reconciliation, like knockdowns. ----
+
+        /// <summary>Seconds left stunned (a roar): rooted, no jumping, diving or hitting.</summary>
+        public float stunTimer;
+        /// <summary>Seconds left on a forced dash (a charge): moving at <see cref="dashVel"/>
+        /// whatever the stick says; no jumping or diving.</summary>
+        public float dashTimer;
+        public Vector2 dashVel;
+        /// <summary>Seconds left out of sight underground (a burrow): hidden and rooted.</summary>
+        public float hideTimer;
+
         /// <summary>Rides in every server snapshot (and back through reconciliation).</summary>
         public void NetworkSerialize<T>(Unity.Netcode.BufferSerializer<T> serializer)
             where T : Unity.Netcode.IReaderWriter
@@ -66,6 +78,10 @@ namespace Volleyball
             serializer.SerializeValue(ref lastMoveDir);
             serializer.SerializeValue(ref knockdownTimer);
             serializer.SerializeValue(ref knockDir);
+            serializer.SerializeValue(ref stunTimer);
+            serializer.SerializeValue(ref dashTimer);
+            serializer.SerializeValue(ref dashVel);
+            serializer.SerializeValue(ref hideTimer);
         }
     }
 }

@@ -250,6 +250,7 @@ namespace Volleyball
             foreach (var p in players)
                 p?.Power.OnRallyEnd(Cfg.powerChargePerRally);
             PowerUpDirector.RevertAll();
+            AbilityDirector.EndAll();
             _powerBanner = null;
 
             if (scorer == TeamSide.A) ScoreA++;
@@ -702,7 +703,7 @@ namespace Volleyball
             float g = -Physics.gravity.y;
             float netFrac = Mathf.Clamp01(Mathf.Abs(start.z)
                                           / Mathf.Max(Mathf.Abs(target.z - start.z), 0.01f));
-            float clearance = CourtGeometry.NetHeight + 0.25f; // tape + ball radius margin
+            float clearance = CourtGeometry.NetTop + 0.25f; // tape + ball radius margin
 
             for (float t = 0.55f; t <= 1.4f; t += 0.05f)
             {
@@ -724,6 +725,7 @@ namespace Volleyball
             foreach (var p in players)
                 p?.Power.ResetForMatch();
             PowerUpDirector.RevertAll();
+            AbilityDirector.EndAll();
             BeginServe(TeamSide.A);
         }
 

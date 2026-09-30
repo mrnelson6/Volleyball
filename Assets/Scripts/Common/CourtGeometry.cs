@@ -13,6 +13,9 @@ namespace Volleyball
         public const float HalfDepth = 8f;   // Z extent of the court
         public const float NetZ = 0f;
         public const float NetHeight = 2.2f;
+        /// <summary>The tape's height RIGHT NOW: regulation plus any ability raising it
+        /// (Tall Order). Gameplay that asks "how high is the net" reads this.</summary>
+        public static float NetTop => NetHeight + NetDynamics.Extra;
 
         // The outer leash on where a player may walk — everything INSIDE it is decided by the
         // world's colliders, not by rules. Deliberately one box for everybody rather than a
