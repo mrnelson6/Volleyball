@@ -3,9 +3,29 @@
   <head>
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Unity Web Player | {{{ PRODUCT_NAME }}}</title>
+    <title>Animal Volleyball</title>
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
+    <!-- Installable as an app ("Add to Home Screen"): opens fullscreen, landscape, no browser bars.
+         use-credentials: the manifest must be fetched with the beta login, or it 401s. -->
+    <link rel="manifest" href="TemplateData/manifest.json" crossorigin="use-credentials">
+    <meta name="theme-color" content="#46b9eb">
+    <link rel="apple-touch-icon" href="TemplateData/apple-touch-icon.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Volleyball">
+    <style>
+      /* mobile fullscreen button + the iPhone "add to home screen" tip */
+      #vb-fs { position: fixed; top: 10px; right: 10px; z-index: 10; width: 42px; height: 42px; display: none;
+               border: none; border-radius: 10px; background: rgba(0,0,0,0.35); color: #fff; font-size: 24px;
+               line-height: 42px; padding: 0; touch-action: manipulation; }
+      #vb-a2hs { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 10; display: none;
+                 max-width: 92%; background: rgba(20,30,40,0.88); color: #fff; font: 15px/1.35 sans-serif;
+                 padding: 10px 40px 10px 14px; border-radius: 12px; }
+      #vb-a2hs button { position: absolute; top: 4px; right: 6px; background: none; border: none; color: #fff;
+                        font-size: 20px; padding: 4px 8px; }
+    </style>
 #if SHOW_DIAGNOSTICS
     <link rel="stylesheet" href="<<<TemplateData/diagnostics.css>>>">
     <script src="<<<TemplateData/diagnostics.js>>>"></script>
@@ -36,6 +56,9 @@
         <div id="unity-build-title">{{{ PRODUCT_NAME }}}</div>
       </div>
     </div>
+    <button id="vb-fs" aria-label="Fullscreen">&#x26F6;</button>
+    <div id="vb-a2hs">For fullscreen: tap <b>Share</b> then <b>Add to Home Screen</b>, and play from the new icon.
+      <button aria-label="Dismiss">&#x2715;</button></div>
     <script>
       var canvas = document.querySelector("#unity-canvas");
 
@@ -62,6 +85,60 @@
           }, 5000);
         }
         updateBannerVisibility();
+      }
+
+      // ---- Mobile fullscreen -------------------------------------------------------------
+      // Browsers only allow fullscreen from a tap, so: the first tap on the page goes
+      // fullscreen (and locks landscape where the browser allows it — Android), and a small
+      // button brings it back after you leave. iPhone Safari has no fullscreen for pages at
+      // all, so there we suggest "Add to Home Screen" once — the installed app opens with no
+      // browser bars (see the manifest / apple-mobile-web-app-capable tags above).
+      function isStandalone() {
+        return window.matchMedia('(display-mode: fullscreen)').matches ||
+               window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+      }
+      function fullscreenElement() { return document.fullscreenElement || document.webkitFullscreenElement; }
+      function canFullscreen() {
+        var el = document.documentElement;
+        return !!(el.requestFullscreen || el.webkitRequestFullscreen);
+      }
+      function goFullscreen() {
+        if (fullscreenElement() || isStandalone()) return;
+        var el = document.documentElement;
+        var req = el.requestFullscreen || el.webkitRequestFullscreen;
+        if (!req) return;
+        var lock = function () {
+          if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(function () {});
+        };
+        try {
+          var p = req.call(el, { navigationUI: 'hide' });
+          if (p && p.then) p.then(lock).catch(function () {}); else lock();
+        } catch (e) { }
+      }
+      function setupMobileFullscreen() {
+        if (isStandalone()) return; // already an installed app: nothing to do
+        var btn = document.getElementById('vb-fs');
+        if (canFullscreen()) {
+          var refresh = function () { btn.style.display = fullscreenElement() ? 'none' : 'block'; };
+          btn.addEventListener('click', goFullscreen);
+          document.addEventListener('fullscreenchange', refresh);
+          document.addEventListener('webkitfullscreenchange', refresh);
+          refresh();
+          // the first tap anywhere goes fullscreen by itself; after that it's the button's job
+          var first = function () { document.removeEventListener('pointerup', first, true); goFullscreen(); };
+          document.addEventListener('pointerup', first, true);
+        } else if (/iPhone|iPod/i.test(navigator.userAgent)) {
+          var tip = document.getElementById('vb-a2hs');
+          var seen = false;
+          try { seen = localStorage.getItem('vb.a2hsTip') === '1'; } catch (e) { }
+          if (!seen) {
+            tip.style.display = 'block';
+            tip.querySelector('button').addEventListener('click', function () {
+              tip.style.display = 'none';
+              try { localStorage.setItem('vb.a2hsTip', '1'); } catch (e) { }
+            });
+          }
+        }
       }
 
       var buildUrl = "Build";
@@ -113,10 +190,11 @@
 
         var meta = document.createElement('meta');
         meta.name = 'viewport';
-        meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
+        meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes, viewport-fit=cover';
         document.getElementsByTagName('head')[0].appendChild(meta);
         document.querySelector("#unity-container").className = "unity-mobile";
         canvas.className = "unity-mobile";
+        setupMobileFullscreen();
 
         // To lower canvas resolution on mobile devices to gain some
         // performance, uncomment the following line:

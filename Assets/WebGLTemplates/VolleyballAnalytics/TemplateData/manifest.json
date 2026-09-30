@@ -1,0 +1,15 @@
+{
+  "name": "Animal Volleyball",
+  "short_name": "Volleyball",
+  "description": "Beach volleyball with animals - play in your browser.",
+  "start_url": "../",
+  "scope": "../",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#46b9eb",
+  "theme_color": "#46b9eb",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
