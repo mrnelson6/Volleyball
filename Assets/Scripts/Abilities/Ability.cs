@@ -56,6 +56,47 @@ namespace Volleyball
         /// clients play its effect. Also called on the authority itself.</summary>
         public virtual void OnMoment(int code, Vector3 at, Vector3 dir) { }
 
+        /// <summary>Moment code that ends the ability everywhere (see <see cref="Finish"/>).</summary>
+        internal const int EndMoment = -1;
+
+        /// <summary>AUTHORITY: end now, on every machine (clients learn through a moment).</summary>
+        protected void Finish()
+        {
+            if (Done) return;
+            if (Authority) Announce(EndMoment, Vector3.zero);
+            Done = true;
+        }
+
+        /// <summary>Route a moment: the end code finishes the ability, anything else is the ability's.</summary>
+        internal void HandleMoment(int code, Vector3 at, Vector3 dir)
+        {
+            if (code == EndMoment) Done = true;
+            else OnMoment(code, at, dir);
+        }
+
+        /// <summary>Is the ball in free flight (not held, frozen or carried)?</summary>
+        protected bool BallInFlight => Ball != null && !Ball.Body.isKinematic;
+
+        /// <summary>A stable key for zones this ability owns.</summary>
+        protected int ZoneKey => P.seed;
+
+        /// <summary>My teammates (not me).</summary>
+        protected System.Collections.Generic.IEnumerable<VolleyPlayer> Teammates()
+        {
+            if (Match == null) yield break;
+            foreach (var p in Match.players)
+                if (p != null && p != Owner && p.team == Owner.team) yield return p;
+        }
+
+        /// <summary>Is any player within <paramref name="clearance"/> of this ground point?</summary>
+        protected bool NearAnyPlayer(Vector3 at, float clearance)
+        {
+            if (Match == null) return false;
+            foreach (var p in Match.players)
+                if (p != null && (p.GroundPosition - new Vector3(at.x, 0f, at.z)).magnitude < clearance) return true;
+            return false;
+        }
+
         /// <summary>Remaining fraction for the HUD bar (1 → 0).</summary>
         public virtual float Remaining01 => Mathf.Clamp01(1f - Elapsed / Mathf.Max(Def.duration, 0.01f));
 
@@ -93,7 +134,7 @@ namespace Volleyball
             if (Ball == null) return Vector3.zero;
             Vector3 p = Ball.transform.position;
             Vector3 v = Ball.Body.isKinematic ? Vector3.zero : Ball.Body.linearVelocity;
-            float g = Mathf.Max(0.1f, -Physics.gravity.y);
+            float g = Mathf.Max(0.1f, -Ball.EffectiveGravity.y);
             float disc = v.y * v.y + 2f * g * Mathf.Max(p.y - 0.3f, 0f);
             t = (v.y + Mathf.Sqrt(Mathf.Max(disc, 0f))) / g;
             return new Vector3(p.x + v.x * t, 0f, p.z + v.z * t);

@@ -24,6 +24,9 @@ namespace Volleyball
         /// <summary>0 = clean spin, &gt;0 = wobbly/chaotic spin (a shanked bump).</summary>
         public float SpinWobble { get; private set; }
 
+        /// <summary>Raised when an Oasis splashes the ball back up instead of it landing.</summary>
+        public System.Action<Vector3> Splashed;
+
         /// <summary>Raised when the ball touches the ground: (point, impactVelocity).</summary>
         public System.Action<Vector3, Vector3> OnGroundHit;
 
@@ -35,6 +38,55 @@ namespace Volleyball
         public System.Action OnHeldTransition;
 
         public Rigidbody Body => _rb;
+
+        // ---- ability modifiers (AUTHORITY: the ball only simulates there; clients mirror it) ----
+
+        /// <summary>Ball-only slow motion (Slow-Mo): 1 = normal. The arc keeps its shape — speed
+        /// scales by this and gravity by its square — so aim and landing spots are unchanged.</summary>
+        public float TimeScale { get; private set; } = 1f;
+        /// <summary>The gravity this ball actually falls under right now (predictors use this).</summary>
+        public Vector3 EffectiveGravity => Physics.gravity * (TimeScale * TimeScale);
+        /// <summary>Extra acceleration for the current flight (a late swerve); cleared on every launch.</summary>
+        public Vector3 ExtraAccel { get; set; }
+        /// <summary>Frozen in mid-air (Balance) or carried (Sticky Paws) — kinematic, but not held for a serve.</summary>
+        public bool IsSuspended => _freezeLeft > 0f || _carried;
+
+        float _freezeLeft;
+        Vector3 _frozenVel;
+        bool _carried;
+
+        public void SetTimeScale(float scale)
+        {
+            scale = Mathf.Clamp(scale, 0.05f, 1f);
+            if (_rb != null && !_rb.isKinematic) _rb.linearVelocity *= scale / TimeScale;
+            if (_freezeLeft > 0f) _frozenVel *= scale / TimeScale;
+            TimeScale = scale;
+        }
+
+        /// <summary>Stop the ball dead in the air for <paramref name="seconds"/>, then let it carry on
+        /// exactly as it was going. Any contact cancels the freeze (it relaunches).</summary>
+        public void Freeze(float seconds)
+        {
+            if (_rb.isKinematic) return;
+            _frozenVel = _rb.linearVelocity;
+            _rb.linearVelocity = Vector3.zero;
+            _rb.isKinematic = true;
+            _freezeLeft = seconds;
+        }
+
+        /// <summary>Hold the ball in someone's paws (Sticky Paws) — kinematic, placed each tick.
+        /// Ended by the next launch (the throw).</summary>
+        public void Carry(Vector3 pos)
+        {
+            if (!_rb.isKinematic)
+            {
+                _rb.linearVelocity = Vector3.zero;
+                _rb.isKinematic = true;
+            }
+            _carried = true;
+            _freezeLeft = 0f;
+            transform.position = pos;
+        }
         public bool CanBeHit => Time.time >= _hitLockUntil;
 
         /// <summary>Prevent any contact with the ball for a while (e.g. just after a serve).</summary>
@@ -64,14 +116,51 @@ namespace Volleyball
         {
             // regional wind (constant + gusts) pushes the ball while it's in free flight,
             // plus any power-up wind (Cyclone) — which the AI deliberately doesn't predict
+            if (_freezeLeft > 0f)
+            {
+                _freezeLeft -= Time.fixedDeltaTime;
+                if (_freezeLeft <= 0f)
+                {
+                    _rb.isKinematic = false;
+                    _rb.linearVelocity = _frozenVel;
+                }
+                return;
+            }
             if (_rb.isKinematic) return;
-            Vector3 wind = CourtEnvironment.WindNow(Time.time) + PowerUpDirector.ExtraWind;
+
+            float ts2 = TimeScale * TimeScale;
+            Vector3 wind = (CourtEnvironment.WindNow(Time.time) + PowerUpDirector.ExtraWind) * ts2;
             if (wind != Vector3.zero) _rb.AddForce(wind, ForceMode.Acceleration);
+            if (ts2 < 1f) _rb.AddForce(Physics.gravity * (ts2 - 1f), ForceMode.Acceleration); // slow-mo fall
+            if (ExtraAccel != Vector3.zero) _rb.AddForce(ExtraAccel * ts2, ForceMode.Acceleration);
+
+            Vector3 p = transform.position;
+            // Hot Spring: a ball drifting down over the steam slows and floats a little
+            if (_rb.linearVelocity.y < 0f && FieldZones.Any(ZoneKind.HotSpring, p, out _))
+            {
+                Vector3 v = _rb.linearVelocity;
+                v.y = Mathf.Max(v.y, -5f);
+                v.x *= Mathf.Exp(-1.2f * Time.fixedDeltaTime);
+                v.z *= Mathf.Exp(-1.2f * Time.fixedDeltaTime);
+                _rb.linearVelocity = v;
+            }
+            // Sandstorm Devil: a low ball caught in the whirlwind is spun round it and lifted
+            if (p.y < 4.5f && FieldZones.Any(ZoneKind.Whirl, p, out FieldZone whirl))
+            {
+                Vector2 c = whirl.CenterAt(FieldZones.CurrentTick);
+                Vector2 rel = new Vector2(p.x - c.x, p.z - c.y);
+                Vector2 n = rel.sqrMagnitude > 1e-4f ? rel.normalized : Vector2.right;
+                Vector3 swirl = new Vector3(-n.y, 0f, n.x) * 16f + Vector3.up * 5f;
+                _rb.AddForce(swirl, ForceMode.Acceleration);
+            }
         }
 
         /// <summary>Freeze the ball at a position (used while waiting to serve).</summary>
         public void Hold(Vector3 pos)
         {
+            _freezeLeft = 0f;
+            _carried = false;
+            ExtraAccel = Vector3.zero;
             if (!_rb.isKinematic)
             {
                 _rb.linearVelocity = Vector3.zero;
@@ -98,6 +187,9 @@ namespace Volleyball
                              HitType type, float flightTime = 0f, bool driveDown = false)
         {
             _rb.isKinematic = false;
+            _freezeLeft = 0f;
+            _carried = false;
+            ExtraAccel = Vector3.zero;
 
             Vector3 start = transform.position;
             float g = -Physics.gravity.y;
@@ -152,7 +244,7 @@ namespace Volleyball
                 velocity = new Vector3(horizontal.x, vy, horizontal.z);
             }
 
-            _rb.linearVelocity = velocity;
+            _rb.linearVelocity = velocity * TimeScale; // slow-mo: same arc, slower
             _rb.angularVelocity = Vector3.zero;
 
             // visual spin by contact type (rolled by the sprite, in the travel direction)
@@ -208,6 +300,16 @@ namespace Volleyball
         {
             if (c.gameObject.GetComponent<GroundMarker>() != null)
             {
+                // Oasis: a ball landing in the pool splashes back up — the point is not over
+                if (FieldZones.Any(ZoneKind.Oasis, transform.position, out _))
+                {
+                    Vector3 v = _rb.linearVelocity;
+                    _rb.linearVelocity = new Vector3(v.x * 0.25f, 7.5f, v.z * 0.25f);
+                    GameAudio.PlayNet(transform.position);
+                    Splashed?.Invoke(transform.position);
+                    VBLog.Event($"OASIS SPLASH at {VBLog.V(transform.position)}");
+                    return;
+                }
                 SandMarks.BallImpact(transform.position, c.relativeVelocity.magnitude);
                 // the single landing log is emitted by MatchManager (it also resolves in/out)
                 OnGroundHit?.Invoke(transform.position, c.relativeVelocity);

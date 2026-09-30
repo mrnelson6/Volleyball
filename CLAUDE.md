@@ -37,8 +37,13 @@ production stack.
   authority plans and does all gameplay (`Ability.Authority`); clients rebuild each ability
   from its replicated `AbilityParams` (`AbilityDirector.Fired`/`Moment` → RPCs). Anything
   the player sim reads must be tick-stamped state (`FieldZones` by `cmd.tick`) or sim state
-  (`stunTimer`/`dashTimer`/`hideTimer`, reconciled like knockdowns) — never live ability
-  objects. Everything ends at rally end (`AbilityDirector.EndAll`).
+  (`stunTimer`/`dashTimer`/`perchTimer`/`blinkCharges`…, reconciled like knockdowns) —
+  never live ability objects. Solid props (cubes, ledge, iceberg) are plain static colliders
+  on every machine; a moving one must sit on the Ignore Raycast layer (players' sweeps skip
+  it). Anything a CLIENT shows that depends on ball velocity must come from an authority
+  moment (client balls are velocity-less shells). Everything ends at rally end
+  (`AbilityDirector.EndAll`). All 36 animals have abilities; the legacy PowerUpDef system
+  is still in code but unused by the roster.
 - **Never `AddNetworkPrefab` at runtime.** `Assets/DefaultNetworkPrefabs.asset`
   (auto-generated, committed) already registers every prefab; adding again =
   duplicate-hash error.

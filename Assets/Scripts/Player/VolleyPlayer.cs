@@ -69,6 +69,7 @@ namespace Volleyball
         public float blockBallBand => Cfg.blockBallBand;
 
         protected PlayerSimState _sim;
+        int _lastTick; // the tick being simulated (zones are asked by tick)
 
         // The rendered view lags the simulation by up to one tick: Update lerps the transform
         // between the last two simulated positions so 50Hz stepping never shows as judder.
@@ -187,6 +188,99 @@ namespace Volleyball
             _sim.hideTimer = hideSeconds;
             SettleOnGround();
             _prevViewPos = _currViewPos = _sim.position;
+        }
+
+        /// <summary>Perched on the net tape (Net Walker).</summary>
+        public bool IsPerched => _sim.perchTimer > 0f;
+        /// <summary>Blink Hop charges left.</summary>
+        public int BlinkCharges => _sim.blinkTimer > 0f ? _sim.blinkCharges : 0;
+        /// <summary>A mid-air second jump is available right now.</summary>
+        public bool CanDoubleJump => _sim.doubleJumpTimer > 0f && !_sim.airJumpUsed && !IsGrounded;
+        /// <summary>Able to glide (hold jump in the air).</summary>
+        public bool CanGlide => _sim.glideTimer > 0f;
+        /// <summary>Big Stride running.</summary>
+        public bool IsStriding => _sim.strideTimer > 0f;
+
+        // ---- ability states, AUTHORITY-SIDE ONLY (they reach clients through the sim state) ----
+        public void StartStride(float seconds) => _sim.strideTimer = seconds;
+        public void GiveBlinks(int charges, float seconds)
+        {
+            _sim.blinkCharges = charges;
+            _sim.blinkTimer = seconds;
+        }
+        public void StartDoubleJump(float seconds)
+        {
+            _sim.doubleJumpTimer = seconds;
+            _sim.airJumpUsed = false;
+        }
+        public void StartGlide(float seconds) => _sim.glideTimer = seconds;
+
+        /// <summary>Hop up onto the net tape and prowl along it for <paramref name="seconds"/>.</summary>
+        public void StartPerch(float seconds)
+        {
+            _sim.perchTimer = seconds;
+            _sim.position = new Vector3(
+                Mathf.Clamp(_sim.position.x, -CourtGeometry.HalfWidth, CourtGeometry.HalfWidth),
+                CourtGeometry.NetTop + 0.02f, CourtGeometry.SideSign(team) * CourtGeometry.NetStandoff);
+            _sim.vertVel = 0f;
+            _sim.planarVel = Vector2.zero;
+            _sim.diveTimer = 0f;
+            _sim.diveRecover = 0f;
+            _prevViewPos = _currViewPos = _sim.position;
+        }
+
+        /// <summary>Leap to <paramref name="target"/> (XZ) in a ballistic arc taking
+        /// <paramref name="airTime"/> seconds (a pounce): a forced dash plus a matching jump.</summary>
+        public void Leap(Vector3 target, float airTime)
+        {
+            airTime = Mathf.Max(airTime, 0.2f);
+            Vector2 d = new Vector2(target.x - _sim.position.x, target.z - _sim.position.z);
+            _sim.dashVel = d / airTime;
+            _sim.dashTimer = airTime;
+            _sim.vertVel = -Physics.gravity.y * airTime * 0.5f;
+            _sim.diveTimer = 0f;
+            _sim.diveRecover = 0f;
+        }
+
+        /// <summary>Stand on top of something <paramref name="height"/> tall at <paramref name="at"/>
+        /// (a ledge that just rose under us). AUTHORITY-SIDE ONLY.</summary>
+        public void LiftTo(Vector3 at, float height)
+        {
+            _sim.position = new Vector3(at.x, height, at.z);
+            _sim.groundY = height;
+            _sim.vertVel = 0f;
+            _sim.planarVel = Vector2.zero;
+            _prevViewPos = _currViewPos = _sim.position;
+        }
+
+        void TickAbilityTimers(float dt)
+        {
+            if (_sim.strideTimer > 0f) _sim.strideTimer = Mathf.Max(0f, _sim.strideTimer - dt);
+            if (_sim.trapImmune > 0f) _sim.trapImmune = Mathf.Max(0f, _sim.trapImmune - dt);
+            if (_sim.doubleJumpTimer > 0f) _sim.doubleJumpTimer = Mathf.Max(0f, _sim.doubleJumpTimer - dt);
+            if (_sim.glideTimer > 0f) _sim.glideTimer = Mathf.Max(0f, _sim.glideTimer - dt);
+            if (_sim.blinkTimer > 0f)
+            {
+                _sim.blinkTimer = Mathf.Max(0f, _sim.blinkTimer - dt);
+                if (_sim.blinkTimer <= 0f) _sim.blinkCharges = 0;
+            }
+        }
+
+        /// <summary>Spend a Blink Hop charge: an instant hop along the stick (or the last run
+        /// direction), stopped by walls and the net like any other movement.</summary>
+        void Blink(Vector2 steer)
+        {
+            Vector2 dir = steer.sqrMagnitude > 0.01f ? steer.normalized
+                        : _sim.lastMoveDir.sqrMagnitude > 0.01f ? _sim.lastMoveDir.normalized
+                        : new Vector2(0f, CourtGeometry.SideSign(team.Other()));
+            Vector3 from = _sim.position;
+            Vector3 to = from + new Vector3(dir.x, 0f, dir.y) * 3.2f;
+            to.x = Mathf.Clamp(to.x, -CourtGeometry.RoamHalfWidth, CourtGeometry.RoamHalfWidth);
+            to.z = Mathf.Clamp(to.z, -CourtGeometry.RoamHalfDepth, CourtGeometry.RoamHalfDepth);
+            to = WorldCollision.SlideHorizontal(from, to, bodyRadius, bodyHeight, IsGrounded ? Cfg.stepHeight : 0f);
+            to = CourtGeometry.BlockNetCrossing(from, to);
+            _sim.position = to;
+            _sim.blinkCharges--;
         }
 
         /// <summary>Where other players' simulations see this body. Online proxies report the
@@ -369,6 +463,14 @@ namespace Volleyball
             _sim.stunTimer = 0f;
             _sim.dashTimer = 0f;
             _sim.hideTimer = 0f;
+            _sim.strideTimer = 0f;
+            _sim.blinkTimer = 0f;
+            _sim.blinkCharges = 0;
+            _sim.trapImmune = 0f;
+            _sim.doubleJumpTimer = 0f;
+            _sim.airJumpUsed = false;
+            _sim.perchTimer = 0f;
+            _sim.glideTimer = 0f;
             _prevViewPos = _currViewPos = _sim.position;
         }
 
@@ -424,6 +526,7 @@ namespace Volleyball
 
             _sim.hitCooldown -= dt;
             if (live) Power.Tick(dt); // real-time effects must never re-tick during replay
+            int blinksReady = BlinkCharges; // the press that FIRES Blink Hop must not also spend a hop
             if (authority && cmd.power) TryActivatePower(cmd.tick);
 
             // Callouts ride the command stream like power-ups: authority-only, so a predicting
@@ -441,14 +544,29 @@ namespace Volleyball
             if (_sim.hideTimer > 0f) _sim.hideTimer = Mathf.Max(0f, _sim.hideTimer - dt);
             bool dashing = _sim.dashTimer > 0f;
             if (dashing) _sim.dashTimer = Mathf.Max(0f, _sim.dashTimer - dt);
+            bool perched = _sim.perchTimer > 0f;
+            if (perched) _sim.perchTimer = Mathf.Max(0f, _sim.perchTimer - dt);
+            TickAbilityTimers(dt);
             bool knockedDown = IsKnockedDown;
-            // stunned or underground: rooted to the spot, no jumping, diving or hitting
-            bool rooted = _sim.stunTimer > 0f || _sim.hideTimer > 0f;
 
             // ground-changing abilities (mud...) under our feet this tick — an explicit,
             // tick-stamped input like the bodies, so replays agree with the server
-            ZoneEffect zone = FieldZones.Sample(_sim.position, cmd.tick);
-            float runSpeed = moveSpeed * zone.moveMult;
+            _lastTick = cmd.tick;
+            if (role != SimRole.Replay) FieldZones.CurrentTick = cmd.tick;
+            ZoneEffect zone = perched ? ZoneEffect.None : FieldZones.Sample(_sim.position, cmd.tick, team);
+            if (zone.trap && IsGrounded && _sim.trapImmune <= 0f && _sim.hideTimer <= 0f)
+            {
+                // fell in a hole: stuck for a moment, then immune long enough to climb out
+                _sim.stunTimer = Mathf.Max(_sim.stunTimer, 1.0f);
+                _sim.trapImmune = 2.5f;
+            }
+            // stunned or underground: rooted to the spot, no jumping, diving or hitting
+            bool rooted = _sim.stunTimer > 0f || _sim.hideTimer > 0f;
+            float runSpeed = moveSpeed * zone.moveMult * (_sim.strideTimer > 0f ? 1.2f : 1f);
+
+            // Blink Hop: the power button spends a charge on an instant short hop
+            if (cmd.power && blinksReady > 0 && _sim.blinkCharges > 0 && !rooted && !knockedDown && !dashing && !perched)
+                Blink(cmd.moveWorld);
 
             // --- horizontal movement (clamped to the court, blocked by the net itself) ---
             Vector2 mv = cmd.moveWorld;
@@ -461,6 +579,13 @@ namespace Volleyball
                 float slide = Cfg.knockdownSlideSpeed * Mathf.Clamp01(1f - elapsed / 0.25f);
                 pos.x += _sim.knockDir.x * slide * dt;
                 pos.z += _sim.knockDir.y * slide * dt;
+            }
+            else if (perched)
+            {
+                // prowling the net tape: sideways only, pinned to the top of the net
+                pos.x += mv.x * runSpeed * 0.85f * dt;
+                pos.x = Mathf.Clamp(pos.x, -CourtGeometry.HalfWidth - 0.3f, CourtGeometry.HalfWidth + 0.3f);
+                pos.z = CourtGeometry.SideSign(team) * CourtGeometry.NetStandoff;
             }
             else if (dashing)
             {
@@ -483,19 +608,29 @@ namespace Volleyball
                 // Ground: instant, full control. Air: momentum — keep the take-off velocity and
                 // let the stick bend it only a little (a running jump flies on in that direction).
                 // A released stick in the air keeps the momentum (it is not a brake).
+                // Ice (zone traction) makes the ground behave like the air: speed changes slowly.
                 Vector2 want = mv * runSpeed;
-                Vector2 v = IsGrounded ? want
+                float airCtl = Cfg.airControl * (_sim.glideTimer > 0f ? 2.5f : 1f);
+                Vector2 v = IsGrounded
+                          ? (zone.traction > 0f ? Vector2.MoveTowards(_sim.planarVel, want, zone.traction * dt) : want)
                           : mv.sqrMagnitude < 0.01f ? _sim.planarVel
-                          : Vector2.MoveTowards(_sim.planarVel, want, Cfg.airControl * dt);
+                          : Vector2.MoveTowards(_sim.planarVel, want, airCtl * dt);
                 pos.x += v.x * dt;
                 pos.z += v.y * dt;
             }
             // (while recovering: face down in the sand — no movement)
 
+            // a whirlwind shoves whoever it catches, whatever they are doing
+            if (!perched && _sim.hideTimer <= 0f)
+            {
+                pos.x += zone.push.x * dt;
+                pos.z += zone.push.y * dt;
+            }
+
             // Other players are soft obstacles: you can't walk through them, only shove slowly,
             // and walking head-on slips you round the side. A diver ploughs on regardless — the
             // BodyReferee knocks whoever they hit down instead.
-            if (_sim.diveTimer <= 0f && !dashing && _sim.hideTimer <= 0f)
+            if (_sim.diveTimer <= 0f && !dashing && _sim.hideTimer <= 0f && !perched)
                 pos = ResolveBodies(_sim.position, pos, knockedDown ? Vector2.zero : mv, in bodies, dt);
 
             // One roam box for everyone: both halves and the deep zones behind both baselines
@@ -527,27 +662,57 @@ namespace Volleyball
             }
 
             // --- diving: a grounded lunge toward the steer direction (or the ball) ---
-            if (cmd.dive && IsGrounded && !IsDiving && !knockedDown && !rooted && !dashing && !servePhase)
+            if (cmd.dive && IsGrounded && !IsDiving && !knockedDown && !rooted && !dashing && !perched && !servePhase)
                 StartDive(mv, live);
 
             // --- jump + gravity (you can't jump out of a dive) ---
-            if (cmd.jump && IsGrounded && !IsDiving && !knockedDown && !rooted && !dashing)
+            bool tookOff = false;
+            if (cmd.jump && IsGrounded && !IsDiving && !knockedDown && !rooted && !dashing && !perched && !zone.noJump)
+            {
                 _sim.vertVel = jumpSpeed * zone.jumpMult;
-            _sim.vertVel += Physics.gravity.y * dt;
-            pos.y = _sim.position.y + _sim.vertVel * dt;
+                tookOff = true;
+            }
+            else if (cmd.jump && !IsGrounded && _sim.doubleJumpTimer > 0f && !_sim.airJumpUsed
+                     && !knockedDown && !rooted && !dashing && !perched)
+            {
+                _sim.vertVel = jumpSpeed * 0.9f; // Double Jump: a second take-off in mid-air
+                _sim.airJumpUsed = true;
+            }
+
+            if (perched)
+            {
+                // standing on the tape: no gravity, and never "grounded" (groundY stays the sand),
+                // so contacts up here are air contacts: spikes and blocks
+                _sim.vertVel = 0f;
+                pos.y = CourtGeometry.NetTop + 0.02f;
+            }
+            else
+            {
+                _sim.vertVel += Physics.gravity.y * dt;
+                // Glide: holding jump on the way down floats you
+                if (_sim.glideTimer > 0f && cmd.jumpHeld && _sim.vertVel < -1.1f) _sim.vertVel = -1.1f;
+                pos.y = _sim.position.y + _sim.vertVel * dt;
+            }
 
             // Land on whatever is under the NEW footprint — sand, a bleacher tread, a crate —
             // rather than an assumed floor at zero. Only settle while falling: on the way up,
             // a ledge we're passing over must not swallow the jump. The same snap carries a
             // walker up onto a step, since SlideHorizontal already let them over its lip.
-            float support = WorldCollision.GroundHeightAt(pos, bodyRadius);
-            if (_sim.vertVel <= 0f && pos.y <= support) { pos.y = support; _sim.vertVel = 0f; }
+            float support = perched ? 0f : WorldCollision.GroundHeightAt(pos, bodyRadius);
+            if (!perched && _sim.vertVel <= 0f && pos.y <= support)
+            {
+                pos.y = support;
+                _sim.vertVel = 0f;
+                _sim.airJumpUsed = false; // landed: the double jump is back
+            }
             _sim.groundY = support;
 
             // What we really moved this tick (after bodies, walls, the net) becomes the momentum
             // carried into the air — hit a wall mid-jump and that component is gone.
             _sim.planarVel = dt > 0f ? new Vector2(pos.x - _sim.position.x, pos.z - _sim.position.z) / dt
                                      : Vector2.zero;
+            // Big Stride: a jump leaves the ground as a huge bound, carrying far more than running speed
+            if (tookOff && _sim.strideTimer > 0f) _sim.planarVel *= 2.2f;
 
             _prevViewPos = _currViewPos;
             _sim.position = pos;
@@ -911,7 +1076,9 @@ namespace Volleyball
             // The character's stats shape the final spray: height tightens net work
             // (spike/block), control tightens everything else (bump/set/serve/dive).
             // Live power-ups multiply on top: own accuracy buffs and inflicted debuffs.
-            return Mathf.Min(error * ContactSkill * Character.ErrorMult(type) * Power.ErrorMult,
+            // standing in a hot spring (Hot Spring): calm, near-perfect touches
+            float zoneErr = FieldZones.Sample(_sim.position, _lastTick, team).errorMult;
+            return Mathf.Min(error * ContactSkill * Character.ErrorMult(type) * Power.ErrorMult * zoneErr,
                              cfg.maxContactError);
         }
 
@@ -976,6 +1143,14 @@ namespace Volleyball
         {
             if (ball == null) return false;
             Vector3 bp = ball.transform.position;
+
+            // perched on the net (Net Walker): any ball near the tape, on either side
+            if (IsPerched)
+            {
+                if (Mathf.Abs(bp.z) > 1.6f || bp.y < _sim.position.y - 1.2f || bp.y > _sim.position.y + hitReachHeight)
+                    return false;
+                return Mathf.Abs(bp.x - _sim.position.x) <= reach;
+            }
 
             // never reach across the net
             if (CourtGeometry.SideOf(bp) != team) return false;

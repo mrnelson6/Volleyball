@@ -58,6 +58,20 @@ namespace Volleyball
         public Vector2 dashVel;
         /// <summary>Seconds left out of sight underground (a burrow): hidden and rooted.</summary>
         public float hideTimer;
+        /// <summary>Seconds left of long bounds (Big Stride): faster runs, jumps carry far.</summary>
+        public float strideTimer;
+        /// <summary>Seconds left to use blink charges (Blink Hop), and how many remain.</summary>
+        public float blinkTimer;
+        public int blinkCharges;
+        /// <summary>Immunity after falling in a hole, so one hole traps you once.</summary>
+        public float trapImmune;
+        /// <summary>Seconds left of a mid-air second jump (Double Jump); spent until landing.</summary>
+        public float doubleJumpTimer;
+        public bool airJumpUsed;
+        /// <summary>Seconds left perched on the net tape (Net Walker).</summary>
+        public float perchTimer;
+        /// <summary>Seconds left able to glide by holding jump (Glide).</summary>
+        public float glideTimer;
 
         /// <summary>Rides in every server snapshot (and back through reconciliation).</summary>
         public void NetworkSerialize<T>(Unity.Netcode.BufferSerializer<T> serializer)
@@ -82,6 +96,14 @@ namespace Volleyball
             serializer.SerializeValue(ref dashTimer);
             serializer.SerializeValue(ref dashVel);
             serializer.SerializeValue(ref hideTimer);
+            serializer.SerializeValue(ref strideTimer);
+            serializer.SerializeValue(ref blinkTimer);
+            serializer.SerializeValue(ref blinkCharges);
+            serializer.SerializeValue(ref trapImmune);
+            serializer.SerializeValue(ref doubleJumpTimer);
+            serializer.SerializeValue(ref airJumpUsed);
+            serializer.SerializeValue(ref perchTimer);
+            serializer.SerializeValue(ref glideTimer);
         }
     }
 }

@@ -39,6 +39,7 @@ namespace Volleyball
         public Vector2 moveWorld;
 
         public bool jump;        // pressed this tick
+        public bool jumpHeld;    // held this tick (gliding)
         public bool dive;        // pressed this tick
         public bool power;       // pressed this tick
 
@@ -69,6 +70,7 @@ namespace Volleyball
             serializer.SerializeValue(ref tick);
             serializer.SerializeValue(ref moveWorld);
             serializer.SerializeValue(ref jump);
+            serializer.SerializeValue(ref jumpHeld);
             serializer.SerializeValue(ref dive);
             serializer.SerializeValue(ref power);
             serializer.SerializeValue(ref hitPressed);

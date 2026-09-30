@@ -73,6 +73,49 @@ namespace Volleyball
             }
         }
 
+        /// <summary>
+        /// A SOLID box (cubes, a ledge, an iceberg): a real static collider, created on every
+        /// machine including a headless server — players' world sweeps stop at it and stand on
+        /// it, the ball bounces off it. Rendered only where there is a screen.
+        /// </summary>
+        public static GameObject SolidBox(string name, Vector3 center, Vector3 size, Color c)
+        {
+            GameObject go;
+            if (CanRender)
+            {
+                go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                var r = go.GetComponent<Renderer>();
+                r.sharedMaterial = Mat(c);
+                r.shadowCastingMode = ShadowCastingMode.On;
+                go.AddComponent<FxOwnedMaterial>();
+            }
+            else
+            {
+                go = new GameObject();
+                go.AddComponent<BoxCollider>();
+            }
+            go.name = name;
+            go.transform.position = center;
+            go.transform.localScale = size;
+            Physics.SyncTransforms(); // world queries this very tick must already see it
+            return go;
+        }
+
+        /// <summary>A stand-alone animal model (a herd member, a ghost helper) playing
+        /// <paramref name="clip"/> in showcase mode. Null on a headless server.</summary>
+        public static GameObject Animal(string id, Color jersey, bool running)
+        {
+            if (!CanRender) return null;
+            GameObject prefab = CharacterModels.LoadPrefab(id);
+            if (prefab == null) return null;
+            GameObject a = Object.Instantiate(prefab);
+            a.name = "Ability " + id;
+            a.GetComponent<AnimalLook>()?.Set(id, jersey);
+            var view = a.GetComponent<ModelCharacterView>();
+            if (view != null) view.PlayShowcase(running ? view.run : view.idle);
+            return a;
+        }
+
         public static void Kill(GameObject go)
         {
             if (go != null) Object.Destroy(go);

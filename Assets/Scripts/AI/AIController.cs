@@ -40,6 +40,8 @@ namespace Volleyball
         bool _wantHit;
         bool _wantBlock;
         bool _wantPower;
+        bool _wantJumpHeld;
+        float _blinkCooldown;
         bool _attacking;
         HitType _hitType;
         Vector3 _hitTarget;
@@ -68,6 +70,7 @@ namespace Volleyball
                 tick = tick,
                 moveWorld = _desiredMove, // AI steering is planned in world space already
                 jump = _wantJump,
+                jumpHeld = _wantJumpHeld,
                 dive = _wantDive,
                 power = _wantPower,
                 hitPressed = _wantHit,
@@ -91,6 +94,7 @@ namespace Volleyball
             _wantHit = false;
             _wantBlock = false;
             _wantPower = false;
+            _wantJumpHeld = false;
             if (ball == null) return;
 
             // A dead ball can't be played: between rallies (the point pause, the ball held in
@@ -112,6 +116,9 @@ namespace Volleyball
                                             * ReactionScale;
             }
             bool reacting = Time.time < _reactUntil;
+            // a Phantom Strike from the other side is read late: sluggish until it's nearly down
+            if (PhantomStrikeAbility.InFlight && ball.LastTouchTeam == team.Other() && ball.transform.position.y > 1.6f)
+                reacting = true;
 
             Vector3 bp = SeenBallPos;
             Vector3 landing = PredictLanding(out float tLand);
@@ -178,6 +185,12 @@ namespace Volleyball
                 _desiredMove = miss.magnitude > 0.2f ? Vector2.ClampMagnitude(miss, 1f) : Vector2.zero;
             }
 
+            // Up on something (a Cliff Hop ledge) with the attack coming to us: hold the high
+            // ground and let the ball arrive, rather than shuffling the last bit and stepping off.
+            if (IsGrounded && GroundHeight > 0.5f && pursue && _attacking
+                && Vector2.Distance(new Vector2(GroundPosition.x, GroundPosition.z), new Vector2(moveTarget.x, moveTarget.z)) < 1.6f)
+                _desiredMove = Vector2.zero;
+
             // Reaction latency is a sluggish first step, not a freeze: while "reacting" we
             // still visibly start toward the ball, just too slowly to make every get — the
             // imperfection reads as a late read instead of a statue watching the spike land.
@@ -188,12 +201,13 @@ namespace Volleyball
             // that value: predict where the ball will be after tApex and jump only if it'll be
             // reachable at the height of our jump.
             _jumpCooldown -= Time.fixedDeltaTime; // Decide runs once per simulation tick
-            float g = -Physics.gravity.y;
+            float g = -Physics.gravity.y;                        // OUR gravity (the jump)
             float tApex = jumpSpeed / g;                          // time for us to reach our apex
             float apexHeight = jumpSpeed * jumpSpeed / (2f * g);  // how high our jump reaches
-            float maxReach = apexHeight + hitReachHeight;         // highest we can contact at apex
+            // highest we can contact at apex — from whatever we're standing on (a ledge...)
+            float maxReach = GroundHeight + apexHeight + hitReachHeight;
             Vector3 ballAtApex = bp + SeenBallVel * tApex
-                                 + 0.5f * (Physics.gravity + CourtEnvironment.Active.wind)
+                                 + 0.5f * (ball.EffectiveGravity + CourtEnvironment.Active.wind)
                                         * (tApex * tApex);
             // Jumps carry momentum, so judge the jump from where it will CARRY us by our apex —
             // a running approach that flies into the ball is a good jump; one that sails past
@@ -208,6 +222,19 @@ namespace Volleyball
                 _wantJump = true;
                 _jumpCooldown = 0.9f;
             }
+
+            // Signature moves that ride on ordinary inputs while their ability runs.
+            _blinkCooldown -= Time.fixedDeltaTime;
+            if (BlinkCharges > 0 && pursue && landsOnOurSide && _blinkCooldown <= 0f
+                && Vector2.Distance(new Vector2(GroundPosition.x, GroundPosition.z), new Vector2(landing.x, landing.z)) > reach + 0.8f)
+            {
+                _wantPower = true;           // a blink along the steer toward the ball
+                _blinkCooldown = 0.35f;
+            }
+            if (CanDoubleJump && pursue && _attacking && VerticalVelocity < 0.5f
+                && bp.y > SimPosition.y + hitReachHeight - 0.2f && bp.y < SimPosition.y + hitReachHeight + 2f)
+                _wantJump = true;            // the second hop, to meet a ball above our reach
+            _wantJumpHeld = CanGlide && !IsGrounded && pursue;
 
             // Emergency dive: the ball will drop too far away to run to in time, but a dive's
             // burst of speed can still get a platform under it. Only when defending/receiving
@@ -391,7 +418,49 @@ namespace Volleyball
                     return theyHaveIt && CourtGeometry.SideOf(SeenBallPos) == team.Other();
                 case AbilityId.TallOrder:  // they're about to attack: raise the wall
                 case AbilityId.Roar:
+                case AbilityId.AntlerParry:
+                case AbilityId.WideLoad:
+                case AbilityId.Earthquake:
+                case AbilityId.Iceberg:
                     return theyAttackNext;
+                case AbilityId.NetWalker:  // at the net for their attack, or ours
+                    return theyAttackNext || (rallyLive && pursue && _attacking);
+                case AbilityId.IceRink:    // they're playing it
+                case AbilityId.SandstormDevil:
+                case AbilityId.Avalanche:
+                case AbilityId.TunnelTrap:
+                case AbilityId.CubeDrop:
+                    return theyHaveIt && CourtGeometry.SideOf(SeenBallPos) == team.Other();
+                case AbilityId.Blizzard:   // our shot is on its way over: let the gale take it
+                    return rallyLive && ball.LastTouchTeam == team && !landsOnOurSide;
+                case AbilityId.BananaBall: // right before our attack, or on our serve
+                case AbilityId.Rampage:
+                case AbilityId.PhantomStrike:
+                    return (rallyLive && pursue && _attacking) || match.IsServePhaseFor(this);
+                case AbilityId.Trampoline: // under our feet — once we're standing on our strike spot
+                case AbilityId.CliffHop:
+                    return rallyLive && pursue && _attacking && IsGrounded
+                           && Vector2.Distance(new Vector2(GroundPosition.x, GroundPosition.z),
+                                               new Vector2(ApexPoint().x, ApexPoint().z)) < 0.9f;
+                case AbilityId.DoubleJump:
+                case AbilityId.Glide:
+                case AbilityId.BigStride:
+                    return rallyLive && pursue && _attacking && IsGrounded;
+                case AbilityId.Balance:    // about to set
+                    return rallyLive && pursue && teamInPossession && match.Touches == 1;
+                case AbilityId.StickyPaws: // catch the next one coming to us
+                case AbilityId.HotSpring:
+                    return rallyLive && pursue && landsOnOurSide && tLand < 1.8f;
+                case AbilityId.SlowMo:     // a ball we can't make in time
+                case AbilityId.Pounce:
+                case AbilityId.Oasis:
+                case AbilityId.BlinkHop:
+                    return rallyLive && pursue && landsOnOurSide && tLand > 0.4f && tLand < 1.5f
+                           && runDist > moveSpeed * tLand * 0.85f;
+                case AbilityId.PackHunt:   // a ball coming down that isn't ours to reach
+                    return rallyLive && landsOnOurSide && tLand > 0.5f && !pursue;
+                case AbilityId.SoundBlast: // our shot over, with a defender under it: push it away
+                    return rallyLive && ball.LastTouchTeam == team && !landsOnOurSide && tLand > 0.4f;
                 default:
                     return false;
             }
@@ -418,7 +487,7 @@ namespace Volleyball
             Vector3 v = SeenBallVel;
             if (v.y > 0.1f)
             {
-                float tA = v.y / (-Physics.gravity.y);
+                float tA = v.y / (-ball.EffectiveGravity.y);
                 Vector3 w = CourtEnvironment.Active.wind;
                 return new Vector3(p.x + v.x * tA + 0.5f * w.x * tA * tA, 0f,
                                    p.z + v.z * tA + 0.5f * w.z * tA * tA);
@@ -432,7 +501,7 @@ namespace Volleyball
         {
             Vector3 p = SeenBallPos;
             Vector3 v = SeenBallVel;
-            float g = -Physics.gravity.y;
+            float g = -ball.EffectiveGravity.y;
             const float targetY = 1f;
 
             float a = 0.5f * g;

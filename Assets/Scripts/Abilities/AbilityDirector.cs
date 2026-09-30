@@ -90,13 +90,13 @@ namespace Volleyball
         /// here and raises <see cref="Moment"/> for the clients.</summary>
         internal static void Announce(Ability a, int code, Vector3 at, Vector3 dir)
         {
-            a.OnMoment(code, at, dir);
+            a.HandleMoment(code, at, dir);
             Moment?.Invoke(a.Owner, code, at, dir);
         }
 
         /// <summary>CLIENT: the server announced a moment of <paramref name="owner"/>'s ability.</summary>
         public static void MirrorMoment(VolleyPlayer owner, int code, Vector3 at, Vector3 dir)
-            => ActiveFor(owner)?.OnMoment(code, at, dir);
+            => ActiveFor(owner)?.HandleMoment(code, at, dir);
 
         /// <summary>Rally over (or match reset): every ability ends and the field is cleared.</summary>
         public static void EndAll()
@@ -105,6 +105,7 @@ namespace Volleyball
             FieldZones.Clear();
             NetDynamics.Reset();
             DecoyBall.ClearAll();
+            if (Ball != null) Ball.SetTimeScale(1f);
         }
 
         static void Start(Ability a)

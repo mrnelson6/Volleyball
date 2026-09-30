@@ -25,6 +25,16 @@ namespace Volleyball
         public float mudMoveMult = 0.45f;
         [Tooltip("Jump take-off multiplier in mud.")]
         public float mudJumpMult = 0.7f;
+        [Tooltip("Ground acceleration on ice (m/s per second) — normal ground control is instant.")]
+        public float iceAccel = 6f;
+        [Tooltip("Jump take-off multiplier from a trampoline pad (1.45 ≈ double the height).")]
+        public float padJumpMult = 1.45f;
+        [Tooltip("Contact error multiplier for touches made standing in a hot spring.")]
+        public float hotSpringErrorMult = 0.15f;
+        [Tooltip("Run speed multiplier on a quaking court (no jumping at all).")]
+        public float quakeMoveMult = 0.8f;
+        [Tooltip("How hard a whirlwind shoves a player (m/s).")]
+        public float whirlPush = 3.5f;
 
         [Header("Body / world collision")]
         [Tooltip("Radius of the collision capsule the simulation sweeps against the world — how " +

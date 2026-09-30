@@ -79,6 +79,7 @@ namespace Volleyball
                 tick = tick,
                 moveWorld = new Vector2(w.x, w.z),
                 jump = jump,
+                jumpHeld = GameInput.Instance != null && GameInput.Instance.JumpHeld,
                 dive = dive,
                 power = power,
                 hitPressed = hitPressed,

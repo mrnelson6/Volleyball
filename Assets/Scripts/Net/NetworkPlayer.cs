@@ -252,7 +252,12 @@ namespace Volleyball
                                 // so are ability states (a roar's stun, a charge, a burrow)
                                 || (predicted.stunTimer > 0f) != (serverState.stunTimer > 0f)
                                 || (predicted.dashTimer > 0f) != (serverState.dashTimer > 0f)
-                                || (predicted.hideTimer > 0f) != (serverState.hideTimer > 0f);
+                                || (predicted.hideTimer > 0f) != (serverState.hideTimer > 0f)
+                                || (predicted.perchTimer > 0f) != (serverState.perchTimer > 0f)
+                                || (predicted.strideTimer > 0f) != (serverState.strideTimer > 0f)
+                                || (predicted.glideTimer > 0f) != (serverState.glideTimer > 0f)
+                                || (predicted.doubleJumpTimer > 0f) != (serverState.doubleJumpTimer > 0f)
+                                || predicted.blinkCharges != serverState.blinkCharges;
                 if (!mismatch) return; // prediction confirmed — the common case
                 LastCorrectionError = posErr;
             }

@@ -186,6 +186,13 @@ namespace Volleyball
         /// snapshots, so only the statuses expire here).</summary>
         internal void MirrorRallyEnd() => ExpireAll();
 
+        /// <summary>An ability's effect on its own caster's stats (Wide Load): applied on every
+        /// machine by the ability, removed by it. Uses the def's self-buff fields.</summary>
+        public void AddEffect(PowerUpDef def)
+            => _statuses.Add(new ActiveStatus { def = def, inflicted = false, remaining = def.duration });
+
+        public void RemoveEffect(PowerUpDef def) => _statuses.RemoveAll(s => s.def == def);
+
         /// <summary>An opponent's cast lands its debuff on this player for its duration.</summary>
         public void Inflict(PowerUpDef def)
             => _statuses.Add(new ActiveStatus { def = def, inflicted = true, remaining = def.duration });

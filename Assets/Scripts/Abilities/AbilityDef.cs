@@ -14,6 +14,20 @@ namespace Volleyball
         FoxTrick, BearSlam,
         // Savanna
         Burrow, Stampede, MudWallow, TallOrder, Roar, Charge,
+        // Amazon
+        HotSpring, BananaBall, SlowMo, Pounce,
+        // Outback
+        CubeDrop, PackHunt, BigStride, Trampoline,
+        // Himalaya
+        Balance, Avalanche, CliffHop, PhantomStrike,
+        // Forest
+        BlinkHop, TunnelTrap, Rampage, AntlerParry,
+        // Sahara
+        DoubleJump, SoundBlast, SandstormDevil, Oasis,
+        // Rockies
+        StickyPaws, WideLoad, Earthquake, NetWalker,
+        // Arctic
+        IceRink, Glide, Iceberg, Blizzard,
     }
 
     /// <summary>
@@ -116,6 +130,202 @@ namespace Volleyball
                 blurb = "Bulldoze across your court — hit the ball on the way for a free power shot.",
                 bannerText = "CHARGE!", color = new Color(0.70f, 0.72f, 0.78f), duration = 0.75f,
                 create = () => new ChargeAbility(),
+            },
+            new AbilityDef
+            {
+                id = AbilityId.HotSpring, displayName = "Hot Spring",
+                blurb = "A steaming pool on your side: touches in it are near-perfect and balls float down over it.",
+                bannerText = "HOT SPRING!", color = new Color(0.35f, 0.85f, 0.85f), duration = 7f,
+                create = () => new HotSpringAbility(),
+            },
+            new AbilityDef
+            {
+                id = AbilityId.BananaBall, displayName = "Banana Ball",
+                blurb = "Your next shot over swerves hard late in its flight.",
+                bannerText = "BANANA BALL!", color = new Color(1.00f, 0.85f, 0.20f), duration = 10f,
+                create = () => new BananaBallAbility(),
+            },
+            new AbilityDef
+            {
+                id = AbilityId.SlowMo, displayName = "Slow-Mo",
+                blurb = "The ball alone drops to 40% speed for a few seconds.",
+                bannerText = "SLOW-MO...", color = new Color(0.55f, 0.85f, 0.55f), duration = 3f,
+                create = () => new SlowMoAbility(),
+            },
+            new AbilityDef
+            {
+                id = AbilityId.Pounce, displayName = "Pounce",
+                blurb = "Leap from anywhere on your side straight to the ball and play it.",
+                bannerText = "POUNCE!", color = new Color(1.00f, 0.75f, 0.25f), duration = 1.2f,
+                create = () => new PounceAbility(),
+            },
+            new AbilityDef
+            {
+                id = AbilityId.CubeDrop, displayName = "Cube Drop",
+                blurb = "Three sturdy cubes thump down on their court. Wombats really do this.",
+                bannerText = "CUBE DROP!", color = new Color(0.55f, 0.38f, 0.22f), duration = 7f,
+                create = () => new CubeDropAbility(),
+            },
+            new AbilityDef
+            {
+                id = AbilityId.PackHunt, displayName = "Pack Hunt",
+                blurb = "A ghost dingo joins your side and plays one ball for you.",
+                bannerText = "PACK HUNT!", color = new Color(0.55f, 0.85f, 1.00f), duration = 8f,
+                create = () => new PackHuntAbility(),
+            },
+            new AbilityDef
+            {
+                id = AbilityId.BigStride, displayName = "Big Stride",
+                blurb = "Faster runs, and every jump becomes a huge bound.",
+                bannerText = "BIG STRIDE!", color = new Color(0.60f, 0.50f, 0.40f), duration = 8f,
+                create = () => new BigStrideAbility(),
+            },
+            new AbilityDef
+            {
+                id = AbilityId.Trampoline, displayName = "Trampoline",
+                blurb = "A bounce pad under you: your team jumps much higher off it.",
+                bannerText = "TRAMPOLINE!", color = new Color(0.30f, 0.50f, 1.00f), duration = 8f,
+                create = () => new TrampolineAbility(),
+            },
+            new AbilityDef
+            {
+                id = AbilityId.Balance, displayName = "Balance",
+                blurb = "Your next pass hangs frozen at its peak for a second.",
+                bannerText = "BALANCE!", color = new Color(0.55f, 0.85f, 0.35f), duration = 10f,
+                create = () => new BalanceAbility(),
+            },
+            new AbilityDef
+            {
+                id = AbilityId.Avalanche, displayName = "Avalanche",
+                blurb = "Giant snowballs roll through their back court.",
+                bannerText = "AVALANCHE!", color = new Color(0.85f, 0.93f, 1.00f), duration = 2.8f,
+                create = () => new AvalancheAbility(),
+            },
+            new AbilityDef
+            {
+                id = AbilityId.CliffHop, displayName = "Cliff Hop",
+                blurb = "A rock ledge bursts up under you: +1.25m for spikes and blocks.",
+                bannerText = "CLIFF HOP!", color = new Color(0.60f, 0.56f, 0.50f), duration = 7f,
+                create = () => new CliffHopAbility(),
+            },
+            new AbilityDef
+            {
+                id = AbilityId.PhantomStrike, displayName = "Phantom Strike",
+                blurb = "Your next spike goes nearly invisible: no shadow, no trail.",
+                bannerText = "PHANTOM STRIKE!", color = new Color(0.80f, 0.85f, 0.95f), duration = 10f,
+                create = () => new PhantomStrikeAbility(),
+            },
+            new AbilityDef
+            {
+                id = AbilityId.BlinkHop, displayName = "Blink Hop",
+                blurb = "Three instant hops: press the button again to blink along the stick.",
+                bannerText = "BLINK HOP!", color = new Color(0.80f, 0.70f, 1.00f), duration = 6f,
+                create = () => new BlinkHopAbility(),
+            },
+            new AbilityDef
+            {
+                id = AbilityId.TunnelTrap, displayName = "Tunnel Trap",
+                blurb = "Holes open in their court: step in one and you are stuck.",
+                bannerText = "TUNNEL TRAP!", color = new Color(0.45f, 0.32f, 0.20f), duration = 8f,
+                create = () => new TunnelTrapAbility(),
+            },
+            new AbilityDef
+            {
+                id = AbilityId.Rampage, displayName = "Rampage",
+                blurb = "Whoever digs your next spike gets flattened straight after.",
+                bannerText = "RAMPAGE!", color = new Color(0.70f, 0.40f, 0.25f), duration = 10f,
+                create = () => new RampageAbility(),
+            },
+            new AbilityDef
+            {
+                id = AbilityId.AntlerParry, displayName = "Antler Parry",
+                blurb = "Balls crossing the net near you get swatted straight back. Wildly.",
+                bannerText = "ANTLER PARRY!", color = new Color(0.65f, 0.50f, 0.30f), duration = 5f,
+                create = () => new AntlerParryAbility(),
+            },
+            new AbilityDef
+            {
+                id = AbilityId.DoubleJump, displayName = "Double Jump",
+                blurb = "Jump again in mid-air for the highest reach on the tour.",
+                bannerText = "DOUBLE JUMP!", color = new Color(1.00f, 0.85f, 0.50f), duration = 8f,
+                create = () => new DoubleJumpAbility(),
+            },
+            new AbilityDef
+            {
+                id = AbilityId.SoundBlast, displayName = "Sound Blast",
+                blurb = "A shockwave from those ears shoves the ball in flight.",
+                bannerText = "SOUND BLAST!", color = new Color(1.00f, 0.80f, 0.45f), duration = 0.6f,
+                create = () => new SoundBlastAbility(),
+            },
+            new AbilityDef
+            {
+                id = AbilityId.SandstormDevil, displayName = "Sandstorm Devil",
+                blurb = "A whirlwind wanders their court, flinging players and the ball.",
+                bannerText = "SANDSTORM DEVIL!", color = new Color(0.90f, 0.75f, 0.45f), duration = 7f,
+                create = () => new SandstormDevilAbility(),
+            },
+            new AbilityDef
+            {
+                id = AbilityId.Oasis, displayName = "Oasis",
+                blurb = "A pool on your side: the first ball to land in it splashes back up.",
+                bannerText = "OASIS!", color = new Color(0.30f, 0.65f, 0.95f), duration = 8f,
+                create = () => new OasisAbility(),
+            },
+            new AbilityDef
+            {
+                id = AbilityId.StickyPaws, displayName = "Sticky Paws",
+                blurb = "Catch the next ball that comes to you, then throw it anywhere.",
+                bannerText = "STICKY PAWS!", color = new Color(0.55f, 0.55f, 0.60f), duration = 8f,
+                create = () => new StickyPawsAbility(),
+            },
+            new AbilityDef
+            {
+                id = AbilityId.WideLoad, displayName = "Wide Load",
+                blurb = "Enormous solid antlers: balls glance off and your block covers half the net.",
+                bannerText = "WIDE LOAD!", color = new Color(0.60f, 0.45f, 0.28f), duration = 6f,
+                create = () => new WideLoadAbility(),
+            },
+            new AbilityDef
+            {
+                id = AbilityId.Earthquake, displayName = "Earthquake",
+                blurb = "Their court shakes: nobody over there can jump.",
+                bannerText = "EARTHQUAKE!", color = new Color(0.55f, 0.40f, 0.25f), duration = 3.5f,
+                create = () => new EarthquakeAbility(),
+            },
+            new AbilityDef
+            {
+                id = AbilityId.NetWalker, displayName = "Net Walker",
+                blurb = "Prowl along the top of the net and play any ball near it.",
+                bannerText = "NET WALKER!", color = new Color(0.95f, 0.75f, 0.45f), duration = 5f,
+                create = () => new NetWalkerAbility(),
+            },
+            new AbilityDef
+            {
+                id = AbilityId.IceRink, displayName = "Ice Rink",
+                blurb = "Their court freezes over: no grip, no stopping.",
+                bannerText = "ICE RINK!", color = new Color(0.70f, 0.90f, 1.00f), duration = 6f,
+                create = () => new IceRinkAbility(),
+            },
+            new AbilityDef
+            {
+                id = AbilityId.Glide, displayName = "Glide",
+                blurb = "Hold jump in the air to float down slowly.",
+                bannerText = "GLIDE!", color = new Color(0.95f, 0.95f, 1.00f), duration = 8f,
+                create = () => new GlideAbility(),
+            },
+            new AbilityDef
+            {
+                id = AbilityId.Iceberg, displayName = "Iceberg",
+                blurb = "A solid wall of ice erupts at your net: attacks bounce off it.",
+                bannerText = "ICEBERG!", color = new Color(0.70f, 0.90f, 1.00f), duration = 6f,
+                create = () => new IcebergAbility(),
+            },
+            new AbilityDef
+            {
+                id = AbilityId.Blizzard, displayName = "Blizzard",
+                blurb = "A gale toward their baseline: your shots carry, theirs fall short.",
+                bannerText = "BLIZZARD!", color = new Color(0.90f, 0.95f, 1.00f), duration = 6f,
+                create = () => new BlizzardAbility(),
             },
         };
 

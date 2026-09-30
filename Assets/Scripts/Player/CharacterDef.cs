@@ -183,7 +183,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "capybara", displayName = "Cabo the Capybara", region = "amazon",
-                powerUp = PowerUpType.GoldenTouch,
+                powerUp = PowerUpType.GoldenTouch, ability = AbilityId.HotSpring,
                 blurb = "The chillest animal alive — never rushed, never rattled, never misplaces a touch.",
                 height = 0.95f, speed = 0.85f, power = 0.90f, control = 1.30f, jump = 0.85f,
                 fur = new Color(0.60f, 0.45f, 0.28f),
@@ -193,7 +193,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "toucan", displayName = "Tiko the Toucan", region = "amazon",
-                powerUp = PowerUpType.CycloneServe,
+                powerUp = PowerUpType.CycloneServe, ability = AbilityId.BananaBall,
                 blurb = "That famous beak sets the ball like a spoon — light, precise, airborne.",
                 height = 0.85f, speed = 1.10f, power = 0.80f, control = 1.15f, jump = 1.10f,
                 fur = new Color(0.15f, 0.15f, 0.18f),
@@ -203,7 +203,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "sloth", displayName = "Susu the Sloth", region = "amazon",
-                powerUp = PowerUpType.GoldenTouch,
+                powerUp = PowerUpType.GoldenTouch, ability = AbilityId.SlowMo,
                 blurb = "Slowest player in the world — but give her time and the touch is perfect.",
                 height = 0.90f, speed = 0.70f, power = 1.10f, control = 1.25f, jump = 0.75f,
                 fur = new Color(0.55f, 0.50f, 0.40f),
@@ -215,7 +215,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "jaguar", displayName = "Jax the Jaguar", region = "amazon",
-                powerUp = PowerUpType.WildfireSprint,
+                powerUp = PowerUpType.WildfireSprint, ability = AbilityId.Pounce,
                 blurb = "The rainforest's apex sprinter — explodes to any ball.",
                 height = 1.00f, speed = 1.30f, power = 1.10f, control = 0.90f, jump = 1.05f,
                 fur = new Color(0.85f, 0.65f, 0.25f),
@@ -229,7 +229,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "wombat", displayName = "Wanda the Wombat", region = "outback",
-                powerUp = PowerUpType.GiantGrowth,
+                powerUp = PowerUpType.GiantGrowth, ability = AbilityId.CubeDrop,
                 blurb = "A furry brick — low to the ground and built entirely of muscle.",
                 height = 0.85f, speed = 0.90f, power = 1.20f, control = 1.00f, jump = 0.80f,
                 fur = new Color(0.50f, 0.42f, 0.36f),
@@ -239,7 +239,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "dingo", displayName = "Digger the Dingo", region = "outback",
-                powerUp = PowerUpType.WildfireSprint,
+                powerUp = PowerUpType.WildfireSprint, ability = AbilityId.PackHunt,
                 blurb = "Tireless desert runner — always exactly where the ball comes down.",
                 height = 0.95f, speed = 1.15f, power = 0.95f, control = 1.00f, jump = 1.00f,
                 fur = new Color(0.80f, 0.60f, 0.35f),
@@ -249,7 +249,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "emu", displayName = "Ezra the Emu", region = "outback",
-                powerUp = PowerUpType.CycloneServe,
+                powerUp = PowerUpType.CycloneServe, ability = AbilityId.BigStride,
                 blurb = "Two metres of legs and feathers at a full sprint — can't be outrun.",
                 height = 1.15f, speed = 1.25f, power = 0.85f, control = 0.80f, jump = 0.95f,
                 fur = new Color(0.45f, 0.40f, 0.33f),
@@ -259,7 +259,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "kangaroo", displayName = "Kip the Kangaroo", region = "outback",
-                powerUp = PowerUpType.SkyJump,
+                powerUp = PowerUpType.SkyJump, ability = AbilityId.Trampoline,
                 blurb = "The highest jumper on Earth — spikes come down from the clouds.",
                 height = 1.05f, speed = 1.10f, power = 1.05f, control = 0.85f, jump = 1.35f,
                 fur = new Color(0.70f, 0.50f, 0.35f),
@@ -271,7 +271,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "redpanda", displayName = "Rumi the Red Panda", region = "himalaya",
-                powerUp = PowerUpType.GoldenTouch,
+                powerUp = PowerUpType.GoldenTouch, ability = AbilityId.Balance,
                 blurb = "Gentle paws and perfect balance from a life in the treetops.",
                 height = 0.85f, speed = 1.05f, power = 0.80f, control = 1.25f, jump = 1.00f,
                 fur = new Color(0.75f, 0.30f, 0.12f),
@@ -283,7 +283,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "yak", displayName = "Yara the Yak", region = "himalaya",
-                powerUp = PowerUpType.ThunderSpike,
+                powerUp = PowerUpType.ThunderSpike, ability = AbilityId.Avalanche,
                 blurb = "A shaggy mountain of muscle — every spike lands like an avalanche.",
                 height = 1.15f, speed = 0.80f, power = 1.30f, control = 0.85f, jump = 0.75f,
                 fur = new Color(0.30f, 0.22f, 0.16f),
@@ -294,7 +294,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "markhor", displayName = "Mako the Markhor", region = "himalaya",
-                powerUp = PowerUpType.SkyJump,
+                powerUp = PowerUpType.SkyJump, ability = AbilityId.CliffHop,
                 blurb = "The cliff-hopping mountain goat — springs off nothing at all.",
                 height = 1.00f, speed = 1.00f, power = 1.00f, control = 1.00f, jump = 1.20f,
                 fur = new Color(0.65f, 0.58f, 0.48f),
@@ -305,7 +305,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "snowleopard", displayName = "Sasha the Snow Leopard", region = "himalaya",
-                powerUp = PowerUpType.DeepFreeze,
+                powerUp = PowerUpType.DeepFreeze, ability = AbilityId.PhantomStrike,
                 blurb = "The ghost of the peaks — you won't see her reach the ball, but she will.",
                 height = 1.00f, speed = 1.25f, power = 1.05f, control = 1.05f, jump = 1.15f,
                 fur = new Color(0.80f, 0.80f, 0.82f),
@@ -319,7 +319,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "hare", displayName = "Hazel the Hare", region = "forest",
-                powerUp = PowerUpType.WildfireSprint,
+                powerUp = PowerUpType.WildfireSprint, ability = AbilityId.BlinkHop,
                 blurb = "Fastest feet in the forest — nothing drops on her side of the court.",
                 height = 0.80f, speed = 1.35f, power = 0.75f, control = 1.00f, jump = 1.15f,
                 fur = new Color(0.62f, 0.52f, 0.40f),
@@ -329,7 +329,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "badger", displayName = "Bram the Badger", region = "forest",
-                powerUp = PowerUpType.Sandstorm,
+                powerUp = PowerUpType.Sandstorm, ability = AbilityId.TunnelTrap,
                 blurb = "Stocky, stubborn and immovable — digs like he was born for it. He was.",
                 height = 0.85f, speed = 0.95f, power = 1.15f, control = 1.05f, jump = 0.85f,
                 fur = new Color(0.45f, 0.45f, 0.48f),
@@ -341,7 +341,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "boar", displayName = "Iggy the Boar", region = "forest",
-                powerUp = PowerUpType.ThunderSpike,
+                powerUp = PowerUpType.ThunderSpike, ability = AbilityId.Rampage,
                 blurb = "Hits every ball like he's ramming an oak tree. Sometimes at the target.",
                 height = 0.95f, speed = 1.00f, power = 1.25f, control = 0.80f, jump = 0.90f,
                 fur = new Color(0.40f, 0.32f, 0.26f),
@@ -352,7 +352,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "stag", displayName = "Stellan the Stag", region = "forest",
-                powerUp = PowerUpType.GiantGrowth,
+                powerUp = PowerUpType.GiantGrowth, ability = AbilityId.AntlerParry,
                 blurb = "Crowned in antlers — a wall at the net that the forest bows to.",
                 height = 1.20f, speed = 1.05f, power = 1.10f, control = 0.95f, jump = 1.05f,
                 fur = new Color(0.55f, 0.42f, 0.28f),
@@ -365,7 +365,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "jerboa", displayName = "Juju the Jerboa", region = "sahara",
-                powerUp = PowerUpType.MoonBall,
+                powerUp = PowerUpType.MoonBall, ability = AbilityId.DoubleJump,
                 blurb = "A palm-sized desert spring — jumps ten times her own height.",
                 height = 0.75f, speed = 1.25f, power = 0.70f, control = 1.05f, jump = 1.30f,
                 fur = new Color(0.85f, 0.70f, 0.45f),
@@ -375,7 +375,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "fennec", displayName = "Fifi the Fennec", region = "sahara",
-                powerUp = PowerUpType.Sandstorm,
+                powerUp = PowerUpType.Sandstorm, ability = AbilityId.SoundBlast,
                 blurb = "Those enormous ears hear exactly where the ball wants to land.",
                 height = 0.80f, speed = 1.20f, power = 0.80f, control = 1.20f, jump = 1.00f,
                 fur = new Color(0.90f, 0.78f, 0.55f),
@@ -385,7 +385,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "oryx", displayName = "Orin the Oryx", region = "sahara",
-                powerUp = PowerUpType.Sandstorm,
+                powerUp = PowerUpType.Sandstorm, ability = AbilityId.SandstormDevil,
                 blurb = "Desert-forged and spear-horned — steady through any sandstorm.",
                 height = 1.10f, speed = 1.00f, power = 1.10f, control = 0.95f, jump = 0.95f,
                 fur = new Color(0.85f, 0.80f, 0.70f),
@@ -398,7 +398,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "camel", displayName = "Cleo the Camel", region = "sahara",
-                powerUp = PowerUpType.LongReach,
+                powerUp = PowerUpType.LongReach, ability = AbilityId.Oasis,
                 blurb = "Tall, patient, untiring — the desert's original endurance athlete.",
                 height = 1.25f, speed = 0.90f, power = 1.15f, control = 1.00f, jump = 0.75f,
                 fur = new Color(0.78f, 0.62f, 0.40f),
@@ -411,7 +411,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "raccoon", displayName = "Rocky the Raccoon", region = "rockies",
-                powerUp = PowerUpType.GoldenTouch,
+                powerUp = PowerUpType.GoldenTouch, ability = AbilityId.StickyPaws,
                 blurb = "The cleverest paws in the mountains — nothing slips through them.",
                 height = 0.85f, speed = 1.05f, power = 0.85f, control = 1.30f, jump = 1.00f,
                 fur = new Color(0.50f, 0.50f, 0.53f),
@@ -423,7 +423,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "moose", displayName = "Moe the Moose", region = "rockies",
-                powerUp = PowerUpType.GiantGrowth,
+                powerUp = PowerUpType.GiantGrowth, ability = AbilityId.WideLoad,
                 blurb = "Antlers wider than the net is high. Ducking is the ball's problem.",
                 height = 1.28f, speed = 0.80f, power = 1.20f, control = 0.80f, jump = 0.75f,
                 fur = new Color(0.38f, 0.28f, 0.20f),
@@ -434,7 +434,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "buffalo", displayName = "Butch the Buffalo", region = "rockies",
-                powerUp = PowerUpType.ThunderSpike,
+                powerUp = PowerUpType.ThunderSpike, ability = AbilityId.Earthquake,
                 blurb = "The strongest animal on tour — his spikes leave craters.",
                 height = 1.10f, speed = 0.90f, power = 1.35f, control = 0.85f, jump = 0.80f,
                 fur = new Color(0.35f, 0.25f, 0.18f),
@@ -445,7 +445,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "cougar", displayName = "Cora the Cougar", region = "rockies",
-                powerUp = PowerUpType.WildfireSprint,
+                powerUp = PowerUpType.WildfireSprint, ability = AbilityId.NetWalker,
                 blurb = "The fastest cat in the mountains — everywhere at once.",
                 height = 1.00f, speed = 1.35f, power = 1.05f, control = 0.95f, jump = 1.20f,
                 fur = new Color(0.75f, 0.58f, 0.38f),
@@ -457,7 +457,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "penguin", displayName = "Pingo the Penguin", region = "arctic",
-                powerUp = PowerUpType.DeepFreeze,
+                powerUp = PowerUpType.DeepFreeze, ability = AbilityId.IceRink,
                 blurb = "Can't jump, won't run — but the cleanest flippers in volleyball.",
                 height = 0.80f, speed = 0.90f, power = 0.90f, control = 1.35f, jump = 0.80f,
                 fur = new Color(0.10f, 0.12f, 0.16f),
@@ -467,7 +467,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "snowyowl", displayName = "Ola the Snowy Owl", region = "arctic",
-                powerUp = PowerUpType.CycloneServe,
+                powerUp = PowerUpType.CycloneServe, ability = AbilityId.Glide,
                 blurb = "Silent wings and eyes that miss nothing on the whole court.",
                 height = 0.85f, speed = 1.15f, power = 0.85f, control = 1.15f, jump = 1.10f,
                 fur = new Color(0.92f, 0.92f, 0.95f),
@@ -479,7 +479,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "walrus", displayName = "Wally the Walrus", region = "arctic",
-                powerUp = PowerUpType.GiantGrowth,
+                powerUp = PowerUpType.GiantGrowth, ability = AbilityId.Iceberg,
                 blurb = "A tonne of blubber behind every hit — just don't ask him to chase.",
                 height = 1.10f, speed = 0.75f, power = 1.30f, control = 1.00f, jump = 0.70f,
                 fur = new Color(0.60f, 0.42f, 0.35f),
@@ -490,7 +490,7 @@ namespace Volleyball
             new CharacterDef
             {
                 id = "polarbear", displayName = "Boris the Polar Bear", region = "arctic",
-                powerUp = PowerUpType.DeepFreeze,
+                powerUp = PowerUpType.DeepFreeze, ability = AbilityId.Blizzard,
                 blurb = "The Arctic's undisputed heavyweight — tall, strong and very patient.",
                 height = 1.20f, speed = 0.95f, power = 1.30f, control = 0.90f, jump = 0.90f,
                 fur = new Color(0.92f, 0.90f, 0.85f),
