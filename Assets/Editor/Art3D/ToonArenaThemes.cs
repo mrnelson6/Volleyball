@@ -395,6 +395,9 @@ namespace Volleyball.EditorTools
             var (props, ground) = ToonArtKit.ArenaMaterials(t.folder);
             ToonArtKit.PropFrom(dir, "terrain", Vector3.zero, 0f, 1f, ground, root, castShadows: false);
             ToonArtKit.PropFrom(dir, "backdrop", Vector3.zero, 0f, 1f, props, root, castShadows: false);
+            // the court-end landmarks + ground to the horizon, for the baseline camera
+            // (Tools/blender/arena_vistas.py); horizon-wide, so DecorColliders leaves it non-solid
+            ToonArtKit.PropFrom(dir, "vista", Vector3.zero, 0f, 1f, ground, root, castShadows: false);
             ToonArtKit.PropFrom(dir, "court", Vector3.zero, 0f, 1f, ground, root);
             if (t.water) ToonArtKit.PropFrom(dir, "ocean", Vector3.zero, 0f, 1f, ground, root, castShadows: false);
 

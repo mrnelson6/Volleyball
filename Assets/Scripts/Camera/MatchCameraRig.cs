@@ -94,10 +94,11 @@ namespace Volleyball
             float s = CourtGeometry.SideSign(_team); // -1: we're on the near (−Z) side
             // low and close behind our baseline: the server's feet stay in shot at the bottom,
             // the far baseline sits well inside the top
-            pos = new Vector3(_follow, 6.4f, s * (CourtGeometry.HalfDepth + 7.0f));
-            // aim a little short of the net: tilts the view down so the server clears the HUD
-            // buttons along the bottom, and we see over the net into their court
-            Vector3 look = new Vector3(_follow * 0.55f, 0.4f, s * 1.4f);
+            // ~16° down: the court fills the lower ~60% (your server's feet just clear the HUD
+            // buttons), the arena's far end and sky get the top ~40% — the backdrop is part of
+            // the picture, not a sliver at the top edge
+            pos = new Vector3(_follow, 5.6f, s * (CourtGeometry.HalfDepth + 8.0f));
+            Vector3 look = new Vector3(_follow * 0.55f, 0.8f, -s * 0.5f);
             rot = Quaternion.LookRotation(look - pos);
             fov = 52f;
         }

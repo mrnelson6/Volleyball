@@ -200,6 +200,7 @@ namespace Volleyball.EditorTools
 
             Prop("terrain", Vector3.zero, 0f, 1f, ground, root, castShadows: false);
             Prop("ocean", Vector3.zero, 0f, 1f, ground, root, castShadows: false);
+            Prop("vista", Vector3.zero, 0f, 1f, ground, root, castShadows: false); // court-end landmarks (arena_vistas.py)
             Prop("court", Vector3.zero, 0f, 1f, ground, root); // thin lines: no outline
 
             Prop("palm", new Vector3(-11f, 0f, -14f), 20f, 1f, props, root);

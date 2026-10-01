@@ -28,6 +28,10 @@ namespace Volleyball
             _trail.alignment = LineAlignment.View; // face the camera (suits the 2.5D view)
             _trail.textureMode = LineTextureMode.Stretch;
             _trail.autodestruct = false;
+            // a trail is a camera-facing ribbon: lit by a low sun it threw long, arena-tinted
+            // shadow "beams" across the court (very visible from the baseline camera)
+            _trail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            _trail.receiveShadows = false;
             _trail.emitting = false;
             _trail.sortingOrder = -1; // behind the ball sprite
 
