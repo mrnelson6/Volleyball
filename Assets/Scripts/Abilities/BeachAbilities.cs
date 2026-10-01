@@ -12,6 +12,8 @@ namespace Volleyball
     /// </summary>
     public class FoxTrickAbility : Ability
     {
+        public override string Hint => "Armed: your next shot over splits in two";
+
         const int MomentSplit = 1;
 
         public override void OnBallLaunched(VolleyPlayer by, HitType type)
@@ -158,6 +160,8 @@ namespace Volleyball
     /// </summary>
     public class BearSlamAbility : Ability
     {
+        public override string Hint => "Armed: jump, and land to slam the sand";
+
         const int MomentSlam = 1;
         const float Radius = 3.6f;
         float _airTime;

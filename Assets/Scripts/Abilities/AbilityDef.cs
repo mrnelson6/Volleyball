@@ -62,6 +62,8 @@ namespace Volleyball
         public AbilityId id;
         public string displayName;
         public string blurb;        // one line for the select screen
+        /// <summary>How to use it, when it takes more than one press (select screen).</summary>
+        public string howTo;
         public string bannerText;   // the on-activation shout
         public Color color;
         /// <summary>How long the HUD shows it running (armed abilities: how long they stay armed).</summary>
@@ -77,14 +79,14 @@ namespace Volleyball
         {
             new AbilityDef
             {
-                id = AbilityId.FoxTrick, displayName = "Fox Trick",
+                id = AbilityId.FoxTrick, howTo = "Fire it, then play your shot over.", displayName = "Fox Trick",
                 blurb = "Your next shot over splits in two — only one ball is real.",
                 bannerText = "FOX TRICK!", color = new Color(1.00f, 0.55f, 0.15f), duration = 10f,
                 create = () => new FoxTrickAbility(),
             },
             new AbilityDef
             {
-                id = AbilityId.BearSlam, displayName = "Bear Slam",
+                id = AbilityId.BearSlam, howTo = "Fire it, then jump: it slams when you land.", displayName = "Bear Slam",
                 blurb = "Land from a jump with a shockwave that flattens anyone near the net.",
                 bannerText = "BEAR SLAM!", color = new Color(0.80f, 0.45f, 0.20f), duration = 8f,
                 create = () => new BearSlamAbility(),
@@ -140,7 +142,7 @@ namespace Volleyball
             },
             new AbilityDef
             {
-                id = AbilityId.BananaBall, displayName = "Banana Ball",
+                id = AbilityId.BananaBall, howTo = "Fire it, then play your shot over.", displayName = "Banana Ball",
                 blurb = "Your next shot over swerves hard late in its flight.",
                 bannerText = "BANANA BALL!", color = new Color(1.00f, 0.85f, 0.20f), duration = 10f,
                 create = () => new BananaBallAbility(),
@@ -175,21 +177,21 @@ namespace Volleyball
             },
             new AbilityDef
             {
-                id = AbilityId.BigStride, displayName = "Big Stride",
+                id = AbilityId.BigStride, howTo = "Jump while running.", displayName = "Big Stride",
                 blurb = "Faster runs, and every jump becomes a huge bound.",
                 bannerText = "BIG STRIDE!", color = new Color(0.60f, 0.50f, 0.40f), duration = 8f,
                 create = () => new BigStrideAbility(),
             },
             new AbilityDef
             {
-                id = AbilityId.Trampoline, displayName = "Trampoline",
+                id = AbilityId.Trampoline, howTo = "Jump from the pad.", displayName = "Trampoline",
                 blurb = "A bounce pad under you: your team jumps much higher off it.",
                 bannerText = "TRAMPOLINE!", color = new Color(0.30f, 0.50f, 1.00f), duration = 8f,
                 create = () => new TrampolineAbility(),
             },
             new AbilityDef
             {
-                id = AbilityId.Balance, displayName = "Balance",
+                id = AbilityId.Balance, howTo = "Fire it, then set or bump.", displayName = "Balance",
                 blurb = "Your next pass hangs frozen at its peak for a second.",
                 bannerText = "BALANCE!", color = new Color(0.55f, 0.85f, 0.35f), duration = 10f,
                 create = () => new BalanceAbility(),
@@ -203,21 +205,21 @@ namespace Volleyball
             },
             new AbilityDef
             {
-                id = AbilityId.CliffHop, displayName = "Cliff Hop",
+                id = AbilityId.CliffHop, howTo = "Jump from the ledge.", displayName = "Cliff Hop",
                 blurb = "A rock ledge bursts up under you: +1.25m for spikes and blocks.",
                 bannerText = "CLIFF HOP!", color = new Color(0.60f, 0.56f, 0.50f), duration = 7f,
                 create = () => new CliffHopAbility(),
             },
             new AbilityDef
             {
-                id = AbilityId.PhantomStrike, displayName = "Phantom Strike",
+                id = AbilityId.PhantomStrike, howTo = "Fire it, then spike.", displayName = "Phantom Strike",
                 blurb = "Your next spike goes nearly invisible: no shadow, no trail.",
                 bannerText = "PHANTOM STRIKE!", color = new Color(0.80f, 0.85f, 0.95f), duration = 10f,
                 create = () => new PhantomStrikeAbility(),
             },
             new AbilityDef
             {
-                id = AbilityId.BlinkHop, displayName = "Blink Hop",
+                id = AbilityId.BlinkHop, howTo = "Then press Power again to hop, up to 3 times.", displayName = "Blink Hop",
                 blurb = "Three instant hops: press the button again to blink along the stick.",
                 bannerText = "BLINK HOP!", color = new Color(0.80f, 0.70f, 1.00f), duration = 6f,
                 create = () => new BlinkHopAbility(),
@@ -231,21 +233,21 @@ namespace Volleyball
             },
             new AbilityDef
             {
-                id = AbilityId.Rampage, displayName = "Rampage",
+                id = AbilityId.Rampage, howTo = "Fire it, then spike.", displayName = "Rampage",
                 blurb = "Whoever digs your next spike gets flattened straight after.",
                 bannerText = "RAMPAGE!", color = new Color(0.70f, 0.40f, 0.25f), duration = 10f,
                 create = () => new RampageAbility(),
             },
             new AbilityDef
             {
-                id = AbilityId.AntlerParry, displayName = "Antler Parry",
+                id = AbilityId.AntlerParry, howTo = "Stand near the net.", displayName = "Antler Parry",
                 blurb = "Balls crossing the net near you get swatted straight back. Wildly.",
                 bannerText = "ANTLER PARRY!", color = new Color(0.65f, 0.50f, 0.30f), duration = 5f,
                 create = () => new AntlerParryAbility(),
             },
             new AbilityDef
             {
-                id = AbilityId.DoubleJump, displayName = "Double Jump",
+                id = AbilityId.DoubleJump, howTo = "Press Jump again in mid-air.", displayName = "Double Jump",
                 blurb = "Jump again in mid-air for the highest reach on the tour.",
                 bannerText = "DOUBLE JUMP!", color = new Color(1.00f, 0.85f, 0.50f), duration = 8f,
                 create = () => new DoubleJumpAbility(),
@@ -273,14 +275,14 @@ namespace Volleyball
             },
             new AbilityDef
             {
-                id = AbilityId.StickyPaws, displayName = "Sticky Paws",
+                id = AbilityId.StickyPaws, howTo = "Catch, then press a hit button to throw.", displayName = "Sticky Paws",
                 blurb = "Catch the next ball that comes to you, then throw it anywhere.",
                 bannerText = "STICKY PAWS!", color = new Color(0.55f, 0.55f, 0.60f), duration = 8f,
                 create = () => new StickyPawsAbility(),
             },
             new AbilityDef
             {
-                id = AbilityId.WideLoad, displayName = "Wide Load",
+                id = AbilityId.WideLoad, howTo = "Block at the net.", displayName = "Wide Load",
                 blurb = "Enormous solid antlers: balls glance off and your block covers half the net.",
                 bannerText = "WIDE LOAD!", color = new Color(0.60f, 0.45f, 0.28f), duration = 6f,
                 create = () => new WideLoadAbility(),
@@ -294,7 +296,7 @@ namespace Volleyball
             },
             new AbilityDef
             {
-                id = AbilityId.NetWalker, displayName = "Net Walker",
+                id = AbilityId.NetWalker, howTo = "Move sideways along the net and hit.", displayName = "Net Walker",
                 blurb = "Prowl along the top of the net and play any ball near it.",
                 bannerText = "NET WALKER!", color = new Color(0.95f, 0.75f, 0.45f), duration = 5f,
                 create = () => new NetWalkerAbility(),
@@ -308,7 +310,7 @@ namespace Volleyball
             },
             new AbilityDef
             {
-                id = AbilityId.Glide, displayName = "Glide",
+                id = AbilityId.Glide, howTo = "Hold Jump in the air.", displayName = "Glide",
                 blurb = "Hold jump in the air to float down slowly.",
                 bannerText = "GLIDE!", color = new Color(0.95f, 0.95f, 1.00f), duration = 8f,
                 create = () => new GlideAbility(),

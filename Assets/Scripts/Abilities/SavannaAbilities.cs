@@ -393,6 +393,7 @@ namespace Volleyball
 
         public override bool Plan(ref AbilityParams p)
         {
+            if (Match != null && Match.IsServePhaseFor(Owner)) return false; // not while holding your own serve
             Vector2 dir = Owner.LastMoveDir;
             // the AI (and a human standing still) charges at the ball if it's coming down on our side
             Vector3 land = PredictLanding(out float t);

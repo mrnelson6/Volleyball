@@ -445,8 +445,7 @@ namespace Volleyball
             if (!playerRef.TryGet(out NetworkObject no)) return;
             var p = no.GetComponent<VolleyPlayer>();
             if (p == null) return;
-            AbilityDirector.MirrorFire(p, (AbilityId)id, prm); // the banner rides the match snapshot
-            GameAudio.PlayPowerUp(p.transform.position);
+            AbilityDirector.MirrorFire(p, (AbilityId)id, prm); // banner: match snapshot; sound: on start
         }
 
         [Rpc(SendTo.NotServer)]

@@ -97,6 +97,13 @@ namespace Volleyball
             return false;
         }
 
+        /// <summary>
+        /// What the HUD tells the local player while this runs: how to use it ("Press E to
+        /// blink (2 left)") or what it's waiting for ("Armed: your next spike..."). Empty = just
+        /// the ability's name. Key names follow the device in use (<see cref="AbilityKeys"/>).
+        /// </summary>
+        public virtual string Hint => "";
+
         /// <summary>Remaining fraction for the HUD bar (1 → 0).</summary>
         public virtual float Remaining01 => Mathf.Clamp01(1f - Elapsed / Mathf.Max(Def.duration, 0.01f));
 
@@ -139,5 +146,17 @@ namespace Volleyball
             t = (v.y + Mathf.Sqrt(Mathf.Max(disc, 0f))) / g;
             return new Vector3(p.x + v.x * t, 0f, p.z + v.z * t);
         }
+    }
+
+    /// <summary>Button names for ability hints, for whatever the local player is using.</summary>
+    public static class AbilityKeys
+    {
+        static bool Pad => GameInput.UsingGamepad;
+        static bool Touch => !Pad && (UnityEngine.InputSystem.Touchscreen.current != null || Application.isMobilePlatform);
+
+        public static string Power => Pad ? "LT" : Touch ? "POWER" : "E";
+        public static string Jump => Pad ? "A" : Touch ? "JUMP" : "Space";
+        public static string Hit => Pad ? "X / Y / B" : Touch ? "a hit button" : "J / K / L";
+        public static string Stick => Pad ? "the stick" : Touch ? "the joystick" : "WASD";
     }
 }

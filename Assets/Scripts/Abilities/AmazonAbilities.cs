@@ -10,6 +10,8 @@ namespace Volleyball
     /// </summary>
     public class HotSpringAbility : Ability
     {
+        public override string Hint => "Stand in your hot spring for perfect touches";
+
         const float Radius = 2.2f;
         readonly List<GameObject> _fx = new List<GameObject>();
 
@@ -56,6 +58,8 @@ namespace Volleyball
     /// </summary>
     public class BananaBallAbility : Ability
     {
+        public override string Hint => _shot ? "" : "Armed: your next shot over will swerve";
+
         const int MomentShot = 1;
         const float Swerve = 9f;
         bool _shot;

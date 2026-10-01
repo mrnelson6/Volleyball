@@ -52,6 +52,8 @@ namespace Volleyball
     /// </summary>
     public class GlideAbility : Ability
     {
+        public override string Hint => $"Hold {AbilityKeys.Jump} in the air to glide";
+
         float _puffT;
 
         public override void Begin()

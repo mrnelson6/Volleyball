@@ -27,6 +27,8 @@ namespace Volleyball
         AudioClip _ambientClip, _sandClip, _netClip, _crowdClip;
         AudioClip _whistleClip, _thudClip, _outClip, _pointUpClip, _pointDownClip, _winClip;
         AudioClip _powerReadyClip, _powerFireClip;
+        // character abilities: a handful of synthesised families, each ability picks one + a pitch
+        AudioClip _abRumble, _abSparkle, _abSplash, _abRoar, _abGust, _abIce, _abBoing, _abSlowmo, _abClack;
         AudioClip _chatClaimClip, _chatCedeClip, _chatEmoteClip;
         AudioClip _whooshClip, _eyeStingClip, _countClip; // the pre-match intro cinematic
         AudioClip _windAmb, _jungleAmb, _rainAmb, _snowAmb; // regional beds, synthesised on demand
@@ -170,6 +172,62 @@ namespace Volleyball
             PlayCrowd(0.3f);
         }
 
+        /// <summary>A character ability fires: its own sound (family + pitch) over a softer
+        /// version of the power-up chord, and a crowd stir.</summary>
+        public static void PlayAbility(AbilityId id, Vector3 pos)
+        {
+            var inst = Instance;
+            if (inst == null) return;
+            var (clip, pitch) = inst.AbilitySound(id);
+            inst.OneShot(inst._powerFireClip, 0.35f, 1f, pos);
+            inst.OneShot(clip, 0.8f, pitch * Random.Range(0.98f, 1.02f), pos);
+            PlayCrowd(0.3f);
+        }
+
+        (AudioClip, float) AbilitySound(AbilityId id)
+        {
+            switch (id)
+            {
+                case AbilityId.FoxTrick:       return (_abSparkle, 1.0f);
+                case AbilityId.BearSlam:       return (_abRumble, 0.9f);
+                case AbilityId.Burrow:         return (_whooshClip, 0.8f);
+                case AbilityId.Stampede:       return (_abRumble, 1.2f);
+                case AbilityId.MudWallow:      return (_abSplash, 0.6f);
+                case AbilityId.TallOrder:      return (_abBoing, 0.7f);
+                case AbilityId.Roar:           return (_abRoar, 1.0f);
+                case AbilityId.Charge:         return (_abRumble, 1.1f);
+                case AbilityId.HotSpring:      return (_abSplash, 1.1f);
+                case AbilityId.BananaBall:     return (_abSparkle, 1.2f);
+                case AbilityId.SlowMo:         return (_abSlowmo, 1.0f);
+                case AbilityId.Pounce:         return (_whooshClip, 1.3f);
+                case AbilityId.CubeDrop:       return (_abClack, 0.6f);
+                case AbilityId.PackHunt:       return (_abSparkle, 0.8f);
+                case AbilityId.BigStride:      return (_whooshClip, 1.1f);
+                case AbilityId.Trampoline:     return (_abBoing, 1.0f);
+                case AbilityId.Balance:        return (_abSparkle, 1.4f);
+                case AbilityId.Avalanche:      return (_abRumble, 0.8f);
+                case AbilityId.CliffHop:       return (_abRumble, 1.3f);
+                case AbilityId.PhantomStrike:  return (_abSparkle, 0.7f);
+                case AbilityId.BlinkHop:       return (_whooshClip, 1.6f);
+                case AbilityId.TunnelTrap:     return (_abClack, 0.8f);
+                case AbilityId.Rampage:        return (_abRoar, 1.25f);
+                case AbilityId.AntlerParry:    return (_abClack, 1.0f);
+                case AbilityId.DoubleJump:     return (_abBoing, 1.3f);
+                case AbilityId.SoundBlast:     return (_abGust, 1.5f);
+                case AbilityId.SandstormDevil: return (_abGust, 1.0f);
+                case AbilityId.Oasis:          return (_abSplash, 1.0f);
+                case AbilityId.StickyPaws:     return (_abClack, 1.3f);
+                case AbilityId.WideLoad:       return (_abClack, 0.7f);
+                case AbilityId.Earthquake:     return (_abRumble, 0.7f);
+                case AbilityId.NetWalker:      return (_whooshClip, 1.2f);
+                case AbilityId.IceRink:        return (_abIce, 1.0f);
+                case AbilityId.Glide:          return (_abGust, 1.3f);
+                case AbilityId.Iceberg:        return (_abIce, 0.8f);
+                case AbilityId.Blizzard:       return (_abGust, 0.8f);
+                default:                       return (_powerFireClip, 1f);
+            }
+        }
+
         /// <summary>A team callout at the speaker's spot: the two ball calls get their own
         /// rising/falling shout so you can tell them apart without looking.</summary>
         public static void PlayChat(ChatCall call, Vector3 pos)
@@ -300,6 +358,7 @@ namespace Volleyball
 
             // intro cinematic: the fly-over swoosh, the eye-cut "shing", the countdown beep
             _whooshClip = MakeWhoosh();
+            BuildAbilityClips();
             _eyeStingClip = MakeEyeSting();
             _countClip = MakeChime("countdown", new[] { N(784f, 0f, 0.3f) }, 0.34f);
 
@@ -519,6 +578,151 @@ namespace Volleyball
             }
             Normalize(d, 0.7f);
             return MakeClip("eye_sting", d);
+        }
+
+        // ---- ability families ---------------------------------------------------------------
+
+        void BuildAbilityClips()
+        {
+            _abRumble = MakeRumble();
+            _abSparkle = MakeChime("ab_sparkle",
+                new[] { N(1318f, 0f, 0.3f), N(1568f, 0.06f, 0.3f), N(1976f, 0.12f, 0.35f), N(2637f, 0.18f, 0.45f) }, 0.7f);
+            _abSplash = MakeSplash();
+            _abRoar = MakeRoar();
+            _abGust = MakeGust();
+            _abIce = MakeIce();
+            _abBoing = MakeSweep("ab_boing", 180f, 560f, 0.5f, 18f);
+            _abSlowmo = MakeSweep("ab_slowmo", 620f, 140f, 1.0f, 5f);
+            _abClack = MakeHit("ab_clack", 420f, 0.9f, 0.55f, 0.2f, 34f);
+        }
+
+        // A deep ground rumble: a low thump that rolls into filtered noise.
+        AudioClip MakeRumble()
+        {
+            float dur = 1.0f;
+            int n = (int)(SR * dur);
+            var d = new float[n];
+            float low = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                float t = (float)i / SR;
+                low += 0.02f * ((Random.value * 2f - 1f) - low);         // heavy low-pass noise
+                float thump = Mathf.Sin(2f * Mathf.PI * (48f + 30f * Mathf.Exp(-t * 6f)) * t) * Mathf.Exp(-t * 5f);
+                float env = Mathf.Clamp01(t / 0.02f) * Mathf.Exp(-t * 2.6f);
+                d[i] = thump * 0.8f + low * 6f * env;
+            }
+            Normalize(d, 0.85f);
+            return MakeClip("ab_rumble", d);
+        }
+
+        // A splash: a bright noise burst falling in pitch, then a few bubbly blips.
+        AudioClip MakeSplash()
+        {
+            float dur = 0.7f;
+            int n = (int)(SR * dur);
+            var d = new float[n];
+            float low = 0f, band = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                float t = (float)i / SR;
+                float centre = Mathf.Lerp(3200f, 500f, Mathf.Clamp01(t / 0.35f));
+                float f = 2f * Mathf.Sin(Mathf.PI * centre / SR);
+                float w = Random.value * 2f - 1f;
+                low += f * band;
+                float high = w - low - 0.5f * band;
+                band += f * high;
+                float burst = band * Mathf.Exp(-t * 7f);
+                float bubbles = 0f;
+                for (int k = 0; k < 4; k++)
+                {
+                    float bt = t - (0.12f + k * 0.11f);
+                    if (bt > 0f) bubbles += Mathf.Sin(2f * Mathf.PI * (380f + k * 90f) * (1f + bt * 6f) * bt) * Mathf.Exp(-bt * 30f);
+                }
+                d[i] = burst + bubbles * 0.35f;
+            }
+            Normalize(d, 0.8f);
+            return MakeClip("ab_splash", d);
+        }
+
+        // A growl: a buzzy low sawtooth with a wide vibrato and a breath of noise.
+        AudioClip MakeRoar()
+        {
+            float dur = 1.0f;
+            int n = (int)(SR * dur);
+            var d = new float[n];
+            float phase = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                float t = (float)i / SR;
+                float f = 95f * (1f + 0.12f * Mathf.Sin(2f * Mathf.PI * 7f * t)) * (1f + 0.25f * Mathf.Exp(-t * 3f));
+                phase += f / SR;
+                float saw = 2f * (phase - Mathf.Floor(phase + 0.5f));
+                float env = Mathf.Clamp01(t / 0.06f) * Mathf.Exp(-t * 2.2f);
+                d[i] = (saw * 0.8f + (Random.value * 2f - 1f) * 0.35f) * env;
+            }
+            Normalize(d, 0.8f);
+            return MakeClip("ab_roar", d);
+        }
+
+        // A gust of wind: a slow swelling band of noise.
+        AudioClip MakeGust()
+        {
+            float dur = 1.3f;
+            int n = (int)(SR * dur);
+            var d = new float[n];
+            float low = 0f, band = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                float t = (float)i / SR;
+                float frac = t / dur;
+                float centre = Mathf.Lerp(250f, 900f, Mathf.Sin(frac * Mathf.PI));
+                float f = 2f * Mathf.Sin(Mathf.PI * centre / SR);
+                low += f * band;
+                float high = (Random.value * 2f - 1f) - low - 0.25f * band;
+                band += f * high;
+                d[i] = band * Mathf.Pow(Mathf.Sin(frac * Mathf.PI), 1.2f);
+            }
+            Normalize(d, 0.75f);
+            return MakeClip("ab_gust", d);
+        }
+
+        // Ice: a sharp crack, then a cold glassy ring.
+        AudioClip MakeIce()
+        {
+            float dur = 0.8f;
+            int n = (int)(SR * dur);
+            var d = new float[n];
+            float[] partials = { 1760f, 2493f, 3322f, 4186f };
+            for (int i = 0; i < n; i++)
+            {
+                float t = (float)i / SR;
+                float crack = (Random.value * 2f - 1f) * Mathf.Exp(-t * 60f);
+                float ring = 0f;
+                for (int k = 0; k < partials.Length; k++)
+                    ring += Mathf.Sin(2f * Mathf.PI * partials[k] * t) * (0.4f / (k + 1)) * Mathf.Exp(-t * (5f + k * 2f));
+                d[i] = crack * 0.9f + ring;
+            }
+            Normalize(d, 0.75f);
+            return MakeClip("ab_ice", d);
+        }
+
+        // A pitch sweep (a springy boing going up, or slow-motion winding down).
+        AudioClip MakeSweep(string name, float from, float to, float dur, float wobble)
+        {
+            int n = (int)(SR * dur);
+            var d = new float[n];
+            float phase = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                float t = (float)i / SR;
+                float frac = t / dur;
+                float f = Mathf.Lerp(from, to, 1f - (1f - frac) * (1f - frac)) * (1f + 0.06f * Mathf.Sin(2f * Mathf.PI * wobble * t));
+                phase += 2f * Mathf.PI * f / SR;
+                float env = Mathf.Clamp01(t / 0.01f) * Mathf.Clamp01((dur - t) / 0.15f);
+                d[i] = (Mathf.Sin(phase) * 0.7f + Mathf.Sin(phase * 2f) * 0.2f) * env;
+            }
+            Normalize(d, 0.75f);
+            return MakeClip(name, d);
         }
 
         // (freq, startTime, duration) note descriptor for chimes.

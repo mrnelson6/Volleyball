@@ -39,6 +39,7 @@ namespace Volleyball
             runner.human = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-vbshothuman") >= 0;
             runner.padNav = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-vbshotpadnav") >= 0;
             runner.charged = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-vbshotcharged") >= 0;
+            runner.pressPower = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-vbshotpresspower") >= 0;
             string chars = Arg("-vbshotchars");
             if (!string.IsNullOrEmpty(chars)) runner.chars = chars.Split(',');
             runner.intro = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-vbshotintro") >= 0;
@@ -65,6 +66,7 @@ namespace Volleyball
         public bool human; // keep the human slot human (aim marker, serve prompt) — nobody presses anything
         public bool padNav; // drive the main menu with a simulated gamepad (menu navigation check)
         public bool charged; // keep every meter full, so the AI fires abilities constantly
+        public bool pressPower; // with -vbshothuman: tap the human's power button now and then (HUD hints)
         public string[] chars; // the four animals (slot order), default fox bear penguin giraffe
         public bool intro;  // film the pre-match cinematic from its first frame (pair with -vbshotcount ~26)
 
@@ -156,10 +158,17 @@ namespace Volleyball
 
         IEnumerator KeepCharged()
         {
+            int k = 0;
             while (true)
             {
                 foreach (var p in FindObjectsByType<VolleyPlayer>(FindObjectsSortMode.None))
                     p.Power.AddCharge(1f);
+                if (pressPower && GameInput.Instance != null && k++ % 3 == 0)
+                {
+                    GameInput.Instance.SetVirtualPower(true);
+                    yield return new WaitForSeconds(0.1f);
+                    GameInput.Instance.SetVirtualPower(false);
+                }
                 yield return new WaitForSeconds(0.5f);
             }
         }

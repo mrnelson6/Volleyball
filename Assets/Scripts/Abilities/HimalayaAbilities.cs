@@ -10,6 +10,8 @@ namespace Volleyball
     /// </summary>
     public class BalanceAbility : Ability
     {
+        public override string Hint => _frozen ? "" : "Armed: your next pass freezes at its peak";
+
         const int MomentFreeze = 1;
         const float Hang = 1.0f;
         bool _watching, _frozen;
@@ -186,6 +188,8 @@ namespace Volleyball
     /// </summary>
     public class CliffHopAbility : Ability
     {
+        public override string Hint => "Jump from the ledge for a sky-high spike";
+
         const float Height = 1.25f;
         const float Half = 0.8f;
         GameObject _rock;
@@ -193,6 +197,7 @@ namespace Volleyball
         public override bool Plan(ref AbilityParams p)
         {
             if (!Owner.IsGrounded || Owner.GroundHeight > 0.05f) return false;
+            if (Match != null && Match.IsServePhaseFor(Owner)) return false; // not while holding your own serve
             Vector3 c = Owner.GroundPosition;
             float own = CourtGeometry.SideSign(Team);
             c.x = Mathf.Clamp(c.x, -CourtGeometry.HalfWidth, CourtGeometry.HalfWidth);
@@ -223,6 +228,8 @@ namespace Volleyball
     /// </summary>
     public class PhantomStrikeAbility : Ability
     {
+        public override string Hint => _shot ? "" : "Armed: your next spike goes invisible";
+
         const int MomentShot = 1;
         bool _shot;
         float _shotAge;

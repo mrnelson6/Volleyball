@@ -60,11 +60,14 @@ namespace Volleyball
             ? (RunningAbility != null ? RunningAbility.Remaining01 : 0f)
             : OwnActiveRemaining01;
 
+        /// <summary>The running ability's HUD hint for the local player (see <see cref="Volleyball.Ability.Hint"/>).</summary>
+        public string RunningHint => RunningAbility != null ? RunningAbility.Hint : "";
+
         /// <summary>Name + blurb for a roster entry (select screen), whichever system it uses.</summary>
         public static (string name, string blurb) Describe(CharacterDef ch)
         {
             AbilityDef a = AbilityRoster.Get(ch.ability);
-            if (a != null) return (a.displayName, a.blurb);
+            if (a != null) return (a.displayName, string.IsNullOrEmpty(a.howTo) ? a.blurb : $"{a.blurb} {a.howTo}");
             PowerUpDef d = PowerUpRoster.Get(ch.powerUp);
             return (d.displayName, d.blurb);
         }

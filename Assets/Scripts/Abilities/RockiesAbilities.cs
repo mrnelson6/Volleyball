@@ -12,6 +12,8 @@ namespace Volleyball
     /// </summary>
     public class StickyPawsAbility : Ability
     {
+        public override string Hint => _holding ? $"Throw it: {AbilityKeys.Hit}, aim with {AbilityKeys.Stick}" : "Armed: catch the next ball near you";
+
         const float MaxHold = 1.5f;
         const int MomentCatch = 1;
         bool _holding;
@@ -78,6 +80,8 @@ namespace Volleyball
     /// </summary>
     public class WideLoadAbility : Ability
     {
+        public override string Hint => "Block at the net with your giant antlers";
+
         static readonly PowerUpDef Wide = new PowerUpDef
         {
             displayName = "Wide Load", duration = 6f, blockReachMult = 2.4f, reachMult = 1.25f, moveMult = 0.85f,
@@ -188,9 +192,13 @@ namespace Volleyball
     /// </summary>
     public class NetWalkerAbility : Ability
     {
+        public override string Hint => "On the net: move sideways, hit anything near it";
+
         float _sparkT;
 
-        public override bool Plan(ref AbilityParams p) => !Owner.IsKnockedDown && !Owner.IsDiving;
+        // never while holding your own serve: the serve rule pins you behind the baseline
+        public override bool Plan(ref AbilityParams p)
+            => !Owner.IsKnockedDown && !Owner.IsDiving && !(Match != null && Match.IsServePhaseFor(Owner));
 
         public override void Begin()
         {

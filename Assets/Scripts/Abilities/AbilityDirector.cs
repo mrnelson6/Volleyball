@@ -113,6 +113,7 @@ namespace Volleyball
             EnsureRunner();
             _active.Add(a);
             a.Begin();
+            GameAudio.PlayAbility(a.Def.id, a.Owner.transform.position);
             VBLog.Event($"ABILITY {a.Def.id} by '{a.Owner.name}' team={a.Owner.team} " +
                         $"a={VBLog.V(a.P.a)} b={VBLog.V(a.P.b)} f={a.P.f:F2} tick={a.P.startTick}");
         }

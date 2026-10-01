@@ -10,6 +10,8 @@ namespace Volleyball
     /// </summary>
     public class BlinkHopAbility : Ability
     {
+        public override string Hint => $"Press {AbilityKeys.Power} to blink ({Owner.BlinkCharges} left)";
+
         public const int Charges = 3;
         int _lastCharges = -1;
 
@@ -84,6 +86,8 @@ namespace Volleyball
     /// </summary>
     public class RampageAbility : Ability
     {
+        public override string Hint => _shot ? "" : "Armed: flatten whoever digs your next spike";
+
         const int MomentRam = 1;
         bool _shot;
         float _shotAge;
@@ -133,6 +137,8 @@ namespace Volleyball
     /// </summary>
     public class AntlerParryAbility : Ability
     {
+        public override string Hint => "Stay near the net to swat balls back";
+
         const int MomentSwat = 1;
         float _cooldown;
 

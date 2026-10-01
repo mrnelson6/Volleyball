@@ -126,6 +126,8 @@ namespace Volleyball
     /// </summary>
     public class PackHuntAbility : Ability
     {
+        public override string Hint => "Your ghost dingo plays the next ball";
+
         const float Speed = 7.5f;
         const int MomentTouch = 1;
         const int MomentGoal = 2;
@@ -236,6 +238,8 @@ namespace Volleyball
     /// </summary>
     public class BigStrideAbility : Ability
     {
+        public override string Hint => "Jump while running for a huge bound";
+
         float _puffT;
 
         public override void Begin()
@@ -258,6 +262,8 @@ namespace Volleyball
     /// </summary>
     public class TrampolineAbility : Ability
     {
+        public override string Hint => "Jump from the pad to fly high";
+
         const float Radius = 1.1f;
         readonly List<GameObject> _fx = new List<GameObject>();
 

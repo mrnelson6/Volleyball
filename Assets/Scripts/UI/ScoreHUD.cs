@@ -147,10 +147,32 @@ namespace Volleyball
             if (powerLabel != null)
             {
                 string hint = _viewer is PlayerController pc ? pc.Input.PowerHintLabel : "";
-                powerLabel.text = active ? $"{name}!"
+                string running = active ? power.RunningHint : "";
+                powerLabel.text = active ? (running != "" ? running : $"{name}!")
                                 : power.IsFull ? (hint == "" ? $"{name} ready" : $"{name} ready — {hint}")
                                                : name;
+
+                // an ability's how-to-use hint has to be readable mid-rally: bigger, in the
+                // ability's colour, outlined — then back to the plain meter label after
+                if (_labelBaseSize == 0)
+                {
+                    _labelBaseSize = powerLabel.fontSize;
+                    powerLabel.horizontalOverflow = HorizontalWrapMode.Overflow; // long hints never clip
+                }
+                bool showingHint = running != "";
+                powerLabel.fontSize = showingHint ? Mathf.RoundToInt(_labelBaseSize * 1.35f) : _labelBaseSize;
+                powerLabel.color = showingHint ? Color.Lerp(color, Color.white, 0.45f) : new Color(1f, 1f, 1f, 0.9f);
+                if (_labelOutline == null)
+                {
+                    _labelOutline = powerLabel.gameObject.AddComponent<Outline>();
+                    _labelOutline.effectColor = new Color(0f, 0f, 0f, 0.85f);
+                    _labelOutline.effectDistance = new Vector2(2f, -2f);
+                }
+                _labelOutline.enabled = showingHint;
             }
         }
+
+        int _labelBaseSize;
+        Outline _labelOutline;
     }
 }

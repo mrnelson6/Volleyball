@@ -360,8 +360,7 @@ namespace Volleyball
                 if (!AbilityDirector.TryFire(this, tick)) return false;
                 Power.Consume();
                 match?.ShowPowerBanner($"{Character.displayName}: {ability.bannerText}");
-                GameAudio.PlayPowerUp(transform.position);
-                return true;
+                return true; // its sound plays as it starts (AbilityDirector)
             }
 
             if (!Power.Activate()) return false;

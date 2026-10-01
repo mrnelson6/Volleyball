@@ -10,6 +10,8 @@ namespace Volleyball
     /// </summary>
     public class DoubleJumpAbility : Ability
     {
+        public override string Hint => $"Press {AbilityKeys.Jump} again in mid-air";
+
         float _lastVy;
 
         public override void Begin()
@@ -142,6 +144,8 @@ namespace Volleyball
     /// </summary>
     public class OasisAbility : Ability
     {
+        public override string Hint => "Your pool saves the first ball that lands in it";
+
         const float Radius = 1.5f;
         const int MomentSplash = 1;
         readonly List<GameObject> _fx = new List<GameObject>();
